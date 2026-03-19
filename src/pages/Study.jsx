@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toDateKey } from '../utils/dateUtils.js'
 import { motion } from 'framer-motion'
 import useStudyTimer from '../hooks/useStudyTimer.js'
 import { useData } from '../context/DataContext.jsx'
 import RecentSessions from '../components/RecentSessions.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
+import {
+  handleProtectedAction,
+  isSubscriptionActive
+} from '../utils/subscription.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -32,7 +38,9 @@ const Study = () => {
     finish
   } = useStudyTimer()
 
+  const { profile } = useAuth()
   const { studySessions, loading, errors, addStudySession } = useData()
+  const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
@@ -43,6 +51,12 @@ const Study = () => {
   )
 
   const totalSeconds = useMemo(() => minutes * 60 + seconds, [minutes, seconds])
+  const subscriptionActive = useMemo(
+    () => isSubscriptionActive(profile),
+    [profile]
+  )
+  const lockActions = !subscriptionActive
+  const showExpired = Boolean(profile) && !subscriptionActive
 
   useEffect(() => {
     if (phase === 'completed') {
@@ -54,11 +68,17 @@ const Study = () => {
     setSaveError('')
     try {
       const todayKey = toDateKey(new Date())
-      await addStudySession({
-        date: todayKey,
-        duration_minutes: sessionMinutes,
-        mode
-      })
+      const { allowed } = await handleProtectedAction(
+        () =>
+          addStudySession({
+            date: todayKey,
+            duration_minutes: sessionMinutes,
+            mode
+          }),
+        profile,
+        navigate
+      )
+      if (!allowed) return
       setShowModal(false)
       setSavedMessage('Session saved!')
       reset()
@@ -68,10 +88,26 @@ const Study = () => {
     }
   }
 
-  const handleFinish = () => {
+  const handleStart = async () => {
+    const { allowed } = await handleProtectedAction(
+      () => start(),
+      profile,
+      navigate
+    )
+    if (!allowed) return
+  }
+
+  const handleFinish = async () => {
     if (totalSeconds === 0 && sessionMinutes === 0) return
-    finish()
-    setShowModal(true)
+    const { allowed } = await handleProtectedAction(
+      () => {
+        finish()
+        setShowModal(true)
+      },
+      profile,
+      navigate
+    )
+    if (!allowed) return
   }
 
   const radius = 120
@@ -108,6 +144,12 @@ const Study = () => {
         </motion.div>
       )}
 
+      {showExpired && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Trial expired. Upgrade to continue.
+        </div>
+      )}
+
       {(saveError || errors.sessions) && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {saveError || errors.sessions}
@@ -120,22 +162,24 @@ const Study = () => {
             <button
               type="button"
               onClick={() => setMode('free')}
+              disabled={lockActions}
               className={`rounded-full px-4 py-2 text-xs font-semibold ${
                 mode === 'free'
                   ? 'bg-white text-zinc-900'
                   : 'border border-white/20 text-white'
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-60`}
             >
               Free Study
             </button>
             <button
               type="button"
               onClick={() => setMode('pomodoro')}
+              disabled={lockActions}
               className={`rounded-full px-4 py-2 text-xs font-semibold ${
                 mode === 'pomodoro'
                   ? 'bg-white text-zinc-900'
                   : 'border border-white/20 text-white'
-              }`}
+              } disabled:cursor-not-allowed disabled:opacity-60`}
             >
               Pomodoro
             </button>
@@ -148,11 +192,12 @@ const Study = () => {
                   key={value}
                   type="button"
                   onClick={() => setPomodoroMinutes(value)}
+                  disabled={lockActions}
                   className={`rounded-full px-4 py-2 font-semibold ${
                     pomodoroMinutes === value
                       ? 'bg-violet-500 text-white'
                       : 'border border-white/20 text-white'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-60`}
                 >
                   {value} min
                 </button>
@@ -211,8 +256,9 @@ const Study = () => {
               {!isRunning ? (
                 <button
                   type="button"
-                  onClick={start}
-                  className="rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900"
+                  onClick={handleStart}
+                  disabled={lockActions}
+                  className="rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Start
                 </button>
@@ -220,7 +266,8 @@ const Study = () => {
                 <button
                   type="button"
                   onClick={pause}
-                  className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white"
+                  disabled={lockActions}
+                  className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   Pause
                 </button>
@@ -228,14 +275,16 @@ const Study = () => {
               <button
                 type="button"
                 onClick={reset}
-                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white"
+                disabled={lockActions}
+                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Reset
               </button>
               <button
                 type="button"
                 onClick={handleFinish}
-                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900"
+                disabled={lockActions}
+                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Finish Session
               </button>

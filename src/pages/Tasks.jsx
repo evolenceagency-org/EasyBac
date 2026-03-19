@@ -1,7 +1,13 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { toDateKey } from '../utils/dateUtils.js'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useData } from '../context/DataContext.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
+import {
+  handleProtectedAction,
+  isSubscriptionActive
+} from '../utils/subscription.js'
 import {
   getTasksCompletedToday,
   getTasksDueToday,
@@ -46,7 +52,9 @@ const formatDate = (value) => {
 }
 
 const Tasks = () => {
+  const { profile } = useAuth()
   const { tasks, loading, errors, addTask, toggleTask, removeTask } = useData()
+  const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [subject, setSubject] = useState('math')
   const [dueDate, setDueDate] = useState('')
@@ -59,6 +67,12 @@ const Tasks = () => {
   const [sortOption, setSortOption] = useState('newest')
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
+  const subscriptionActive = useMemo(
+    () => isSubscriptionActive(profile),
+    [profile]
+  )
+  const lockActions = !subscriptionActive
+  const showExpired = Boolean(profile) && !subscriptionActive
 
   const handleCreate = useCallback(
     async (event) => {
@@ -68,11 +82,17 @@ const Tasks = () => {
       setSaving(true)
       setError('')
       try {
-        await addTask({
-          title: title.trim(),
-          subject,
-          due_date: dueDate || null
-        })
+        const { allowed } = await handleProtectedAction(
+          () =>
+            addTask({
+              title: title.trim(),
+              subject,
+              due_date: dueDate || null
+            }),
+          profile,
+          navigate
+        )
+        if (!allowed) return
         setTitle('')
         setDueDate('')
       } catch (err) {
@@ -81,31 +101,41 @@ const Tasks = () => {
         setSaving(false)
       }
     },
-    [title, subject, dueDate, addTask]
+    [title, subject, dueDate, addTask, profile, navigate]
   )
 
   const handleToggle = useCallback(
     async (taskId, currentCompleted) => {
       setError('')
       try {
-        await toggleTask(taskId, currentCompleted)
+        const { allowed } = await handleProtectedAction(
+          () => toggleTask(taskId, currentCompleted),
+          profile,
+          navigate
+        )
+        if (!allowed) return
       } catch (err) {
         setError('Unable to update the task status.')
       }
     },
-    [toggleTask]
+    [toggleTask, profile, navigate]
   )
 
   const handleDelete = useCallback(
     async (taskId) => {
       setError('')
       try {
-        await removeTask(taskId)
+        const { allowed } = await handleProtectedAction(
+          () => removeTask(taskId),
+          profile,
+          navigate
+        )
+        if (!allowed) return
       } catch (err) {
         setError('Unable to delete the task.')
       }
     },
-    [removeTask]
+    [removeTask, profile, navigate]
   )
 
   const filteredTasks = useMemo(() => {
@@ -200,6 +230,12 @@ const Tasks = () => {
         </div>
       </div>
 
+      {showExpired && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          Trial expired. Upgrade to continue.
+        </div>
+      )}
+
       <div className="glass rounded-2xl p-6">
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
           Create Task
@@ -214,12 +250,14 @@ const Tasks = () => {
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Task title"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-400"
+            disabled={lockActions}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
           />
           <select
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200"
+            disabled={lockActions}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {subjects
               .filter((item) => item.value !== 'all')
@@ -233,12 +271,13 @@ const Tasks = () => {
             type="date"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200"
+            disabled={lockActions}
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
           />
           <button
             type="submit"
-            disabled={saving}
-            className="rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+            disabled={saving || lockActions}
+            className="rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Add Task'}
           </button>
@@ -333,7 +372,8 @@ const Tasks = () => {
                         type="checkbox"
                         checked={task.completed}
                         onChange={() => handleToggle(task.id, task.completed)}
-                        className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent"
+                        disabled={lockActions}
+                        className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent disabled:cursor-not-allowed disabled:opacity-60"
                       />
                       <div>
                         <p
@@ -375,7 +415,8 @@ const Tasks = () => {
                       <button
                         type="button"
                         onClick={() => handleDelete(task.id)}
-                        className="rounded-full border border-white/20 px-4 py-2 text-xs text-white transition hover:border-white/40"
+                        disabled={lockActions}
+                        className="rounded-full border border-white/20 px-4 py-2 text-xs text-white transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Delete
                       </button>

@@ -1,46 +1,44 @@
-﻿const TRIAL_DAYS = 3
+const TRIAL_DAYS = 3
+const DAY_MS = 24 * 60 * 60 * 1000
 
-const getDaysSince = (value) => {
-  if (!value) return TRIAL_DAYS
-  const start = new Date(value)
-  const now = new Date()
-  const diff = now.getTime() - start.getTime()
-  return Math.floor(diff / (1000 * 60 * 60 * 24))
+export const isTrialExpired = (trialStart) => {
+  if (!trialStart) return true
+  const start = new Date(trialStart).getTime()
+  if (Number.isNaN(start)) return true
+  return Date.now() - start >= TRIAL_DAYS * DAY_MS
 }
 
-export const checkSubscription = (profile) => {
-  if (!profile) {
-    return { allowed: false, status: 'missing', daysLeft: 0 }
-  }
+export const isSubscriptionActive = (profile) => {
+  if (!profile) return false
+  if (profile.payment_verified) return true
+  return !isTrialExpired(profile.trial_start)
+}
 
-  if (profile.subscription_status === 'active') {
-    return { allowed: true, status: 'active', daysLeft: 0 }
+export const handleProtectedAction = async (action, profile, navigate) => {
+  if (isSubscriptionActive(profile)) {
+    const result = await action()
+    return { allowed: true, result }
   }
-
-  if (profile.subscription_status === 'trial') {
-    const daysUsed = getDaysSince(profile.trial_start || profile.created_at)
-    const daysLeft = Math.max(0, TRIAL_DAYS - daysUsed)
-    if (daysUsed < TRIAL_DAYS) {
-      return { allowed: true, status: 'trial', daysLeft }
-    }
-    if (profile.payment_verified) {
-      return { allowed: true, status: 'active', daysLeft: 0 }
-    }
-    return { allowed: false, status: 'expired', daysLeft: 0 }
+  if (typeof window !== 'undefined') {
+    window.alert('Your free trial is over. Please upgrade.')
   }
-
-  if (profile.subscription_status === 'expired') {
-    if (profile.payment_verified) {
-      return { allowed: true, status: 'active', daysLeft: 0 }
-    }
-    return { allowed: false, status: 'expired', daysLeft: 0 }
+  if (navigate) {
+    navigate('/payment')
   }
+  return { allowed: false }
+}
 
-  return { allowed: false, status: 'expired', daysLeft: 0 }
+export const isAccessDeniedError = (error) => {
+  const status = error?.status || error?.statusCode
+  if (status === 401 || status === 403) return true
+  if (error?.code === '42501') return true
+  return false
 }
 
 export const getTrialDaysLeft = (profile) => {
-  if (!profile || profile.subscription_status !== 'trial') return 0
-  const daysUsed = getDaysSince(profile.trial_start || profile.created_at)
-  return Math.max(0, TRIAL_DAYS - daysUsed)
+  if (!profile || !profile.trial_start) return 0
+  const start = new Date(profile.trial_start).getTime()
+  if (Number.isNaN(start)) return 0
+  const remaining = TRIAL_DAYS * DAY_MS - (Date.now() - start)
+  return Math.max(0, Math.ceil(remaining / DAY_MS))
 }

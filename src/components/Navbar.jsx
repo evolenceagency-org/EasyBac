@@ -1,6 +1,6 @@
 ﻿import { memo } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { checkSubscription, getTrialDaysLeft } from '../utils/subscription.js'
+import { getTrialDaysLeft, isSubscriptionActive } from '../utils/subscription.js'
 
 const Navbar = ({ onMenuClick }) => {
   const { user, profile, signOut } = useAuth()
@@ -11,14 +11,13 @@ const Navbar = ({ onMenuClick }) => {
 
   let subscriptionBadge = null
   if (profile) {
-    const subscription = checkSubscription(profile)
-    if (subscription.status === 'active') {
+    if (profile.payment_verified) {
       subscriptionBadge = 'Premium Access'
-    } else if (subscription.status === 'trial') {
+    } else if (isSubscriptionActive(profile)) {
       const daysLeft = getTrialDaysLeft(profile)
       subscriptionBadge = `Trial - ${daysLeft} days left`
     } else {
-      subscriptionBadge = 'Subscription Required'
+      subscriptionBadge = 'Payment Required'
     }
   }
 

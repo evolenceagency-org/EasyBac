@@ -1,17 +1,13 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { checkSubscription } from '../utils/subscription.js'
+import { isSubscriptionActive } from '../utils/subscription.js'
 
 const ProtectedRoute = () => {
-  const { user, loading, profile, profileError, profileLoading } = useAuth()
+  const { user, loading, profile, profileLoading } = useAuth()
   const location = useLocation()
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-zinc-400">
-        Loading...
-      </div>
-    )
+    return null
   }
 
   if (!user) {
@@ -19,23 +15,10 @@ const ProtectedRoute = () => {
   }
 
   if (profileLoading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-zinc-400">
-        Verifying subscription...
-      </div>
-    )
+    return null
   }
 
-  if (profileError) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center text-sm text-red-400">
-        {profileError}
-      </div>
-    )
-  }
-
-  const subscription = checkSubscription(profile)
-  if (!subscription.allowed) {
+  if (!isSubscriptionActive(profile)) {
     return <Navigate to="/payment" replace />
   }
 
