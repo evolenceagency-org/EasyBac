@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import useStudyTimer from '../hooks/useStudyTimer.js'
 import { useData } from '../context/DataContext.jsx'
 import RecentSessions from '../components/RecentSessions.jsx'
+import SessionConflictModal from '../components/SessionConflictModal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
@@ -20,16 +21,24 @@ const formatTwoDigits = (value) => String(value).padStart(2, '0')
 const Study = () => {
   const {
     mode,
-    setMode,
     pomodoroMinutes,
     setPomodoroMinutes,
     breakMinutes,
     phase,
     isRunning,
+    isActiveSession,
+    pendingMode,
+    requestModeChange,
+    clearPendingMode,
+    applyPendingModeSwitch,
     minutes,
     seconds,
     progress,
     sessionMinutes,
+    recoverySession,
+    resumeRecovery,
+    discardRecovery,
+    computeRecoveryMinutes,
     start,
     pause,
     reset,
@@ -40,6 +49,7 @@ const Study = () => {
   const { studySessions, loading, errors, addStudySession } = useData()
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
 
@@ -48,7 +58,6 @@ const Study = () => {
     [studySessions]
   )
 
-  const totalSeconds = useMemo(() => minutes * 60 + seconds, [minutes, seconds])
   const subscriptionActive = useMemo(
     () => isSubscriptionActive(profile),
     [profile]
@@ -61,6 +70,24 @@ const Study = () => {
       setShowModal(true)
     }
   }, [phase])
+
+  useEffect(() => {
+    if (recoverySession) {
+      setShowRecoveryModal(true)
+    }
+  }, [recoverySession])
+
+  useEffect(() => {
+    if (!isRunning) return
+    const handleBeforeUnload = (event) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [isRunning])
 
   const handleSaveSession = async () => {
     if (!checkTrialAndBlock(profile, navigate)) return
@@ -87,15 +114,88 @@ const Study = () => {
   }
 
   const handleFinish = () => {
-    if (totalSeconds === 0 && sessionMinutes === 0) return
+    if (sessionMinutes === 0) return
     if (!checkTrialAndBlock(profile, navigate)) return
     finish()
     setShowModal(true)
   }
 
+  const handleSaveAndSwitch = async () => {
+    if (!pendingMode) return
+    if (!checkTrialAndBlock(profile, navigate)) return
+    setSaveError('')
+    try {
+      if (sessionMinutes > 0) {
+        const todayKey = toDateKey(new Date())
+        await addStudySession({
+          date: todayKey,
+          duration_minutes: sessionMinutes,
+          mode
+        })
+      }
+      applyPendingModeSwitch()
+    } catch (error) {
+      setSaveError('Unable to save the session. Please try again.')
+    }
+  }
+
+  const handleDiscardAndSwitch = () => {
+    applyPendingModeSwitch()
+  }
+
+  const handleContinueSession = () => {
+    clearPendingMode()
+  }
+
+  const handleResumeRecovery = () => {
+    if (!checkTrialAndBlock(profile, navigate)) return
+    resumeRecovery()
+    setShowRecoveryModal(false)
+  }
+
+  const handleDiscardRecovery = () => {
+    discardRecovery()
+    setShowRecoveryModal(false)
+  }
+
+  const handleSaveRecovery = async () => {
+    if (!recoverySession) return
+    if (!checkTrialAndBlock(profile, navigate)) return
+    setSaveError('')
+    try {
+      const minutesToSave = computeRecoveryMinutes(recoverySession)
+      if (!minutesToSave) {
+        discardRecovery()
+        setShowRecoveryModal(false)
+        return
+      }
+      const todayKey = toDateKey(new Date())
+      await addStudySession({
+        date: todayKey,
+        duration_minutes: minutesToSave,
+        mode: recoverySession.mode
+      })
+      discardRecovery()
+      setShowRecoveryModal(false)
+      setSavedMessage('Session saved!')
+      setTimeout(() => setSavedMessage(''), 2500)
+    } catch (error) {
+      setSaveError('Unable to save the session. Please try again.')
+    }
+  }
+
+  const statusLabel = useMemo(() => {
+    if (isRunning) {
+      return phase === 'break' ? 'Break time' : 'Studying...'
+    }
+    if (sessionMinutes > 0) return 'Paused'
+    return 'Ready'
+  }, [isRunning, phase, sessionMinutes])
+
   const radius = 120
   const circumference = 2 * Math.PI * radius
   const dashOffset = circumference * (1 - progress)
+  const activeLabel = mode === 'pomodoro' ? 'Pomodoro' : 'Free Study'
 
   return (
     <motion.div
@@ -144,7 +244,7 @@ const Study = () => {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => setMode('free')}
+              onClick={() => requestModeChange('free')}
               disabled={lockActions}
               className={`rounded-full px-4 py-2 text-xs font-semibold ${
                 mode === 'free'
@@ -156,7 +256,7 @@ const Study = () => {
             </button>
             <button
               type="button"
-              onClick={() => setMode('pomodoro')}
+              onClick={() => requestModeChange('pomodoro')}
               disabled={lockActions}
               className={`rounded-full px-4 py-2 text-xs font-semibold ${
                 mode === 'pomodoro'
@@ -167,6 +267,12 @@ const Study = () => {
               Pomodoro
             </button>
           </div>
+
+          {isActiveSession && (
+            <p className="mt-4 text-xs text-zinc-400">
+              Active session: {activeLabel}
+            </p>
+          )}
 
           {mode === 'pomodoro' && (
             <div className="mt-4 flex flex-wrap gap-3 text-xs text-zinc-300">
@@ -221,12 +327,15 @@ const Study = () => {
                   {mode === 'pomodoro'
                     ? phase === 'break'
                       ? 'Break'
-                      : 'Focus'
+                      : phase === 'completed'
+                        ? 'Done'
+                        : 'Focus'
                     : 'Session'}
                 </p>
                 <p className="mt-3 text-4xl font-semibold">
                   {formatTwoDigits(minutes)}:{formatTwoDigits(seconds)}
                 </p>
+                <p className="mt-2 text-xs text-zinc-400">{statusLabel}</p>
                 <p className="mt-2 text-xs text-zinc-400">
                   {mode === 'pomodoro'
                     ? `${pomodoroMinutes} min study`
@@ -312,6 +421,58 @@ const Study = () => {
             </div>
           </motion.div>
         </div>
+      )}
+
+      {showRecoveryModal && recoverySession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6"
+          >
+            <h4 className="text-xl font-semibold">
+              Resume your previous session?
+            </h4>
+            <p className="mt-2 text-sm text-zinc-300">
+              {recoverySession.mode === 'pomodoro'
+                ? `Pomodoro ${recoverySession.pomodoroMinutes} min`
+                : 'Free study session'}{' '}
+              - {recoverySession.durationMinutes || 0} min logged
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleResumeRecovery}
+                className="rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900"
+              >
+                Resume
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveRecovery}
+                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white"
+              >
+                Save Session
+              </button>
+              <button
+                type="button"
+                onClick={handleDiscardRecovery}
+                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white"
+              >
+                Discard
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {pendingMode && (
+        <SessionConflictModal
+          currentModeLabel={activeLabel}
+          onContinue={handleContinueSession}
+          onSaveAndSwitch={handleSaveAndSwitch}
+          onDiscardAndSwitch={handleDiscardAndSwitch}
+        />
       )}
     </motion.div>
   )
