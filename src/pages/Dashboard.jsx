@@ -6,6 +6,7 @@ import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
 import SubjectChart from '../components/Charts/SubjectChart.jsx'
 import WeeklySummary from '../components/WeeklySummary.jsx'
 import DashboardTaskSummary from '../components/DashboardTaskSummary.jsx'
+import AIInsights from '../components/AIInsights.jsx'
 import { useData } from '../context/DataContext.jsx'
 import {
   calculateCurrentStreak,
@@ -56,6 +57,11 @@ const Dashboard = () => {
   const longestStreak = useMemo(
     () => calculateLongestStreak(studySessions),
     [studySessions]
+  )
+
+  const streakInfo = useMemo(
+    () => ({ current: currentStreak, longest: longestStreak }),
+    [currentStreak, longestStreak]
   )
 
   const weakSubjects = useMemo(() => detectWeakSubjects(tasks), [tasks])
@@ -110,6 +116,12 @@ const Dashboard = () => {
         longestStreak={longestStreak}
         totalHours={Math.round(totalMinutes / 60)}
         loading={loading.tasks || loading.sessions}
+      />
+
+      <AIInsights
+        studySessions={studySessions}
+        tasks={tasks}
+        streak={streakInfo}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
