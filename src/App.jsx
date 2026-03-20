@@ -5,6 +5,9 @@ import MainLayout from './layout/MainLayout.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Payment from './pages/Payment.jsx'
+import Landing from './pages/Landing.jsx'
+import Contact from './pages/Contact.jsx'
+import Pricing from './pages/Pricing.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import useAppAnalytics from './hooks/useAppAnalytics.js'
@@ -24,14 +27,18 @@ const LoadingScreen = () => (
   </div>
 )
 
-const HomeRedirect = () => {
+const AuthRedirect = ({ children }) => {
   const { user, loading } = useAuth()
 
   if (loading) {
     return <LoadingScreen />
   }
 
-  return <Navigate to={user ? '/dashboard' : '/login'} replace />
+  if (user) {
+    return <Navigate to="/dashboard" replace />
+  }
+
+  return children
 }
 
 function App() {
@@ -46,10 +53,29 @@ function App() {
     <AnimatePresence mode="wait">
       <Suspense fallback={<LoadingScreen />}>
         <Routes location={location} key={location.pathname}>
-          <Route path="/" element={<HomeRedirect />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
+          <Route path="/" element={<Landing />} />
+          <Route
+            path="/login"
+            element={
+              <AuthRedirect>
+                <Login />
+              </AuthRedirect>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <AuthRedirect>
+                <Register />
+              </AuthRedirect>
+            }
+          />
           <Route path="/payment" element={<Payment />} />
+
+          <Route element={<MainLayout />}>
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/pricing" element={<Pricing />} />
+          </Route>
 
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>

@@ -4,15 +4,15 @@ import { toDateKey } from '../utils/dateUtils.js'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import {
-  handleProtectedAction,
-  isSubscriptionActive
-} from '../utils/subscription.js'
+import { isSubscriptionActive } from '../utils/subscription.js'
+import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 import {
   getTasksCompletedToday,
   getTasksDueToday,
   isOverdueTask
 } from '../utils/taskStats.js'
+import TaskCard from '../components/Tasks/TaskCard.jsx'
+import EditTaskModal from '../components/Tasks/EditTaskModal.jsx'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -39,21 +39,22 @@ const subjectColorMap = subjects.reduce((acc, subject) => {
 const getSubjectLabel = (value) =>
   subjects.find((item) => item.value === value)?.label || value
 
-const formatDate = (value) => {
-  if (!value) return 'No date'
-  const date =
-    typeof value === 'string' && value.length === 10
-      ? new Date(`${value}T00:00:00`)
-      : new Date(value)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
-  })
+const getTaskStatus = (task) => {
+  if (task.status) return task.status
+  return task.completed ? 'completed' : 'active'
 }
 
 const Tasks = () => {
   const { profile } = useAuth()
-  const { tasks, loading, errors, addTask, toggleTask, removeTask } = useData()
+  const {
+    tasks,
+    loading,
+    errors,
+    addTask,
+    toggleTask,
+    removeTask,
+    updateTaskById
+  } = useData()
   const navigate = useNavigate()
   const [title, setTitle] = useState('')
   const [subject, setSubject] = useState('math')
@@ -62,9 +63,10 @@ const Tasks = () => {
   const [error, setError] = useState('')
 
   const [subjectFilter, setSubjectFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('pending')
   const [dueFilter, setDueFilter] = useState('all')
   const [sortOption, setSortOption] = useState('newest')
+  const [editingTask, setEditingTask] = useState(null)
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
   const subscriptionActive = useMemo(
@@ -78,21 +80,16 @@ const Tasks = () => {
     async (event) => {
       event.preventDefault()
       if (!title.trim()) return
+      if (!checkTrialAndBlock(profile, navigate)) return
 
       setSaving(true)
       setError('')
       try {
-        const { allowed } = await handleProtectedAction(
-          () =>
-            addTask({
-              title: title.trim(),
-              subject,
-              due_date: dueDate || null
-            }),
-          profile,
-          navigate
-        )
-        if (!allowed) return
+        await addTask({
+          title: title.trim(),
+          subject,
+          due_date: dueDate || null
+        })
         setTitle('')
         setDueDate('')
       } catch (err) {
@@ -106,14 +103,10 @@ const Tasks = () => {
 
   const handleToggle = useCallback(
     async (taskId, currentCompleted) => {
+      if (!checkTrialAndBlock(profile, navigate)) return
       setError('')
       try {
-        const { allowed } = await handleProtectedAction(
-          () => toggleTask(taskId, currentCompleted),
-          profile,
-          navigate
-        )
-        if (!allowed) return
+        await toggleTask(taskId, currentCompleted)
       } catch (err) {
         setError('Unable to update the task status.')
       }
@@ -123,14 +116,10 @@ const Tasks = () => {
 
   const handleDelete = useCallback(
     async (taskId) => {
+      if (!checkTrialAndBlock(profile, navigate)) return
       setError('')
       try {
-        const { allowed } = await handleProtectedAction(
-          () => removeTask(taskId),
-          profile,
-          navigate
-        )
-        if (!allowed) return
+        await removeTask(taskId)
       } catch (err) {
         setError('Unable to delete the task.')
       }
@@ -138,23 +127,89 @@ const Tasks = () => {
     [removeTask, profile, navigate]
   )
 
+  const handleEdit = useCallback((task) => {
+    setEditingTask(task)
+  }, [])
+
+  const handleSaveEdit = useCallback(
+    async (updates) => {
+      if (!editingTask) return
+      if (!checkTrialAndBlock(profile, navigate)) return
+      setError('')
+      try {
+        const nextStatus = editingTask.completed ? 'completed' : 'active'
+        await updateTaskById(editingTask.id, {
+          ...updates,
+          status: nextStatus
+        })
+        setEditingTask(null)
+      } catch (err) {
+        setError('Unable to update the task.')
+      }
+    },
+    [editingTask, updateTaskById, profile, navigate]
+  )
+
+  const handleReschedule = useCallback(
+    async (taskId, newDate) => {
+      if (!newDate) return
+      const formattedDate = new Date(newDate).toISOString().split('T')[0]
+      if (!checkTrialAndBlock(profile, navigate)) return
+      setError('')
+      try {
+        await updateTaskById(taskId, {
+          due_date: formattedDate,
+          status: 'active',
+          completed: false
+        })
+      } catch (err) {
+        setError('Unable to reschedule the task.')
+      }
+    },
+    [updateTaskById, profile, navigate]
+  )
+
+  const handleDismiss = useCallback(
+    async (taskId) => {
+      if (!checkTrialAndBlock(profile, navigate)) return
+      setError('')
+      try {
+        await updateTaskById(taskId, {
+          status: 'archived_overdue',
+          completed: false
+        })
+      } catch (err) {
+        setError('Unable to dismiss the task.')
+      }
+    },
+    [updateTaskById, profile, navigate]
+  )
+
   const filteredTasks = useMemo(() => {
-    let result = [...tasks]
+    let result = tasks.filter(
+      (task) => getTaskStatus(task) !== 'archived_overdue'
+    )
 
     if (subjectFilter !== 'all') {
       result = result.filter((task) => task.subject === subjectFilter)
     }
 
     if (statusFilter === 'completed') {
-      result = result.filter((task) => task.completed)
+      result = result.filter((task) => getTaskStatus(task) === 'completed')
     } else if (statusFilter === 'pending') {
-      result = result.filter((task) => !task.completed)
+      result = result.filter((task) => getTaskStatus(task) === 'active')
+    } else if (statusFilter === 'overdue') {
+      result = result.filter(
+        (task) => isOverdueTask(task) && getTaskStatus(task) !== 'completed'
+      )
     }
 
     if (dueFilter === 'today') {
       result = result.filter((task) => task.due_date === todayKey)
     } else if (dueFilter === 'overdue') {
-      result = result.filter((task) => isOverdueTask(task))
+      result = result.filter(
+        (task) => isOverdueTask(task) && getTaskStatus(task) !== 'completed'
+      )
     }
 
     const getCreatedTime = (task) =>
@@ -307,9 +362,9 @@ const Tasks = () => {
             onChange={(event) => setStatusFilter(event.target.value)}
             className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200"
           >
-            <option value="all">All status</option>
-            <option value="completed">Completed</option>
             <option value="pending">Pending</option>
+            <option value="completed">Completed</option>
+            <option value="overdue">Overdue</option>
           </select>
           <select
             value={dueFilter}
@@ -341,7 +396,13 @@ const Tasks = () => {
           </div>
         )}
 
-        {!loading.tasks && filteredTasks.length === 0 && (
+        {!loading.tasks && tasks.length === 0 && (
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
+            No tasks yet. Start by adding one.
+          </div>
+        )}
+
+        {!loading.tasks && tasks.length > 0 && filteredTasks.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
             No tasks match the selected filters.
           </div>
@@ -353,76 +414,20 @@ const Tasks = () => {
               const overdue = isOverdueTask(task)
               const dueToday = task.due_date === todayKey
               return (
-                <motion.div
+                <TaskCard
                   key={task.id}
-                  layout
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2 }}
-                  className={`rounded-2xl border px-5 py-4 ${
-                    overdue
-                      ? 'border-red-500/40 bg-red-500/10'
-                      : 'border-white/10 bg-white/5'
-                  }`}
-                >
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={task.completed}
-                        onChange={() => handleToggle(task.id, task.completed)}
-                        disabled={lockActions}
-                        className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent disabled:cursor-not-allowed disabled:opacity-60"
-                      />
-                      <div>
-                        <p
-                          className={`text-sm font-semibold ${
-                            task.completed ? 'text-zinc-400 line-through' : ''
-                          }`}
-                        >
-                          {task.title}
-                        </p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
-                          <span
-                            className={`rounded-full px-3 py-1 ${
-                              subjectColorMap[task.subject] ||
-                              'bg-white/10 text-zinc-200'
-                            }`}
-                          >
-                            {getSubjectLabel(task.subject)}
-                          </span>
-                          <span>Created: {formatDate(task.created_at)}</span>
-                          <span>Due: {formatDate(task.due_date)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      {overdue && (
-                        <span className="rounded-full bg-red-500/20 px-3 py-1 text-xs text-red-200">
-                          Overdue
-                        </span>
-                      )}
-                      {dueToday && !overdue && (
-                        <span className="rounded-full bg-amber-400/20 px-3 py-1 text-xs text-amber-200">
-                          Due Today
-                        </span>
-                      )}
-                      <span className="rounded-full bg-white/10 px-4 py-2 text-xs text-zinc-200">
-                        {task.completed ? 'Completed' : 'Pending'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(task.id)}
-                        disabled={lockActions}
-                        className="rounded-full border border-white/20 px-4 py-2 text-xs text-white transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+                  task={task}
+                  subjectColorMap={subjectColorMap}
+                  getSubjectLabel={getSubjectLabel}
+                  isOverdue={overdue}
+                  isDueToday={dueToday}
+                  lockActions={lockActions}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                  onEdit={handleEdit}
+                  onReschedule={handleReschedule}
+                  onDismiss={handleDismiss}
+                />
               )
             })}
         </AnimatePresence>
@@ -433,6 +438,13 @@ const Tasks = () => {
           Completed today: {completedToday}
         </p>
       )}
+
+      <EditTaskModal
+        task={editingTask}
+        subjects={subjects}
+        onSave={handleSaveEdit}
+        onClose={() => setEditingTask(null)}
+      />
     </motion.div>
   )
 }

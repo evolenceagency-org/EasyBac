@@ -56,20 +56,22 @@ export const AuthProvider = ({ children }) => {
   const [profileError, setProfileError] = useState('')
   const [profileLoading, setProfileLoading] = useState(false)
   const [loading, setLoading] = useState(true)
-  const lastProfileFetchRef = useRef({ id: null, at: 0 })
+  const profileLoadedRef = useRef(false)
+  const profileUserRef = useRef(null)
 
-  const fetchProfile = async (authUser, options = {}) => {
+  const resetProfileState = () => {
+    setProfile(null)
+    setProfileError('')
+    setProfileLoading(false)
+    profileLoadedRef.current = false
+    profileUserRef.current = null
+  }
+
+  const fetchProfile = async (authUser) => {
     if (!authUser) {
-      setProfile(null)
+      resetProfileState()
       return
     }
-
-    const now = Date.now()
-    const { id, at } = lastProfileFetchRef.current
-    if (!options.force && id === authUser.id && now - at < 3000) {
-      return
-    }
-    lastProfileFetchRef.current = { id: authUser.id, at: now }
 
     setProfileError('')
     setProfileLoading(true)
@@ -112,6 +114,8 @@ export const AuthProvider = ({ children }) => {
       setProfile(data)
     } finally {
       setProfileLoading(false)
+      profileLoadedRef.current = true
+      profileUserRef.current = authUser.id
     }
   }
 
@@ -134,16 +138,8 @@ export const AuthProvider = ({ children }) => {
         setUser(nextSession?.user ?? null)
         setLoading(false)
 
-        if (nextSession?.user) {
-          fetchProfile(nextSession.user).catch(() => {
-            if (mounted) {
-              setProfileError('Unable to verify subscription.')
-              setProfileLoading(false)
-            }
-          })
-        } else {
-          setProfile(null)
-          setProfileLoading(false)
+        if (!nextSession?.user) {
+          resetProfileState()
         }
       } catch (err) {
         if (!mounted) return
@@ -165,28 +161,12 @@ export const AuthProvider = ({ children }) => {
       async (_event, newSession) => {
         if (!mounted) return
         setLoading(true)
-        try {
-          setSession(newSession)
-          setUser(newSession?.user ?? null)
-          setLoading(false)
+        setSession(newSession)
+        setUser(newSession?.user ?? null)
+        setLoading(false)
 
-          if (newSession?.user) {
-            fetchProfile(newSession.user).catch(() => {
-              if (mounted) {
-                setProfileError('Unable to verify subscription.')
-                setProfileLoading(false)
-              }
-            })
-          } else {
-            setProfile(null)
-            setProfileLoading(false)
-          }
-        } catch (err) {
-          setProfileError('Unable to verify subscription.')
-        } finally {
-          if (mounted) {
-            setLoading(false)
-          }
+        if (!newSession?.user) {
+          resetProfileState()
         }
       }
     )
@@ -196,6 +176,15 @@ export const AuthProvider = ({ children }) => {
       authListener?.subscription?.unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+    if (profileLoadedRef.current && profileUserRef.current === user.id) return
+    fetchProfile(user).catch(() => {
+      setProfileError('Unable to verify subscription.')
+      setProfileLoading(false)
+    })
+  }, [user])
 
   const signUp = async (email, password) => {
     setLoading(true)
@@ -227,9 +216,7 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.auth.signOut()
     setSession(null)
     setUser(null)
-    setProfile(null)
-    setProfileError('')
-    setProfileLoading(false)
+    resetProfileState()
     setLoading(false)
     return { error }
   }

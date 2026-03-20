@@ -6,10 +6,8 @@ import useStudyTimer from '../hooks/useStudyTimer.js'
 import { useData } from '../context/DataContext.jsx'
 import RecentSessions from '../components/RecentSessions.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import {
-  handleProtectedAction,
-  isSubscriptionActive
-} from '../utils/subscription.js'
+import { isSubscriptionActive } from '../utils/subscription.js'
+import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -65,20 +63,15 @@ const Study = () => {
   }, [phase])
 
   const handleSaveSession = async () => {
+    if (!checkTrialAndBlock(profile, navigate)) return
     setSaveError('')
     try {
       const todayKey = toDateKey(new Date())
-      const { allowed } = await handleProtectedAction(
-        () =>
-          addStudySession({
-            date: todayKey,
-            duration_minutes: sessionMinutes,
-            mode
-          }),
-        profile,
-        navigate
-      )
-      if (!allowed) return
+      await addStudySession({
+        date: todayKey,
+        duration_minutes: sessionMinutes,
+        mode
+      })
       setShowModal(false)
       setSavedMessage('Session saved!')
       reset()
@@ -88,26 +81,16 @@ const Study = () => {
     }
   }
 
-  const handleStart = async () => {
-    const { allowed } = await handleProtectedAction(
-      () => start(),
-      profile,
-      navigate
-    )
-    if (!allowed) return
+  const handleStart = () => {
+    if (!checkTrialAndBlock(profile, navigate)) return
+    start()
   }
 
-  const handleFinish = async () => {
+  const handleFinish = () => {
     if (totalSeconds === 0 && sessionMinutes === 0) return
-    const { allowed } = await handleProtectedAction(
-      () => {
-        finish()
-        setShowModal(true)
-      },
-      profile,
-      navigate
-    )
-    if (!allowed) return
+    if (!checkTrialAndBlock(profile, navigate)) return
+    finish()
+    setShowModal(true)
   }
 
   const radius = 120

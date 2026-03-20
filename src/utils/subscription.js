@@ -14,20 +14,6 @@ export const isSubscriptionActive = (profile) => {
   return !isTrialExpired(profile.trial_start)
 }
 
-export const handleProtectedAction = async (action, profile, navigate) => {
-  if (isSubscriptionActive(profile)) {
-    const result = await action()
-    return { allowed: true, result }
-  }
-  if (typeof window !== 'undefined') {
-    window.alert('Your free trial is over. Please upgrade.')
-  }
-  if (navigate) {
-    navigate('/payment')
-  }
-  return { allowed: false }
-}
-
 export const isAccessDeniedError = (error) => {
   const status = error?.status || error?.statusCode
   if (status === 401 || status === 403) return true

@@ -71,7 +71,8 @@ export const createTask = async (userId, taskData) => {
     title: taskData.title,
     subject: taskData.subject,
     due_date: taskData.due_date || null,
-    completed: false
+    completed: false,
+    status: 'active'
   }
 
   const data = await retryWithBackoff(async () => {
@@ -96,17 +97,27 @@ export const updateTask = async (userId, taskId, updates) => {
   ensureUserId(userId)
   logDev('Updating task in Supabase')
 
+  const payload = { ...updates }
+  if (payload.due_date) {
+    const formattedDate = new Date(payload.due_date)
+      .toISOString()
+      .split('T')[0]
+    payload.due_date = formattedDate
+  }
+
   const data = await retryWithBackoff(async () => {
     const { data: updated, error } = await supabase
       .from('tasks')
-      .update(updates)
+      .update(payload)
       .eq('id', taskId)
       .eq('user_id', userId)
       .select()
-      .single()
 
-    if (error) throw error
-    return updated
+    if (error) {
+      console.log('Update error:', error)
+      throw error
+    }
+    return updated?.[0]
   }, 'tasks:update')
 
   if (cachedTasks) {
@@ -168,7 +179,10 @@ export const toggleTaskCompletion = async (
   const data = await retryWithBackoff(async () => {
     const { data: updated, error } = await supabase
       .from('tasks')
-      .update({ completed: !completedValue })
+      .update({
+        completed: !completedValue,
+        status: !completedValue ? 'completed' : 'active'
+      })
       .eq('id', taskId)
       .eq('user_id', userId)
       .select()
