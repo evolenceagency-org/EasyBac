@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { isAccessDeniedError } from '../utils/subscription.js'
 import {
   createTask,
   deleteTask,
@@ -19,10 +21,15 @@ const DataContext = createContext(null)
 
 export const DataProvider = ({ children }) => {
   const { user, profile } = useAuth()
+  const navigate = useNavigate()
   const [tasks, setTasks] = useState([])
   const [studySessions, setStudySessions] = useState([])
   const [loading, setLoading] = useState({ tasks: false, sessions: false })
   const [errors, setErrors] = useState({ tasks: '', sessions: '' })
+
+  const redirectToPayment = useCallback(() => {
+    navigate('/payment', { replace: true })
+  }, [navigate])
 
   const refreshTasks = useCallback(
     async (options = {}) => {
@@ -36,6 +43,9 @@ export const DataProvider = ({ children }) => {
         const data = await getTasks(user.id, options)
         setTasks(data)
       } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
         setErrors((prev) => ({
           ...prev,
           tasks: 'Unable to load tasks right now.'
@@ -59,6 +69,9 @@ export const DataProvider = ({ children }) => {
         const data = await getStudySessions(user.id, options)
         setStudySessions(data)
       } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
         setErrors((prev) => ({
           ...prev,
           sessions: 'Unable to load study sessions right now.'
@@ -87,69 +100,111 @@ export const DataProvider = ({ children }) => {
   const addTask = useCallback(
     async (payload) => {
       if (!user?.id) throw new Error('Missing user id')
-      const created = await createTask(user.id, payload)
-      setTasks((prev) => [created, ...prev])
-      return created
+      try {
+        const created = await createTask(user.id, payload)
+        setTasks((prev) => [created, ...prev])
+        return created
+      } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
+        throw error
+      }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const updateTaskById = useCallback(
     async (taskId, updates) => {
       if (!user?.id) throw new Error('Missing user id')
-      const updated = await updateTask(user.id, taskId, updates)
-      setTasks((prev) =>
-        prev.map((task) => (task.id === updated.id ? updated : task))
-      )
-      return updated
+      try {
+        const updated = await updateTask(user.id, taskId, updates)
+        setTasks((prev) =>
+          prev.map((task) => (task.id === updated.id ? updated : task))
+        )
+        return updated
+      } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
+        throw error
+      }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const toggleTask = useCallback(
     async (taskId, currentCompleted) => {
       if (!user?.id) throw new Error('Missing user id')
-      const updated = await toggleTaskCompletion(
-        user.id,
-        taskId,
-        currentCompleted
-      )
-      setTasks((prev) =>
-        prev.map((task) => (task.id === updated.id ? updated : task))
-      )
-      return updated
+      try {
+        const updated = await toggleTaskCompletion(
+          user.id,
+          taskId,
+          currentCompleted
+        )
+        setTasks((prev) =>
+          prev.map((task) => (task.id === updated.id ? updated : task))
+        )
+        return updated
+      } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
+        throw error
+      }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const removeTask = useCallback(
     async (taskId) => {
       if (!user?.id) throw new Error('Missing user id')
-      await deleteTask(user.id, taskId)
-      setTasks((prev) => prev.filter((task) => task.id !== taskId))
+      try {
+        await deleteTask(user.id, taskId)
+        setTasks((prev) => prev.filter((task) => task.id !== taskId))
+      } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
+        throw error
+      }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const addStudySession = useCallback(
     async (payload) => {
       if (!user?.id) throw new Error('Missing user id')
-      const created = await createStudySession(user.id, payload)
-      setStudySessions((prev) => [created, ...prev])
-      return created
+      try {
+        const created = await createStudySession(user.id, payload)
+        setStudySessions((prev) => [created, ...prev])
+        return created
+      } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
+        throw error
+      }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const removeStudySession = useCallback(
     async (sessionId) => {
       if (!user?.id) throw new Error('Missing user id')
-      await deleteStudySession(user.id, sessionId)
-      setStudySessions((prev) =>
-        prev.filter((session) => session.id !== sessionId)
-      )
+      try {
+        await deleteStudySession(user.id, sessionId)
+        setStudySessions((prev) =>
+          prev.filter((session) => session.id !== sessionId)
+        )
+      } catch (error) {
+        if (isAccessDeniedError(error)) {
+          redirectToPayment()
+        }
+        throw error
+      }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const value = useMemo(
