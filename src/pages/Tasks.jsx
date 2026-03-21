@@ -13,6 +13,8 @@ import {
 } from '../utils/taskStats.js'
 import TaskCard from '../components/Tasks/TaskCard.jsx'
 import EditTaskModal from '../components/Tasks/EditTaskModal.jsx'
+import GlassDropdown from '../components/Tasks/GlassDropdown.jsx'
+import { ListTodo } from 'lucide-react'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -22,8 +24,8 @@ const pageMotion = {
 
 const subjects = [
   { label: 'All', value: 'all' },
-  { label: 'Math', value: 'math', color: 'bg-violet-500/20 text-violet-200' },
-  { label: 'Physics', value: 'physics', color: 'bg-blue-500/20 text-blue-200' },
+  { label: 'Math', value: 'math', color: 'bg-blue-500/20 text-blue-200' },
+  { label: 'Physics', value: 'physics', color: 'bg-purple-500/20 text-purple-200' },
   { label: 'Philosophie', value: 'philosophie', color: 'bg-amber-400/20 text-amber-200' },
   { label: 'SVT', value: 'svt', color: 'bg-emerald-500/20 text-emerald-200' },
   { label: 'English', value: 'english', color: 'bg-pink-500/20 text-pink-200' }
@@ -259,13 +261,13 @@ const Tasks = () => {
       transition={{ duration: 0.4 }}
       className="flex flex-col gap-6"
     >
-      <div className="glass rounded-2xl p-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+      <div className="glass rounded-2xl p-6 overflow-visible">
+        <p className="text-xs uppercase tracking-wide text-white/70">
           Task Productivity
         </p>
-        <h3 className="mt-2 text-2xl font-semibold">Today's Task Progress</h3>
+        <h3 className="mt-2 text-2xl font-semibold text-white">Today's Task Progress</h3>
         <div className="mt-4">
-          <div className="flex items-center justify-between text-sm text-zinc-300">
+          <div className="flex items-center justify-between text-sm text-white/70">
             <span>
               {progressDone} / {progressTotal} tasks completed
             </span>
@@ -273,12 +275,12 @@ const Tasks = () => {
           </div>
           <div className="mt-2 h-2 w-full rounded-full bg-white/10">
             <div
-              className="h-2 rounded-full bg-emerald-500"
+              className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-blue-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
           {progressTotal === 0 && (
-            <p className="mt-2 text-xs text-zinc-400">
+            <p className="mt-2 text-xs text-white/60">
               No tasks due today. You're clear.
             </p>
           )}
@@ -286,16 +288,16 @@ const Tasks = () => {
       </div>
 
       {showExpired && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
           Trial expired. Upgrade to continue.
         </div>
       )}
 
-      <div className="glass rounded-2xl p-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+      <div className="glass rounded-2xl p-6 overflow-visible">
+        <p className="text-xs uppercase tracking-wide text-white/70">
           Create Task
         </p>
-        <h3 className="mt-2 text-2xl font-semibold">Plan your next moves</h3>
+        <h3 className="mt-2 text-2xl font-semibold text-white">Plan your next moves</h3>
         <form
           onSubmit={handleCreate}
           className="mt-6 grid gap-4 md:grid-cols-[2fr_1fr_1fr_auto]"
@@ -306,36 +308,30 @@ const Tasks = () => {
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Task title"
             disabled={lockActions}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/50 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           />
-          <select
+          <GlassDropdown
             value={subject}
-            onChange={(event) => setSubject(event.target.value)}
+            onChange={setSubject}
             disabled={lockActions}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {subjects
-              .filter((item) => item.value !== 'all')
-              .map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-          </select>
+            options={subjects.filter((item) => item.value !== 'all')}
+          />
           <input
             type="date"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
             disabled={lockActions}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           />
-          <button
+          <motion.button
             type="submit"
             disabled={saving || lockActions}
-            className="rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.97 }}
+            className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Add Task'}
-          </button>
+          </motion.button>
         </form>
         {(error || errors.tasks) && (
           <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
@@ -344,48 +340,67 @@ const Tasks = () => {
         )}
       </div>
 
-      <div className="glass rounded-2xl p-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <select
-            value={subjectFilter}
-            onChange={(event) => setSubjectFilter(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200"
-          >
-            {subjects.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200"
-          >
-            <option value="pending">Pending</option>
-            <option value="completed">Completed</option>
-            <option value="overdue">Overdue</option>
-          </select>
-          <select
-            value={dueFilter}
-            onChange={(event) => setDueFilter(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200"
-          >
-            <option value="all">All tasks</option>
-            <option value="today">Due today</option>
-            <option value="overdue">Overdue tasks</option>
-          </select>
-          <select
-            value={sortOption}
-            onChange={(event) => setSortOption(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-zinc-200"
-          >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
-            <option value="due-nearest">Due date (nearest first)</option>
-            <option value="due-latest">Due date (latest first)</option>
-            <option value="subject">Subject alphabetical</option>
-          </select>
+      <div className="relative">
+        <div className="pointer-events-none absolute -top-10 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
+        <div className="glass rounded-2xl p-6 overflow-visible">
+          <div className="flex flex-wrap items-center gap-4">
+            <GlassDropdown
+              value={subjectFilter}
+              onChange={setSubjectFilter}
+              options={subjects}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { label: 'Pending', value: 'pending' },
+                { label: 'Completed', value: 'completed' },
+                { label: 'Overdue', value: 'overdue' }
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setStatusFilter(item.value)}
+                  className={`rounded-full px-4 py-1 text-xs transition ${
+                    statusFilter === item.value
+                      ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
+                      : 'border border-white/10 bg-white/5 text-white/70'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { label: 'All tasks', value: 'all' },
+                { label: 'Due today', value: 'today' },
+                { label: 'Overdue tasks', value: 'overdue' }
+              ].map((item) => (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setDueFilter(item.value)}
+                  className={`rounded-full px-4 py-1 text-xs transition ${
+                    dueFilter === item.value
+                      ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
+                      : 'border border-white/10 bg-white/5 text-white/70'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <GlassDropdown
+              value={sortOption}
+              onChange={setSortOption}
+              options={[
+                { label: 'Newest first', value: 'newest' },
+                { label: 'Oldest first', value: 'oldest' },
+                { label: 'Due date (nearest first)', value: 'due-nearest' },
+                { label: 'Due date (latest first)', value: 'due-latest' },
+                { label: 'Subject alphabetical', value: 'subject' }
+              ]}
+            />
+          </div>
         </div>
       </div>
 
@@ -397,8 +412,13 @@ const Tasks = () => {
         )}
 
         {!loading.tasks && tasks.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
-            No tasks yet. Start by adding one.
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-white/70">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+                <ListTodo className="h-5 w-5 text-white/70" />
+              </div>
+              <span>Start by adding your first task.</span>
+            </div>
           </div>
         )}
 
@@ -434,7 +454,7 @@ const Tasks = () => {
       </div>
 
       {!loading.tasks && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-white/50">
           Completed today: {completedToday}
         </p>
       )}

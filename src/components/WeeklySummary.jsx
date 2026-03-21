@@ -1,4 +1,5 @@
-﻿import { memo } from 'react'
+import { memo } from 'react'
+import GlassCard from './GlassCard.jsx'
 
 const WeeklySummary = ({ sessions = [] }) => {
   const formatMinutes = (minutes) => {
@@ -34,16 +35,16 @@ const WeeklySummary = ({ sessions = [] }) => {
   }
 
   return (
-    <div className="glass rounded-2xl p-6">
-      <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+    <GlassCard className="p-6">
+      <p className="text-xs uppercase tracking-wide text-white/70">
         Weekly Summary
       </p>
-      <h3 className="mt-2 text-lg font-semibold">Your momentum</h3>
-      <p className="mt-4 text-sm text-zinc-300">
+      <h3 className="mt-2 text-lg font-semibold text-white">Your momentum</h3>
+      <p className="mt-4 text-sm text-white/80">
         This week you studied {formatMinutes(thisWeekMinutes)}.
       </p>
-      <p className="mt-2 text-sm text-zinc-400">{comparison}</p>
-    </div>
+      <p className="mt-2 text-sm text-white/60">{comparison}</p>
+    </GlassCard>
   )
 }
 

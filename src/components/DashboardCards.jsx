@@ -1,5 +1,5 @@
 ﻿import { memo } from 'react'
-import { motion } from 'framer-motion'
+import GlassCard from './GlassCard.jsx'
 
 const DashboardCards = ({
   todayMinutes = 0,
@@ -12,43 +12,46 @@ const DashboardCards = ({
     {
       label: "Today's Study Minutes",
       value: loading ? '...' : `${todayMinutes} min`,
-      accent: 'bg-emerald-500'
+      accent: 'text-emerald-400 bg-emerald-400/90'
     },
     {
       label: 'Current Streak',
       value: loading ? '...' : `${currentStreak} days`,
-      accent: 'bg-rose-500'
+      accent: 'text-rose-400 bg-rose-400/90'
     },
     {
       label: 'Longest Streak',
       value: loading ? '...' : `${longestStreak} days`,
-      accent: 'bg-emerald-500'
+      accent: 'text-emerald-400 bg-emerald-400/90'
     },
     {
       label: 'Total Study Hours',
       value: loading ? '...' : `${totalHours}h`,
-      accent: 'bg-violet-500'
+      accent: 'text-violet-400 bg-violet-400/90'
     }
   ]
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map((card) => (
-        <motion.div
+        <GlassCard
           key={card.label}
-          whileHover={{ y: -6 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          className="card"
+          className="p-5"
         >
+          <span className="absolute left-0 top-0 h-[2px] w-full bg-gradient-to-r from-purple-400 to-blue-400" />
           <div className="flex items-center justify-between">
-            <p className="text-sm text-zinc-500">{card.label}</p>
-            <span className={`h-2.5 w-2.5 rounded-full ${card.accent}`} />
+            <p className="text-sm uppercase tracking-wide text-white/70">
+              {card.label}
+            </p>
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${card.accent} shadow-[0_0_10px_currentColor]`}
+            />
           </div>
-          <p className="mt-4 text-2xl font-semibold text-zinc-900">
+          <p className="mt-4 text-2xl font-semibold text-white">
             {card.value}
           </p>
-          <p className="mt-2 text-xs text-zinc-500">Updated moments ago</p>
-        </motion.div>
+          <p className="mt-2 text-xs text-white/50">Updated moments ago</p>
+        </GlassCard>
       ))}
     </div>
   )

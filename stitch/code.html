@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>BacTracker | Master Your Exams</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "error": "#ffb4ab",
+              "primary-container": "#4b8eff",
+              "on-primary-fixed": "#001a41",
+              "on-background": "#e5e2e1",
+              "surface-container-high": "#2a2a2a",
+              "surface-container-low": "#1c1b1b",
+              "primary-fixed": "#d8e2ff",
+              "outline-variant": "#414755",
+              "on-error-container": "#ffdad6",
+              "tertiary": "#4ae176",
+              "on-tertiary": "#003915",
+              "on-tertiary-fixed": "#002109",
+              "on-secondary": "#490080",
+              "tertiary-container": "#00a74b",
+              "on-primary-container": "#00285c",
+              "surface-variant": "#353534",
+              "background": "#131313",
+              "tertiary-fixed-dim": "#4ae176",
+              "secondary-fixed-dim": "#ddb7ff",
+              "outline": "#8b90a0",
+              "surface-bright": "#3a3939",
+              "on-error": "#690005",
+              "surface-container-highest": "#353534",
+              "on-surface-variant": "#c1c6d7",
+              "on-secondary-container": "#d6a9ff",
+              "surface-dim": "#131313",
+              "inverse-surface": "#e5e2e1",
+              "secondary": "#ddb7ff",
+              "on-surface": "#e5e2e1",
+              "secondary-container": "#6f00be",
+              "on-tertiary-fixed-variant": "#005321",
+              "on-primary": "#002e69",
+              "on-tertiary-container": "#003111",
+              "primary": "#adc6ff",
+              "inverse-on-surface": "#313030",
+              "on-secondary-fixed-variant": "#6900b3",
+              "surface-container-lowest": "#0e0e0e",
+              "on-primary-fixed-variant": "#004493",
+              "inverse-primary": "#005bc1",
+              "tertiary-fixed": "#6bff8f",
+              "surface-container": "#201f1f",
+              "primary-fixed-dim": "#adc6ff",
+              "secondary-fixed": "#f0dbff",
+              "surface-tint": "#adc6ff",
+              "surface": "#131313",
+              "on-secondary-fixed": "#2c0051",
+              "error-container": "#93000a"
+            },
+            fontFamily: {
+              "headline": ["Manrope", "sans-serif"],
+              "body": ["Inter", "sans-serif"],
+              "label": ["Inter", "sans-serif"]
+            },
+            borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(53, 53, 52, 0.3);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(65, 71, 85, 0.15);
+        }
+        .ai-glow {
+            background: linear-gradient(135deg, #ddb7ff, #adc6ff, #4ae176);
+            filter: blur(80px);
+            opacity: 0.15;
+        }
+        .nav-blur {
+            backdrop-filter: blur(24px);
+            background: rgba(53, 53, 52, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary selection:text-on-primary">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface_variant/40 backdrop-blur-3xl">
+<div class="flex justify-between items-center px-8 py-4 max-w-7xl mx-auto">
+<div class="text-2xl font-black text-primary dark:text-[#adc6ff] tracking-tighter font-headline">
+                BacTracker
+            </div>
+<div class="hidden md:flex gap-8 items-center">
+<a class="text-primary dark:text-[#adc6ff] font-bold border-b-2 border-tertiary font-label tracking-tight transition-all duration-300" href="#features">Features</a>
+<a class="text-on_surface_variant/70 dark:text-[#c1c6d7] hover:bg-surface_container_highest/20 hover:text-primary transition-all duration-300 font-label tracking-tight" href="#pricing">Pricing</a>
+<a class="text-on_surface_variant/70 dark:text-[#c1c6d7] hover:bg-surface_container_highest/20 hover:text-primary transition-all duration-300 font-label tracking-tight" href="#about">About</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="px-6 py-2 rounded-full font-bold text-primary bg-transparent hover:bg-surface-container-high transition-all scale-95-on-click-transition-all">
+                    Sign In
+                </button>
+<button class="px-6 py-2 rounded-full font-bold bg-gradient-to-r from-primary-container to-primary text-on-primary-container shadow-lg shadow-primary/20 hover:brightness-110 transition-all">
+                    Get Started
+                </button>
+</div>
+</div>
+</nav>
+<!-- Hero Section -->
+<section class="relative min-h-screen flex items-center overflow-hidden pt-20">
+<div class="absolute inset-0 z-0">
+<img alt="Students studying" class="w-full h-full object-cover opacity-40 grayscale" data-alt="Cinematic shot of university students studying intensely in a library" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7vZ5pYQyAk3LVWT7BHgJL_tRhR24ShGMdxP8LYffec-1vMCcVO4pu5-rgCLMbwV6wae5aHUrv92GuzIyAC3gZIh0d3ERCa8qSn5isiV5BKj_7ucJ47ybT13ckI8TLz400wY-kMjSzVYNww9SqkvRr6wbLs_c1Cp0kWLcr4vtiNT1WVeSoZyWNUdEOiMYkp_4np39a1JXfhZP4_OmNBVuZsAV01wwD3S35IV9MbUrRJCY4lUt2yF9fT3uPFlFoIcd09Js7rj9Lu15L"/>
+<div class="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent"></div>
+</div>
+<div class="relative z-10 max-w-7xl mx-auto px-8 grid lg:grid-cols-2 gap-16 items-center w-full">
+<div class="space-y-8">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/15">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Live Exam Countdown: 42 Days</span>
+</div>
+<h1 class="text-6xl md:text-8xl font-black font-headline leading-[0.9] tracking-tighter text-on-background">
+                    Master your <br/><span class="text-primary">Baccalaureate.</span>
+</h1>
+<p class="text-xl text-on-surface-variant max-w-lg leading-relaxed">
+                    Personalized study paths, AI-driven feedback, and real-time progress tracking. The only platform built for elite student performance.
+                </p>
+<div class="flex flex-wrap gap-4">
+<button class="px-8 py-4 rounded-xl bg-tertiary text-on-tertiary font-black text-lg hover:shadow-[0_0_20px_rgba(74,225,118,0.3)] transition-all">
+                        Start Free Trial
+                    </button>
+<button class="px-8 py-4 rounded-xl glass-card flex items-center gap-3 font-bold hover:bg-surface-container-highest transition-all">
+<span class="material-symbols-outlined">play_circle</span>
+                        Watch Demo
+                    </button>
+</div>
+</div>
+<div class="hidden lg:block">
+<div class="glass-card p-1 rounded-3xl rotate-2 shadow-2xl relative">
+<div class="absolute -top-12 -right-12 w-64 h-64 ai-glow"></div>
+<div class="bg-surface-container-lowest rounded-[1.25rem] overflow-hidden">
+<img alt="Dashboard analytics" class="w-full h-auto opacity-90" data-alt="Sleek dark mode analytics dashboard showing student grade trends" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBXbGIXsEzBgvIxT7Ezsq5KOFovo7uk_BUI7r5vC5Hv8edcJj2PDr6JhQvpz2ob6iE7IHvtFhZkvuWUJ2jiek-_tMUERj-TOsHnhi3t74GmbfzwW6fhdtTkJW9sreNrzejTh-47zXNbO1eLvQSYsywltLEz0x1XvU8ARzEAuN14z2SWZgvP7LWTzf_rjU1uSnnuLuDFRNMwjqGIfd9uy7WW_wqNaCit15NHOTIeaM4-R8iVAf3rvry3Mg1x_jmm8KjW1O5vLGbP0dh0"/>
+</div>
+<div class="absolute -bottom-6 -left-6 glass-card p-6 rounded-2xl shadow-xl">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-tertiary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-white">trending_up</span>
+</div>
+<div>
+<div class="text-xs text-on-surface-variant uppercase font-bold tracking-tighter">Improvement</div>
+<div class="text-xl font-black">+24% Score</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Social Proof -->
+<section class="py-12 bg-surface-container-lowest border-y border-outline-variant/10">
+<div class="max-w-7xl mx-auto px-8 flex flex-wrap justify-between items-center gap-8 grayscale opacity-50">
+<span class="text-xl font-black font-headline tracking-tighter">UNIVERSITY OF OXFORD</span>
+<span class="text-xl font-black font-headline tracking-tighter">SORBONNE</span>
+<span class="text-xl font-black font-headline tracking-tighter">MIT ACADEMY</span>
+<span class="text-xl font-black font-headline tracking-tighter">STANFORD PREP</span>
+<span class="text-xl font-black font-headline tracking-tighter">HEC PARIS</span>
+</div>
+</section>
+<!-- Features Grid -->
+<section class="py-32 px-8 max-w-7xl mx-auto" id="features">
+<div class="text-center mb-24 space-y-4">
+<h2 class="text-4xl md:text-5xl font-black font-headline tracking-tighter">Built for Modern Minds</h2>
+<p class="text-on-surface-variant max-w-2xl mx-auto">Stop studying harder. Start studying smarter with our suite of cognitive-first features designed to maximize retention.</p>
+</div>
+<div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+<!-- Feature 1 -->
+<div class="glass-card p-8 rounded-3xl hover:bg-surface-container-high transition-all duration-500 group relative overflow-hidden">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-6 text-primary">
+<span class="material-symbols-outlined">psychology</span>
+</div>
+<h3 class="text-xl font-bold mb-3">Adaptive Spacing</h3>
+<p class="text-on-surface-variant leading-relaxed">AI algorithms predict when you're about to forget, prompting reviews at the perfect moment.</p>
+</div>
+<!-- Feature 2 -->
+<div class="glass-card p-8 rounded-3xl hover:bg-surface-container-high transition-all duration-500 group relative overflow-hidden">
+<div class="absolute inset-0 bg-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center mb-6 text-secondary">
+<span class="material-symbols-outlined">auto_awesome</span>
+</div>
+<h3 class="text-xl font-bold mb-3">Smart Summaries</h3>
+<p class="text-on-surface-variant leading-relaxed">Turn 50-page textbooks into 5-minute essential reads with our proprietary neural networks.</p>
+</div>
+<!-- Feature 3 -->
+<div class="glass-card p-8 rounded-3xl hover:bg-surface-container-high transition-all duration-500 group relative overflow-hidden">
+<div class="absolute inset-0 bg-tertiary/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+<div class="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center mb-6 text-tertiary">
+<span class="material-symbols-outlined">query_stats</span>
+</div>
+<h3 class="text-xl font-bold mb-3">Predictive Grading</h3>
+<p class="text-on-surface-variant leading-relaxed">Know your score before you sit for the exam with 98% accuracy based on your session data.</p>
+</div>
+<!-- Feature 4 -->
+<div class="glass-card p-8 rounded-3xl hover:bg-surface-container-high transition-all duration-500 group relative overflow-hidden">
+<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-6 text-primary">
+<span class="material-symbols-outlined">group</span>
+</div>
+<h3 class="text-xl font-bold mb-3">Peer Challenges</h3>
+<p class="text-on-surface-variant leading-relaxed">Compete in subject-specific arenas to sharpen your skills against top-tier global students.</p>
+</div>
+<!-- Feature 5 -->
+<div class="glass-card p-8 rounded-3xl hover:bg-surface-container-high transition-all duration-500 group relative overflow-hidden">
+<div class="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center mb-6 text-secondary">
+<span class="material-symbols-outlined">history_edu</span>
+</div>
+<h3 class="text-xl font-bold mb-3">Mock Vault</h3>
+<p class="text-on-surface-variant leading-relaxed">Access the world's largest database of past papers with instant step-by-step solutions.</p>
+</div>
+<!-- Feature 6 -->
+<div class="glass-card p-8 rounded-3xl hover:bg-surface-container-high transition-all duration-500 group relative overflow-hidden">
+<div class="w-12 h-12 rounded-xl bg-tertiary/10 flex items-center justify-center mb-6 text-tertiary">
+<span class="material-symbols-outlined">lock</span>
+</div>
+<h3 class="text-xl font-bold mb-3">Focus Shield</h3>
+<p class="text-on-surface-variant leading-relaxed">Block distracting apps and notifications automatically during your deep work intervals.</p>
+</div>
+</div>
+</section>
+<!-- AI Section -->
+<section class="py-32 relative overflow-hidden">
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] ai-glow rounded-full"></div>
+<div class="max-w-7xl mx-auto px-8 grid lg:grid-cols-2 gap-20 items-center">
+<div class="space-y-8">
+<h2 class="text-5xl font-black font-headline tracking-tighter">Your AI Tutor,<br/>Available 24/7.</h2>
+<p class="text-xl text-on-surface-variant leading-relaxed">Ask anything. From complex physics problems to historical analysis, BacTracker AI provides nuanced, step-by-step explanations that actually make sense.</p>
+<ul class="space-y-4">
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary">check_circle</span>
+<span>Multi-modal input (Photo/Voice/Text)</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary">check_circle</span>
+<span>Instant source verification</span>
+</li>
+<li class="flex items-center gap-3">
+<span class="material-symbols-outlined text-tertiary">check_circle</span>
+<span>Curriculum-aligned knowledge base</span>
+</li>
+</ul>
+</div>
+<div class="glass-card rounded-3xl p-6 shadow-2xl border border-outline-variant/30">
+<div class="flex items-center gap-3 mb-6 pb-4 border-b border-outline-variant/10">
+<div class="w-3 h-3 rounded-full bg-red-500"></div>
+<div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+<div class="w-3 h-3 rounded-full bg-green-500"></div>
+<span class="ml-4 text-xs font-bold text-on-surface-variant tracking-widest uppercase">BacTracker AI Session</span>
+</div>
+<div class="space-y-4">
+<div class="flex justify-start">
+<div class="bg-surface-container-high p-4 rounded-2xl rounded-tl-none max-w-[80%] text-sm">
+                            How do I solve the integral of sin(x)²?
+                        </div>
+</div>
+<div class="flex justify-end">
+<div class="bg-primary/20 p-4 rounded-2xl rounded-tr-none max-w-[80%] text-sm border border-primary/30">
+                            Great question! We use the power-reduction identity: sin²(x) = (1 - cos(2x))/2. Let's break it down...
+                        </div>
+</div>
+<div class="flex justify-start">
+<div class="bg-surface-container-high p-4 rounded-2xl rounded-tl-none max-w-[80%] text-sm">
+                            Oh, I see! Does the same logic apply to cos²(x)?
+                        </div>
+</div>
+</div>
+<div class="mt-8 flex gap-2">
+<div class="flex-1 bg-surface-container-lowest border border-outline-variant/20 rounded-xl px-4 py-3 text-sm text-on-surface-variant flex items-center justify-between">
+                        Type a message...
+                        <span class="material-symbols-outlined text-primary">mic</span>
+</div>
+<button class="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined">send</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing Teaser -->
+<section class="py-32 bg-surface-container-low/30" id="pricing">
+<div class="max-w-7xl mx-auto px-8">
+<div class="text-center mb-24">
+<h2 class="text-4xl md:text-5xl font-black font-headline tracking-tighter mb-4">Invest in Your Future</h2>
+<div class="inline-flex p-1 bg-surface-container-lowest rounded-full border border-outline-variant/20">
+<button class="px-6 py-2 rounded-full bg-surface-container-high font-bold text-sm">Monthly</button>
+<button class="px-6 py-2 rounded-full font-bold text-sm text-on-surface-variant">Yearly (Save 20%)</button>
+</div>
+</div>
+<div class="grid md:grid-cols-3 gap-8">
+<!-- Plan 1 -->
+<div class="glass-card p-8 rounded-3xl flex flex-col">
+<div class="text-on-surface-variant font-bold uppercase tracking-widest text-xs mb-2">Essential</div>
+<div class="text-4xl font-black mb-6">$0<span class="text-lg font-medium text-on-surface-variant">/mo</span></div>
+<ul class="space-y-4 mb-8 flex-1">
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Core Study Tracks
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            3 AI Queries per day
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Public Mock Vault
+                        </li>
+</ul>
+<button class="w-full py-4 rounded-xl border border-outline-variant/30 font-bold hover:bg-surface-container-high transition-all">Get Started</button>
+</div>
+<!-- Plan 2 -->
+<div class="glass-card p-8 rounded-3xl flex flex-col border-primary/50 relative overflow-hidden">
+<div class="absolute top-0 right-0 bg-primary text-on-primary px-4 py-1 rounded-bl-xl text-[10px] font-black uppercase tracking-tighter">Most Popular</div>
+<div class="text-primary font-bold uppercase tracking-widest text-xs mb-2">Pro Scholar</div>
+<div class="text-4xl font-black mb-6">$19<span class="text-lg font-medium text-on-surface-variant">/mo</span></div>
+<ul class="space-y-4 mb-8 flex-1">
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Unlimited AI Tutoring
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Advanced Score Prediction
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            All Premium Study Packs
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Priority Support
+                        </li>
+</ul>
+<button class="w-full py-4 rounded-xl bg-primary text-on-primary font-black shadow-lg shadow-primary/20 hover:scale-[1.02] transition-all">Go Pro Now</button>
+</div>
+<!-- Plan 3 -->
+<div class="glass-card p-8 rounded-3xl flex flex-col">
+<div class="text-on-surface-variant font-bold uppercase tracking-widest text-xs mb-2">Elite Group</div>
+<div class="text-4xl font-black mb-6">$49<span class="text-lg font-medium text-on-surface-variant">/mo</span></div>
+<ul class="space-y-4 mb-8 flex-1">
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Everything in Pro Scholar
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            1-on-1 Mentorship Sessions
+                        </li>
+<li class="flex items-center gap-2 text-sm">
+<span class="material-symbols-outlined text-tertiary text-lg">check</span>
+                            Custom Group Analytics
+                        </li>
+</ul>
+<button class="w-full py-4 rounded-xl border border-outline-variant/30 font-bold hover:bg-surface-container-high transition-all">Contact Sales</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="py-32">
+<div class="max-w-5xl mx-auto px-8">
+<div class="relative rounded-[3rem] overflow-hidden p-16 text-center">
+<div class="absolute inset-0 bg-gradient-to-br from-primary-container via-secondary-container to-background opacity-90"></div>
+<div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+<div class="relative z-10 space-y-8">
+<h2 class="text-5xl md:text-7xl font-black font-headline tracking-tighter text-white">Your highest score starts today.</h2>
+<p class="text-xl text-white/80 max-w-xl mx-auto">Join 50,000+ students already using BacTracker to secure their place in the world's top universities.</p>
+<div class="pt-8">
+<button class="px-12 py-6 rounded-2xl bg-white text-background font-black text-2xl hover:scale-105 transition-all shadow-2xl">
+                            Join BacTracker Free
+                        </button>
+</div>
+<p class="text-white/60 text-sm font-bold tracking-widest uppercase">No credit card required • Cancel anytime</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Footer -->
+<footer class="bg-surface_container_lowest dark:bg-[#0e0e0e] border-t border-outline_variant/15">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-8 px-8 py-16 max-w-7xl mx-auto">
+<div class="col-span-2 md:col-span-1 space-y-6">
+<div class="text-xl font-bold text-primary dark:text-[#adc6ff] font-headline">BacTracker</div>
+<p class="text-on-surface-variant text-sm leading-relaxed">Defining the future of academic performance through fluid intelligence and predictive analytics.</p>
+</div>
+<div class="space-y-4">
+<h4 class="font-bold text-sm tracking-widest uppercase text-primary">Product</h4>
+<ul class="space-y-2">
+<li><a class="text-on_surface_variant dark:text-[#c1c6d7] hover:text-primary dark:hover:text-[#adc6ff] underline-offset-4 hover:underline transition-all" href="#">Features</a></li>
+<li><a class="text-on_surface_variant dark:text-[#c1c6d7] hover:text-primary dark:hover:text-[#adc6ff] underline-offset-4 hover:underline transition-all" href="#">Pricing</a></li>
+<li><a class="text-on_surface_variant dark:text-[#c1c6d7] hover:text-primary dark:hover:text-[#adc6ff] underline-offset-4 hover:underline transition-all" href="#">AI Tutor</a></li>
+</ul>
+</div>
+<div class="space-y-4">
+<h4 class="font-bold text-sm tracking-widest uppercase text-primary">Company</h4>
+<ul class="space-y-2">
+<li><a class="text-on_surface_variant dark:text-[#c1c6d7] hover:text-primary dark:hover:text-[#adc6ff] underline-offset-4 hover:underline transition-all" href="#">About</a></li>
+<li><a class="text-on_surface_variant dark:text-[#c1c6d7] hover:text-primary dark:hover:text-[#adc6ff] underline-offset-4 hover:underline transition-all" href="#">Privacy</a></li>
+<li><a class="text-on_surface_variant dark:text-[#c1c6d7] hover:text-primary dark:hover:text-[#adc6ff] underline-offset-4 hover:underline transition-all" href="#">Terms</a></li>
+</ul>
+</div>
+<div class="space-y-4">
+<h4 class="font-bold text-sm tracking-widest uppercase text-primary">Newsletter</h4>
+<div class="flex flex-col gap-2">
+<input class="bg-surface-container-high border-none rounded-lg text-sm px-4 py-2 focus:ring-1 focus:ring-primary" placeholder="Email address" type="email"/>
+<button class="bg-primary text-on-primary py-2 rounded-lg font-bold text-sm">Subscribe</button>
+</div>
+</div>
+</div>
+<div class="px-8 py-8 border-t border-outline-variant/10 text-center text-xs text-on-surface-variant font-label">
+            © 2024 BacTracker. All rights reserved. Built with Liquid Intelligence.
+        </div>
+</footer>
+</body></html>

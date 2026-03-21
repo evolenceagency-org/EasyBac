@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toDateKey } from '../utils/dateUtils.js'
 import { motion } from 'framer-motion'
+import { Maximize2, X } from 'lucide-react'
 import useStudyTimer from '../hooks/useStudyTimer.js'
 import { useData } from '../context/DataContext.jsx'
 import RecentSessions from '../components/RecentSessions.jsx'
@@ -9,6 +10,7 @@ import SessionConflictModal from '../components/SessionConflictModal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
+import GlassCard from '../components/GlassCard.jsx'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -52,6 +54,7 @@ const Study = () => {
   const [showRecoveryModal, setShowRecoveryModal] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
+  const [isFocusMode, setIsFocusMode] = useState(false)
 
   const recentSessions = useMemo(
     () => studySessions.slice(0, 5),
@@ -186,16 +189,278 @@ const Study = () => {
 
   const statusLabel = useMemo(() => {
     if (isRunning) {
-      return phase === 'break' ? 'Break time' : 'Studying...'
+      return phase === 'break'
+        ? 'Break time — recharge'
+        : 'Deep focus in progress...'
     }
-    if (sessionMinutes > 0) return 'Paused'
+    if (sessionMinutes > 0) return 'Paused — stay focused'
     return 'Ready'
   }, [isRunning, phase, sessionMinutes])
+
+  const enterFullscreen = async () => {
+    const el = document.documentElement
+    if (el.requestFullscreen) {
+      await el.requestFullscreen()
+    }
+  }
+
+  const exitFullscreen = async () => {
+    if (document.exitFullscreen) {
+      await document.exitFullscreen()
+    }
+  }
+
+  const toggleFocusMode = async () => {
+    if (isFocusMode) {
+      await exitFullscreen()
+      setIsFocusMode(false)
+    } else {
+      await enterFullscreen()
+      setIsFocusMode(true)
+    }
+  }
+
+  useEffect(() => {
+    const handleChange = () => {
+      if (!document.fullscreenElement) {
+        setIsFocusMode(false)
+      }
+    }
+    document.addEventListener('fullscreenchange', handleChange)
+    return () => document.removeEventListener('fullscreenchange', handleChange)
+  }, [])
+
+  useEffect(() => {
+    const handleKey = (event) => {
+      if (['INPUT', 'TEXTAREA'].includes(event.target?.tagName)) return
+      if (event.key.toLowerCase() === 'f') {
+        event.preventDefault()
+        toggleFocusMode()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  })
+
+  useEffect(() => {
+    if (isFocusMode) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [isFocusMode])
 
   const radius = 120
   const circumference = 2 * Math.PI * radius
   const dashOffset = circumference * (1 - progress)
   const activeLabel = mode === 'pomodoro' ? 'Pomodoro' : 'Free Study'
+
+  const timerContent = (
+    <GlassCard
+      className={`relative p-6 transition-all duration-500 ${
+        isFocusMode ? 'scale-125 shadow-[0_0_60px_rgba(139,92,246,0.4)]' : ''
+      }`}
+    >
+      {isRunning && (
+        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-purple-500/10 blur-3xl" />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-white/70">
+            Study Timer
+          </p>
+          <h3 className="mt-2 text-2xl font-semibold text-white">
+            Deep Focus Session
+          </h3>
+          <p className="mt-2 text-sm text-white/70">
+            Choose a mode, start the timer, and save your session when you are
+            done.
+          </p>
+        </div>
+
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => requestModeChange('free')}
+          disabled={lockActions}
+          className={`rounded-full px-4 py-2 text-xs font-semibold backdrop-blur-md transition-all duration-300 ease-out ${
+            mode === 'free'
+              ? 'bg-gradient-to-r from-purple-500/30 to-blue-500/30 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]'
+              : 'border border-white/10 bg-white/5 text-white/80 hover:border-purple-400/30'
+          } disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          Free Study
+        </button>
+        <button
+          type="button"
+          onClick={() => requestModeChange('pomodoro')}
+          disabled={lockActions}
+          className={`rounded-full px-4 py-2 text-xs font-semibold backdrop-blur-md transition-all duration-300 ease-out ${
+            mode === 'pomodoro'
+              ? 'bg-gradient-to-r from-purple-500/30 to-blue-500/30 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]'
+              : 'border border-white/10 bg-white/5 text-white/80 hover:border-purple-400/30'
+          } disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          Pomodoro
+        </button>
+      </div>
+
+      {isActiveSession && (
+        <p className="mt-3 text-xs text-white/60">Active session: {activeLabel}</p>
+      )}
+
+      {mode === 'pomodoro' && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-white/70">
+          {[30, 45, 60].map((value) => (
+            <motion.button
+              key={value}
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setPomodoroMinutes(value)}
+              disabled={lockActions}
+              className={`rounded-full px-4 py-2 font-semibold transition-all duration-300 ease-out ${
+                pomodoroMinutes === value
+                  ? 'bg-gradient-to-r from-purple-500/30 to-blue-500/30 text-white shadow-[0_0_12px_rgba(139,92,246,0.35)] scale-105'
+                  : 'border border-white/10 bg-white/5 text-white/80 hover:border-purple-400/30'
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              {value} min
+            </motion.button>
+          ))}
+          <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2">
+            Break: {breakMinutes} min
+          </span>
+        </div>
+      )}
+
+      <div className="mt-10 flex flex-col items-center">
+        <motion.div
+          animate={isRunning ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+          transition={{ duration: 2.6, repeat: isRunning ? Infinity : 0 }}
+          className="relative h-72 w-72"
+        >
+          <svg className="h-full w-full" viewBox="0 0 260 260">
+            <defs>
+              <linearGradient id="focus-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#8b5cf6" />
+                <stop offset="100%" stopColor="#3b82f6" />
+              </linearGradient>
+            </defs>
+            <circle
+              cx="130"
+              cy="130"
+              r={radius}
+              stroke="rgba(255,255,255,0.12)"
+              strokeWidth="12"
+              fill="transparent"
+            />
+            <motion.circle
+              cx="130"
+              cy="130"
+              r={radius}
+              stroke="url(#focus-gradient)"
+              strokeWidth="12"
+              strokeLinecap="round"
+              fill="transparent"
+              strokeDasharray={circumference}
+              animate={{ strokeDashoffset: dashOffset }}
+              transition={{ duration: 0.5 }}
+              transform="rotate(-90 130 130)"
+              style={{
+                filter: 'drop-shadow(0 0 10px rgba(139,92,246,0.6))'
+              }}
+            />
+          </svg>
+
+          <div className="absolute inset-6 flex flex-col items-center justify-center rounded-full border border-white/10 bg-white/5 backdrop-blur-xl">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/10 to-transparent" />
+            <p className="text-xs uppercase tracking-[0.3em] text-white/60">
+              {mode === 'pomodoro'
+                ? phase === 'break'
+                  ? 'Break'
+                  : phase === 'completed'
+                    ? 'Done'
+                    : 'Focus'
+                : 'Session'}
+            </p>
+            <p className="mt-3 text-4xl font-semibold text-white">
+              {formatTwoDigits(minutes)}:{formatTwoDigits(seconds)}
+            </p>
+            <p className="mt-2 text-xs text-white/70">{statusLabel}</p>
+            <p className="mt-2 text-xs text-white/60">
+              {mode === 'pomodoro'
+                ? `${pomodoroMinutes} min study`
+                : 'Free study mode'}
+            </p>
+          </div>
+        </motion.div>
+
+        <div className="mt-8 flex flex-wrap gap-3">
+          {!isRunning ? (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleStart}
+              disabled={lockActions}
+              className="rounded-full bg-gradient-to-r from-green-400 to-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900 shadow-[0_0_20px_rgba(34,197,94,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Start
+            </motion.button>
+          ) : (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={pause}
+              disabled={lockActions}
+              className="rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_12px_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Pause
+            </motion.button>
+          )}
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={reset}
+            disabled={lockActions}
+            className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Reset
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleFinish}
+            disabled={lockActions}
+            className="rounded-full border border-white/10 bg-white/10 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_15px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Finish Session
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={toggleFocusMode}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 transition hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+          >
+            <Maximize2 className="h-4 w-4" />
+            {isFocusMode ? 'Exit Focus' : 'Focus Mode'}
+          </motion.button>
+        </div>
+
+      </div>
+    </GlassCard>
+  )
 
   return (
     <motion.div
@@ -206,16 +471,20 @@ const Study = () => {
       transition={{ duration: 0.4 }}
       className="flex flex-col gap-6"
     >
-      <div className="glass rounded-2xl p-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-          Study Timer
-        </p>
-        <h3 className="mt-2 text-2xl font-semibold">Deep Focus Session</h3>
-        <p className="mt-2 text-sm text-zinc-300">
-          Choose a mode, start the timer, and save your session when you are
-          done.
-        </p>
-      </div>
+      {isFocusMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-6 transition-all duration-500">
+          <div className="pointer-events-none absolute inset-0 bg-purple-500/10 blur-3xl" />
+          <button
+            type="button"
+            onClick={toggleFocusMode}
+            className="absolute right-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80 shadow-[0_0_12px_rgba(139,92,246,0.35)] backdrop-blur-md transition hover:shadow-[0_0_18px_rgba(139,92,246,0.45)]"
+          >
+            <X className="h-4 w-4" />
+            Exit Focus
+          </button>
+          <div className="w-full max-w-3xl">{timerContent}</div>
+        </div>
+      )}
 
       {savedMessage && (
         <motion.div
@@ -240,150 +509,7 @@ const Study = () => {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="glass rounded-2xl p-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => requestModeChange('free')}
-              disabled={lockActions}
-              className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                mode === 'free'
-                  ? 'bg-white text-zinc-900'
-                  : 'border border-white/20 text-white'
-              } disabled:cursor-not-allowed disabled:opacity-60`}
-            >
-              Free Study
-            </button>
-            <button
-              type="button"
-              onClick={() => requestModeChange('pomodoro')}
-              disabled={lockActions}
-              className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                mode === 'pomodoro'
-                  ? 'bg-white text-zinc-900'
-                  : 'border border-white/20 text-white'
-              } disabled:cursor-not-allowed disabled:opacity-60`}
-            >
-              Pomodoro
-            </button>
-          </div>
-
-          {isActiveSession && (
-            <p className="mt-4 text-xs text-zinc-400">
-              Active session: {activeLabel}
-            </p>
-          )}
-
-          {mode === 'pomodoro' && (
-            <div className="mt-4 flex flex-wrap gap-3 text-xs text-zinc-300">
-              {[30, 45, 60].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setPomodoroMinutes(value)}
-                  disabled={lockActions}
-                  className={`rounded-full px-4 py-2 font-semibold ${
-                    pomodoroMinutes === value
-                      ? 'bg-violet-500 text-white'
-                      : 'border border-white/20 text-white'
-                  } disabled:cursor-not-allowed disabled:opacity-60`}
-                >
-                  {value} min
-                </button>
-              ))}
-              <span className="rounded-full border border-white/10 px-4 py-2">
-                Break: {breakMinutes} min
-              </span>
-            </div>
-          )}
-
-          <div className="mt-10 flex flex-col items-center">
-            <div className="relative h-72 w-72">
-              <svg className="h-full w-full" viewBox="0 0 260 260">
-                <circle
-                  cx="130"
-                  cy="130"
-                  r={radius}
-                  stroke="rgba(255,255,255,0.12)"
-                  strokeWidth="12"
-                  fill="transparent"
-                />
-                <motion.circle
-                  cx="130"
-                  cy="130"
-                  r={radius}
-                  stroke="rgba(139,92,246,0.8)"
-                  strokeWidth="12"
-                  strokeLinecap="round"
-                  fill="transparent"
-                  strokeDasharray={circumference}
-                  animate={{ strokeDashoffset: dashOffset }}
-                  transition={{ duration: 0.5 }}
-                  transform="rotate(-90 130 130)"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-                  {mode === 'pomodoro'
-                    ? phase === 'break'
-                      ? 'Break'
-                      : phase === 'completed'
-                        ? 'Done'
-                        : 'Focus'
-                    : 'Session'}
-                </p>
-                <p className="mt-3 text-4xl font-semibold">
-                  {formatTwoDigits(minutes)}:{formatTwoDigits(seconds)}
-                </p>
-                <p className="mt-2 text-xs text-zinc-400">{statusLabel}</p>
-                <p className="mt-2 text-xs text-zinc-400">
-                  {mode === 'pomodoro'
-                    ? `${pomodoroMinutes} min study`
-                    : 'Free study mode'}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              {!isRunning ? (
-                <button
-                  type="button"
-                  onClick={handleStart}
-                  disabled={lockActions}
-                  className="rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Start
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={pause}
-                  disabled={lockActions}
-                  className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Pause
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={reset}
-                disabled={lockActions}
-                className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                onClick={handleFinish}
-                disabled={lockActions}
-                className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Finish Session
-              </button>
-            </div>
-          </div>
-        </div>
-
+        {timerContent}
         <RecentSessions sessions={recentSessions} loading={loading.sessions} />
       </div>
 

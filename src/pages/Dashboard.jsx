@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import Countdown from '../components/Countdown.jsx'
 import DashboardCards from '../components/DashboardCards.jsx'
 import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
-import SubjectChart from '../components/Charts/SubjectChart.jsx'
+import SubjectFocusChart from '../components/Charts/SubjectFocusChart.jsx'
 import WeeklySummary from '../components/WeeklySummary.jsx'
 import DashboardTaskSummary from '../components/DashboardTaskSummary.jsx'
 import AIInsights from '../components/AIInsights.jsx'
@@ -13,11 +13,16 @@ import {
   calculateLongestStreak
 } from '../utils/streak.js'
 import { toDateKey } from '../utils/dateUtils.js'
-import { detectWeakSubjects, getDailyStudyData } from '../utils/analytics.js'
+import {
+  detectWeakSubjects,
+  getDailyStudyData,
+  getSubjectFocus
+} from '../utils/analytics.js'
 import {
   getTasksCompletedToday,
   isOverdueTask
 } from '../utils/taskStats.js'
+import GlassCard from '../components/GlassCard.jsx'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -78,6 +83,46 @@ const Dashboard = () => {
     [studySessions]
   )
 
+  const subjectFocusData = useMemo(() => getSubjectFocus(tasks), [tasks])
+
+  const quickInsights = useMemo(() => {
+    const labels = dailyStudyData.labels || []
+    const values = dailyStudyData.datasets?.[0]?.data || []
+    if (!labels.length || !values.length) {
+      return {
+        bestDay: '—',
+        worstDay: '—',
+        avg: '—',
+        topSubject: '—',
+        consistency: 0
+      }
+    }
+
+    const maxValue = Math.max(...values)
+    const minValue = Math.min(...values)
+    const bestIndex = values.indexOf(maxValue)
+    const worstIndex = values.indexOf(minValue)
+    const total = values.reduce((sum, v) => sum + v, 0)
+    const avg = Math.round(total / values.length)
+
+    const topSubject =
+      subjectFocusData.breakdown?.reduce((top, item) => {
+        if (!top || item.value > top.value) return item
+        return top
+      }, null)?.label || '—'
+
+    const consistencyDays = values.filter((v) => v >= 40).length
+    const consistency = Math.round((consistencyDays / values.length) * 100)
+
+    return {
+      bestDay: labels[bestIndex] || '—',
+      worstDay: labels[worstIndex] || '—',
+      avg: `${avg} min`,
+      topSubject,
+      consistency
+    }
+  }, [dailyStudyData, subjectFocusData])
+
   return (
     <motion.div
       variants={pageMotion}
@@ -99,13 +144,13 @@ const Dashboard = () => {
       />
 
       {(errors.tasks || errors.sessions) && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
           {errors.tasks || errors.sessions}
         </div>
       )}
 
       {weakSubjects.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
           {weakSubjects[0]}
         </div>
       )}
@@ -124,13 +169,78 @@ const Dashboard = () => {
         streak={streakInfo}
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <StudyTimeChart
-          data={dailyStudyData}
-          title="Daily Study Time"
-          subtitle="Last 30 days"
-        />
-        <SubjectChart />
+      <div className="relative">
+        <div className="pointer-events-none absolute -top-16 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl" />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <StudyTimeChart
+            data={dailyStudyData}
+            title="Daily Study Time"
+            subtitle="Last 30 days"
+          />
+          <div className="flex flex-col gap-6">
+            <SubjectFocusChart
+              data={subjectFocusData}
+              breakdown={subjectFocusData.breakdown}
+            />
+            <GlassCard className="p-5">
+              <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
+                Progress Score
+              </p>
+              <div className="flex items-center gap-6">
+                <div
+                  className="relative flex h-20 w-20 items-center justify-center rounded-full"
+                  style={{
+                    background: `conic-gradient(#8b5cf6 ${quickInsights.consistency}%, rgba(255,255,255,0.08) 0)`
+                  }}
+                >
+                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-sm font-semibold text-white">
+                    {quickInsights.consistency}%
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm text-white/80">Consistency</p>
+                  <p className="mt-1 text-xs text-white/60">
+                    Days with 40+ min focus
+                  </p>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <GlassCard className="p-6">
+            <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
+              Quick Insights Panel
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
+                <p className="text-xs text-white/60">Best day</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {quickInsights.bestDay}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
+                <p className="text-xs text-white/60">Worst day</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {quickInsights.worstDay}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
+                <p className="text-xs text-white/60">Average study</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {quickInsights.avg}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
+                <p className="text-xs text-white/60">Top subject</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {quickInsights.topSubject}
+                </p>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
       </div>
     </motion.div>
   )
