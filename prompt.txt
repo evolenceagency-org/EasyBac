@@ -1,0 +1,306 @@
+You are a senior product designer, conversion strategist, and frontend engineer.
+
+Your task is to transform the provided React pricing page into a HIGH-CONVERTING SaaS sales page.
+
+You MUST think like a product designer focused on conversion, not just UI.
+
+---
+
+GOAL:
+
+Sell a premium subscription for students preparing for exams (Bac).
+
+This is NOT a simple pricing page.
+This is a conversion-focused sales page.
+
+You must apply UX psychology, hierarchy, and visual emphasis.
+
+---
+
+CONTEXT:
+
+You will receive an existing React + Tailwind pricing component.
+
+You MUST:
+
+* Modify the existing structure (do not break functionality)
+* Improve design, copywriting, and layout
+* Return a FULL updated React component
+
+---
+
+PART 1 — FIX PRICING LOGIC
+
+Replace:
+
+"299 MAD"
+
+WITH:
+
+"299 MAD — Full access until exam"
+
+Add small text under price:
+
+"One-time payment • Access until June 2026"
+
+Make pricing visually dominant.
+
+---
+
+PART 2 — ADD URGENCY
+
+Add a badge on the premium card:
+
+"Limited Time Offer"
+
+Add urgency microcopy:
+
+"Price will increase soon"
+
+Make urgency visually noticeable (color, contrast, position).
+
+---
+
+PART 3 — STRONG VALUE PROPOSITION
+
+Above pricing cards, add a strong headline:
+
+"Focus. Track. Improve. Succeed in your Bac."
+
+* Center it
+* Make it bold
+* Increase font size
+* Ensure strong visual hierarchy
+
+---
+
+PART 4 — ADD OUTCOME (VERY IMPORTANT)
+
+Under the premium title, add:
+
+"Designed to help you reach your best performance before the national exam."
+
+This must feel outcome-driven, not feature-driven.
+
+---
+
+PART 5 — CTA IMPROVEMENT
+
+Replace button text:
+
+"Contact to Upgrade"
+
+WITH:
+
+"Unlock Full Access"
+
+CTA must:
+
+* Be visually dominant
+* Use gradient / glow
+* Have strong hover effects
+
+On click:
+
+* Navigate to /contact OR trigger WhatsApp
+
+Add subtext under CTA:
+
+"Send payment proof for instant activation"
+
+---
+
+PART 6 — VISUAL BOOST (PREMIUM CARD)
+
+Premium card MUST stand out significantly:
+
+* Stronger glow (shadow)
+* Gradient border
+* Slight scale (scale-105 default)
+* On hover: scale-110
+* Higher contrast than free card
+
+It should feel like the obvious choice.
+
+---
+
+PART 7 — ADD COMPARISON
+
+Add a clear comparison section or enhance lists:
+
+FREE:
+✔ Basic tracking
+✔ Limited sessions
+
+PREMIUM:
+✔ Unlimited sessions
+✔ AI insights
+✔ Advanced analytics
+✔ Full subject tracking
+✔ Priority support
+
+Ensure readability and visual clarity.
+
+---
+
+PART 8 — ADD TRUST LINE
+
+Below CTA, add:
+
+"Secure manual activation via WhatsApp"
+
+* Small text
+* opacity-70
+* Subtle but reassuring
+
+---
+
+PART 9 — MICROCOPY (IMPORTANT)
+
+Replace weak copy:
+
+"Full access for serious progress"
+
+WITH:
+
+"Everything you need to stay consistent and improve daily"
+
+Improve any other weak or generic text if needed.
+
+---
+
+PART 10 — FINAL RESULT
+
+You MUST return:
+
+* FULL updated React component (ready to use)
+* Clean, production-level Tailwind styling
+* Improved spacing, hierarchy, and alignment
+* Mobile responsiveness
+* No explanations, ONLY code
+
+---
+
+IMPORTANT:
+
+* Think like a SaaS landing page designer
+* Apply conversion psychology (contrast, hierarchy, clarity)
+* Make PREMIUM the obvious choice
+* Do not remove animations (framer-motion), enhance them if needed
+
+---
+
+INPUT CODE:
+import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
+import { CheckCircle2, Star } from 'lucide-react'
+
+const Pricing = () => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
+      <div className="px-6 pb-16 pt-12 md:px-12">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4 }}
+          className="mx-auto mt-20 flex w-full max-w-4xl flex-col gap-6 rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_0_40px_rgba(139,92,246,0.2)] backdrop-blur-xl"
+        >
+          <div>
+            <p className="text-xs uppercase tracking-wide text-white/70">Pricing</p>
+            <h1 className="mt-2 text-3xl font-semibold">
+              Upgrade to unlock premium focus
+            </h1>
+            <p className="mt-2 text-sm text-white/70">
+              Your free trial is already active. Upgrade anytime for full access.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="rounded-2xl border border-white/10 bg-white/5 p-6"
+            >
+              <p className="text-xs uppercase tracking-wide text-white/70">
+                Free Trial
+              </p>
+              <p className="mt-3 text-3xl font-semibold">3 Days</p>
+              <p className="mt-1 text-sm text-white/60">
+                Explore the essentials
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-white/70">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-white/70" />
+                  Deep study tracking
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-white/70" />
+                  Pomodoro timer
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-white/70" />
+                  Basic analytics
+                </li>
+              </ul>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+              className="relative rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-600/20 to-blue-600/20 p-6 shadow-[0_0_40px_rgba(139,92,246,0.25)]"
+            >
+              <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs text-white">
+                <Star className="h-3 w-3 text-purple-200" />
+                Recommended
+              </span>
+              <p className="text-xs uppercase tracking-wide text-white/80">
+                Premium
+              </p>
+              <p className="mt-3 text-3xl font-semibold">299 MAD</p>
+              <p className="mt-1 text-sm text-white/70">
+                Full access for serious progress
+              </p>
+              <ul className="mt-4 space-y-2 text-sm text-white/80">
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-200" />
+                  Unlimited sessions
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-200" />
+                  Advanced analytics
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-200" />
+                  AI insights
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-200" />
+                  Subject tracking
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-200" />
+                  Priority support
+                </li>
+              </ul>
+            </motion.div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              to="/contact"
+              className="rounded-full bg-gradient-to-r from-purple-500 to-blue-500 px-7 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] transition hover:shadow-[0_0_30px_rgba(139,92,246,0.6)]"
+            >
+              Contact to Upgrade
+            </Link>
+          </div>
+
+          <p className="text-xs text-white/70">
+            Manual activation after payment confirmation.
+          </p>
+        </motion.div>
+      </div>
+    </div>
+  )
+}
+
+export default Pricing

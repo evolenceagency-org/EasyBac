@@ -1,345 +1,136 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
-import heroLaptop from '../assets/video/hero-study-loop-dark-laptop.mp4'
-import heroPhone from '../assets/video/hero-study-loop-dark-phone.mp4'
-import iconClockPlus from '../assets/icons/clock-plus.svg'
-import iconTimer from '../assets/icons/timer.svg'
-import iconChartArea from '../assets/icons/chart-area.svg'
-import iconBrainCircuit from '../assets/icons/brain-circuit.svg'
-import iconListTodo from '../assets/icons/list-todo.svg'
-import iconGraduationCap from '../assets/icons/graduation-cap.svg'
+import { Brain, Timer, LineChart, Target, Sparkles, Flame, ChevronDown } from 'lucide-react'
+import Hero from '../components/Hero.jsx'
 
 const fadeUp = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: 'easeOut' } }
-}
-
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.12 } }
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
 }
 
 const features = [
-  {
-    title: 'Deep Study Tracking',
-    desc: 'Capture focused sessions and see daily momentum at a glance.',
-    color: 'from-emerald-400/50 to-emerald-400/10',
-    icon: iconClockPlus
-  },
-  {
-    title: 'Pomodoro Focus',
-    desc: 'Maintain rhythm with adaptive pomodoro cycles and breaks.',
-    color: 'from-blue-400/50 to-blue-400/10',
-    icon: iconTimer
-  },
-  {
-    title: 'Productivity Analytics',
-    desc: 'Measure creativity, streaks, and output with clarity.',
-    color: 'from-violet-400/50 to-violet-400/10',
-    icon: iconChartArea
-  },
-  {
-    title: 'Subject Focus',
-    desc: 'See weak subjects early and rebalance your week.',
-    color: 'from-cyan-400/50 to-cyan-400/10',
-    icon: iconBrainCircuit
-  },
-  {
-    title: 'AI Guidance',
-    desc: 'Receive smart suggestions tailored to your study behavior.',
-    color: 'from-fuchsia-400/50 to-fuchsia-400/10',
-    icon: iconListTodo
-  },
-  {
-    title: 'Streak Engine',
-    desc: 'Build consistency with dynamic streak tracking.',
-    color: 'from-amber-400/50 to-amber-400/10',
-    icon: iconGraduationCap
-  }
+  { title: 'Deep Study Tracking', desc: 'Capture focused sessions with clarity.', icon: Timer },
+  { title: 'Pomodoro Focus', desc: 'Stay in rhythm with smart cycles.', icon: Target },
+  { title: 'Productivity Analytics', desc: 'See trends and momentum at a glance.', icon: LineChart },
+  { title: 'Subject Focus', desc: 'Rebalance weak subjects quickly.', icon: Brain },
+  { title: 'AI Guidance', desc: 'Suggestions tailored to your behavior.', icon: Sparkles },
+  { title: 'Streak Engine', desc: 'Build consistency with daily goals.', icon: Flame }
+]
+
+const insightLines = [
+  'You focused more on Math this week.',
+  'Your study time dropped yesterday.',
+  'Try adding a 45min Physics session.'
 ]
 
 const tabs = [
-  {
-    id: 'dashboard',
-    title: 'Dashboard',
-    desc: 'See daily focus, streaks, and progress in one elegant view.'
-  },
-  {
-    id: 'tasks',
-    title: 'Tasks',
-    desc: 'Turn plans into clear, trackable actions across subjects.'
-  },
-  {
-    id: 'analytics',
-    title: 'Analytics',
-    desc: 'Understand trends, creativity, and subject focus in minutes.'
-  }
+  { id: 'dashboard', title: 'Dashboard', desc: 'Daily focus, streaks, and totals.' },
+  { id: 'tasks', title: 'Tasks', desc: 'Plan, execute, and close tasks fast.' },
+  { id: 'analytics', title: 'Analytics', desc: 'Insights across subjects and time.' }
 ]
 
 const faqs = [
-  {
-    q: 'Is it free?',
-    a: 'Yes, you get 3 days of full access with no card required.'
-  },
-  {
-    q: 'Do I need payment?',
-    a: 'Only after the trial expires. You can upgrade anytime.'
-  },
-  {
-    q: 'Does it work on phone?',
-    a: 'Absolutely. The experience is optimized for mobile.'
-  }
+  { q: 'Is it free?', a: 'Yes, you get a 3-day full access trial.' },
+  { q: 'Do I need payment?', a: 'Only after the trial ends. Upgrade anytime.' },
+  { q: 'Does it work on phone?', a: 'Yes, BacTracker is mobile optimized.' }
 ]
 
-const GlassButton = ({ to, children, variant = 'primary' }) => {
-  const base =
-    'inline-flex items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition'
-  if (variant === 'primary') {
-    return (
-      <Link
-        to={to}
-        className={`${base} bg-gradient-to-r from-emerald-400 to-emerald-600 text-zinc-900 shadow-[0_0_30px_rgba(74,225,118,0.35)] hover:scale-[1.04]`}
-      >
-        {children}
-      </Link>
-    )
-  }
-  return (
-    <Link
-      to={to}
-      className={`${base} glass text-white hover:border-white/30 hover:shadow-[0_0_18px_rgba(255,255,255,0.15)]`}
-    >
-      {children}
-    </Link>
-  )
-}
+const GlassButton = ({ to, children }) => (
+  <Link
+    to={to}
+    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(34,211,238,0.5)]"
+  >
+    {children}
+  </Link>
+)
 
-const Hero = () => {
-  return (
-    <section className="relative h-screen overflow-hidden">
-      <video
-        className="absolute inset-0 hidden h-full w-full object-cover md:block"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="none"
-        poster="/landing-preview.png"
-      >
-        <source src={heroLaptop} type="video/mp4" />
-      </video>
-      <video
-        className="absolute inset-0 h-full w-full object-cover md:hidden"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="none"
-        poster="/landing-preview.png"
-      >
-        <source src={heroPhone} type="video/mp4" />
-      </video>
-      <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
-
-      <div className="absolute top-0 z-20 w-full">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-          <Link to="/" className="text-xl font-semibold text-white">
-            BacTracker
-          </Link>
-          <div className="hidden items-center gap-6 text-xs uppercase tracking-[0.3em] text-zinc-400 md:flex">
-            <a href="#features" className="hover:text-white">
-              Features
-            </a>
-            <a href="#ai" className="hover:text-white">
-              Insights
-            </a>
-            <a href="#pricing" className="hover:text-white">
-              Pricing
-            </a>
-          </div>
-          <div className="hidden items-center gap-3 md:flex">
-            <GlassButton to="/login" variant="secondary">
-              Sign in
-            </GlassButton>
-            <GlassButton to="/register">Start Free Trial</GlassButton>
-          </div>
-        </div>
-      </div>
-
-      <motion.div
-        variants={stagger}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 mx-auto grid h-full w-full max-w-6xl gap-12 px-6 pb-16 pt-32 lg:grid-cols-[1.05fr_0.95fr] lg:items-center"
-      >
-        <div className="space-y-6">
-          <motion.p
-            variants={fadeUp}
-            className="text-xs uppercase tracking-[0.35em] text-zinc-400"
-          >
-            Premium Bac Mastery
-          </motion.p>
-          <motion.h1
-            variants={fadeUp}
-            className="text-5xl font-semibold leading-[1.05] tracking-[0.015em] sm:text-6xl lg:text-7xl"
-          >
-            Master your <span className="text-emerald-300">Baccalaureate.</span>
-          </motion.h1>
-          <motion.p
-            variants={fadeUp}
-            className="max-w-xl text-base text-zinc-300/90 sm:text-lg"
-          >
-            The AI-powered system that tracks deep study time, analyzes
-            productivity, and guides you to a top score.
-          </motion.p>
-          <motion.div variants={fadeUp} className="flex flex-wrap gap-4">
-            <GlassButton to="/register">Start Free Trial</GlassButton>
-            <GlassButton to="/register" variant="secondary">
-              Watch Demo
-            </GlassButton>
-          </motion.div>
-        </div>
-
-        <motion.div
-          className="hidden lg:block"
-          variants={fadeUp}
-          animate={{ y: [0, -12, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <div className="relative">
-            <div className="glass rounded-3xl p-3 shadow-lg">
-              <img
-                src="/landing-preview.png"
-                alt="BacTracker dashboard preview"
-                className="rounded-2xl object-cover"
-                loading="lazy"
-              />
-            </div>
-            <div className="absolute -bottom-6 -left-6 glass rounded-2xl px-4 py-3 text-xs text-zinc-200 shadow-lg">
-              +24% weekly improvement
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
-    </section>
-  )
-}
-
-const Features = () => (
-  <section id="features" className="py-24">
+const FeaturesSection = () => (
+  <section id="features" className="relative py-24">
     <div className="mx-auto max-w-6xl px-6">
       <motion.div
         variants={fadeUp}
         initial="hidden"
         whileInView="show"
-        viewport={{ once: true, amount: 0.3 }}
+        viewport={{ once: true, amount: 0.4 }}
         className="mx-auto max-w-2xl text-center"
       >
-        <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-          Features
-        </p>
-        <h2 className="mt-4 text-3xl font-semibold tracking-[0.01em] sm:text-4xl">
-          Built for modern focus
-        </h2>
-        <p className="mt-3 text-sm text-zinc-300 sm:text-base">
-          Everything you need to plan, execute, and reflect on your study
-          journey.
+        <p className="text-xs uppercase tracking-[0.3em] text-white/50">Features</p>
+        <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Built for serious focus</h2>
+        <p className="mt-3 text-sm text-white/70 sm:text-base">
+          The tools you need to plan, execute, and reflect on every session.
         </p>
       </motion.div>
 
-      <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {features.map((feature, index) => (
-          <motion.div
-            key={feature.title}
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.5, delay: index * 0.05 }}
-            whileHover={{ scale: 1.05, rotate: 0.6 }}
-            className="glass group relative rounded-2xl p-6 shadow-lg transition hover:shadow-[0_0_35px_rgba(124,58,237,0.35)]"
-          >
-            <div className="relative mb-4 h-12 w-12">
-              <div
-                className={`absolute inset-0 rounded-full bg-gradient-to-br ${feature.color} blur-md`}
-              />
-              <div
-                className={`relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br ${feature.color} backdrop-blur-xl`}
-              >
-                <img
-                  src={feature.icon}
-                  alt=""
-                  className="h-5 w-5 brightness-0 invert"
-                  aria-hidden="true"
-                />
+      <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {features.map((feature, index) => {
+          const Icon = feature.icon
+          return (
+            <motion.div
+              key={feature.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.5, delay: index * 0.05 }}
+              whileHover={{ scale: 1.04 }}
+              className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_0_25px_rgba(124,58,237,0.18)] backdrop-blur-xl"
+            >
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]">
+                <Icon className="h-5 w-5" />
               </div>
-            </div>
-            <h3 className="text-lg font-semibold text-white">
-              {feature.title}
-            </h3>
-            <p className="mt-2 text-sm text-zinc-300">{feature.desc}</p>
-          </motion.div>
-        ))}
+              <h3 className="text-lg font-semibold">{feature.title}</h3>
+              <p className="mt-2 text-sm text-white/70">{feature.desc}</p>
+            </motion.div>
+          )
+        })}
       </div>
     </div>
   </section>
 )
 
-const AISection = () => {
-  return (
-    <section id="ai" className="relative overflow-hidden py-24">
-      <div className="absolute inset-0 bg-gradient-to-r from-purple-600/30 via-blue-600/20 to-cyan-500/20" />
-      <div className="absolute -top-24 right-0 h-72 w-72 rounded-full bg-violet-500/20 blur-[120px]" />
-      <div className="relative mx-auto grid max-w-6xl gap-12 px-6 lg:grid-cols-2 lg:items-center">
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, amount: 0.4 }}
-          className="space-y-6"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-zinc-300">
-            Smart Study Insights
-          </p>
-          <h2 className="text-3xl font-semibold tracking-[0.01em] sm:text-4xl">
-            Personalized study analysis
-          </h2>
-          <p className="text-sm text-zinc-200/90 sm:text-base">
-            BacTracker highlights your trends and suggests the next best action
-            to keep momentum.
-          </p>
-        </motion.div>
+const InsightsSection = () => (
+  <section id="insights" className="relative py-24">
+    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-blue-600/10 to-cyan-500/10" />
+    <div className="relative mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-2 lg:items-center">
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, amount: 0.4 }}
+        className="space-y-6"
+      >
+        <p className="text-xs uppercase tracking-[0.3em] text-white/60">Insights</p>
+        <h2 className="text-3xl font-semibold sm:text-4xl">Smart study insights</h2>
+        <p className="text-sm text-white/70 sm:text-base">
+          BacTracker surfaces patterns you might miss and suggests what to do next.
+        </p>
+      </motion.div>
 
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, amount: 0.4 }}
-          className="glass rounded-3xl p-6 shadow-lg"
-        >
-          <div className="flex items-center gap-3 border-b border-white/10 pb-4 text-xs uppercase tracking-[0.3em] text-zinc-400">
-            Insight Feed
-          </div>
-          <div className="mt-4 space-y-4 text-sm">
-            {[
-              'You focused more on Math this week.',
-              'Your study time dropped yesterday.',
-              'Try adding a 45min Physics session.'
-            ].map((insight) => (
-              <div
-                key={insight}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3"
-              >
-                {insight}
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  )
-}
+      <motion.div
+        variants={fadeUp}
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, amount: 0.4 }}
+        className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_0_35px_rgba(59,130,246,0.25)] backdrop-blur-xl"
+      >
+        <div className="text-xs uppercase tracking-[0.3em] text-white/50">Insight feed</div>
+        <div className="mt-4 space-y-3">
+          {insightLines.map((line) => (
+            <motion.div
+              key={line}
+              initial={{ opacity: 0, y: 10 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.5 }}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
+            >
+              {line}
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+    </div>
+  </section>
+)
 
 const ProductPreview = () => {
   const [active, setActive] = useState(tabs[0])
@@ -352,29 +143,25 @@ const ProductPreview = () => {
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, amount: 0.4 }}
-          className="mx-auto mb-10 max-w-3xl text-center"
+          className="mx-auto max-w-3xl text-center"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-            Product Preview
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[0.01em] sm:text-4xl">
-            Your command center
-          </h2>
-          <p className="mt-4 text-sm text-zinc-300/90">
-            Switch tabs to explore the core surfaces of your workspace.
+          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Product preview</p>
+          <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Your command center</h2>
+          <p className="mt-3 text-sm text-white/70">
+            Switch between key surfaces for a quick look.
           </p>
         </motion.div>
 
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="mt-10 flex flex-wrap justify-center gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActive(tab)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition-all duration-300 ${
                 active.id === tab.id
-                  ? 'bg-white text-zinc-900'
-                  : 'border border-white/10 bg-white/5 text-white'
+                  ? 'bg-white text-black'
+                  : 'border border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
               }`}
             >
               {tab.title}
@@ -383,7 +170,7 @@ const ProductPreview = () => {
         </div>
 
         <div className="relative mt-10">
-          <div className="absolute inset-0 bg-emerald-400/10 blur-[80px]" />
+          <div className="pointer-events-none absolute inset-0 bg-purple-500/10 blur-[80px]" />
           <AnimatePresence mode="wait">
             <motion.div
               key={active.id}
@@ -393,23 +180,17 @@ const ProductPreview = () => {
               transition={{ duration: 0.4, ease: 'easeOut' }}
               className="relative mx-auto grid max-w-3xl gap-6"
             >
-              <div className="glass rounded-3xl p-6">
-                <h3 className="text-xl font-semibold tracking-[0.01em]">
-                  {active.title}
-                </h3>
-                <p className="mt-3 text-sm text-zinc-300/90">
-                  {active.desc}
-                </p>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+                <h3 className="text-xl font-semibold">{active.title}</h3>
+                <p className="mt-2 text-sm text-white/70">{active.desc}</p>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
                 {['Dashboard', 'Tasks', 'Analytics'].map((label) => (
                   <div
                     key={label}
-                    className="glass rounded-2xl p-4 text-sm text-zinc-200 shadow-[0_0_25px_rgba(255,255,255,0.08)]"
+                    className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 shadow-[0_0_20px_rgba(255,255,255,0.08)] backdrop-blur-xl"
                   >
-                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                      {label}
-                    </p>
+                    <p className="text-xs uppercase tracking-[0.2em] text-white/50">{label}</p>
                     <div className="mt-4 space-y-2">
                       <div className="h-2 w-3/4 rounded-full bg-white/10" />
                       <div className="h-2 w-full rounded-full bg-white/10" />
@@ -426,10 +207,11 @@ const ProductPreview = () => {
   )
 }
 
-const FAQ = () => {
-  const [activeIndex, setActiveIndex] = useState(null)
+const FAQSection = () => {
+  const [openIndex, setOpenIndex] = useState(null)
+
   return (
-    <section className="py-24">
+    <section id="faq" className="py-24">
       <div className="mx-auto max-w-4xl px-6">
         <motion.div
           variants={fadeUp}
@@ -438,33 +220,31 @@ const FAQ = () => {
           viewport={{ once: true, amount: 0.4 }}
           className="text-center"
         >
-          <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
-            FAQ
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-[0.01em] sm:text-4xl">
-            Frequently asked questions
-          </h2>
+          <p className="text-xs uppercase tracking-[0.3em] text-white/50">FAQ</p>
+          <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Frequently asked questions</h2>
         </motion.div>
 
         <div className="mt-10 space-y-4">
           {faqs.map((item, index) => {
-            const open = activeIndex === index
+            const open = openIndex === index
             return (
               <motion.div
                 key={item.q}
                 initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
+                viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.4, delay: index * 0.05 }}
-                className="glass rounded-2xl p-5"
+                className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl"
               >
                 <button
                   type="button"
-                  onClick={() => setActiveIndex(open ? null : index)}
-                  className="flex w-full items-center justify-between text-left text-sm font-semibold"
+                  onClick={() => setOpenIndex(open ? null : index)}
+                  className="flex w-full items-center justify-between text-left text-sm font-semibold text-white"
                 >
                   {item.q}
-                  <span className="text-zinc-400">{open ? '-' : '+'}</span>
+                  <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                    <ChevronDown className="h-4 w-4 text-white/60" />
+                  </motion.span>
                 </button>
                 <AnimatePresence>
                   {open && (
@@ -473,7 +253,7 @@ const FAQ = () => {
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
                       transition={{ duration: 0.3 }}
-                      className="mt-3 text-sm text-zinc-300"
+                      className="mt-3 text-sm text-white/70"
                     >
                       {item.a}
                     </motion.p>
@@ -488,7 +268,7 @@ const FAQ = () => {
   )
 }
 
-const FinalCTA = () => (
+const CTASection = () => (
   <section className="py-24">
     <div className="mx-auto max-w-5xl px-6">
       <motion.div
@@ -496,16 +276,13 @@ const FinalCTA = () => (
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-violet-600/40 via-blue-600/20 to-black p-10 text-center"
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-purple-600/30 via-blue-600/20 to-transparent p-10 text-center"
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.15),_transparent_60%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_60%)]" />
         <div className="relative space-y-6">
-          <h2 className="text-3xl font-semibold tracking-[0.01em] sm:text-4xl">
-            Your highest score starts today.
-          </h2>
-          <p className="text-sm text-zinc-200 sm:text-base">
-            Join thousands of students mastering their Bac with clarity and
-            confidence.
+          <h2 className="text-3xl font-semibold sm:text-4xl">Your highest score starts today.</h2>
+          <p className="text-sm text-white/70 sm:text-base">
+            Join BacTracker and build the habits that drive success.
           </p>
           <GlassButton to="/register">Start Free Trial</GlassButton>
         </div>
@@ -516,32 +293,30 @@ const FinalCTA = () => (
 
 const Footer = () => (
   <footer className="border-t border-white/10 py-12">
-    <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 text-center text-sm text-zinc-400 md:flex-row md:justify-between md:text-left">
+    <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 text-center text-sm text-white/60 md:flex-row md:justify-between md:text-left">
       <div>
         <p className="text-lg font-semibold text-white">BacTracker</p>
-        <p className="mt-2 text-xs text-zinc-500">
-          Built for premium Bac performance.
-        </p>
+        <p className="mt-2 text-xs text-white/50">Built for premium Bac performance.</p>
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-4 text-xs uppercase tracking-[0.2em]">
+      <div className="flex flex-wrap items-center justify-center gap-4 text-xs uppercase tracking-[0.2em] text-white/50">
         <span>Features</span>
         <span>Pricing</span>
         <span>Contact</span>
       </div>
-      <p className="text-xs text-zinc-500">© 2026 BacTracker</p>
+      <p className="text-xs text-white/40">© 2026 BacTracker</p>
     </div>
   </footer>
 )
 
 const LandingPage = () => {
   return (
-    <div className="bg-zinc-950 text-white overflow-x-hidden">
+    <div className="overflow-x-hidden bg-black text-white">
       <Hero />
-      <Features />
-      <AISection />
+      <FeaturesSection />
+      <InsightsSection />
       <ProductPreview />
-      <FAQ />
-      <FinalCTA />
+      <FAQSection />
+      <CTASection />
       <Footer />
     </div>
   )

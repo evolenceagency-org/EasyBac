@@ -1,7 +1,8 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
+import AuthCard from '../components/AuthCard.jsx'
 
 const Login = () => {
   const { signIn, user } = useAuth()
@@ -32,59 +33,68 @@ const Login = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-black via-zinc-900 to-zinc-800 px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl"
-      >
-        <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-          Welcome Back
-        </p>
-        <h1 className="mt-3 text-2xl font-semibold">Login to EasyBac</h1>
-        <p className="mt-2 text-sm text-zinc-300">
-          Continue your preparation journey.
-        </p>
-
-        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="Email"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-400"
-            required
-          />
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Password"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-400"
-            required
-          />
-          {error && (
-            <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-              {error}
-            </p>
-          )}
-          <button
-            type="submit"
-            className="rounded-xl bg-emerald-500 px-5 py-3 text-sm font-semibold text-zinc-900"
-          >
-            Login
-          </button>
-        </form>
-
-        <p className="mt-6 text-sm text-zinc-300">
+    <AuthCard
+      label="Welcome back"
+      title="Login to EasyBac"
+      subtitle="Continue your preparation journey with smarter tracking."
+      sideTitle="A clearer path to Bac success"
+      sideSubtitle="Track deep study sessions, focus streaks, and insights that help you improve every week."
+      footer={
+        <p>
           No account yet?{' '}
           <Link className="text-emerald-300" to="/register">
             Create one
           </Link>
         </p>
-      </motion.div>
-    </div>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <input
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Email"
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+          required
+        />
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Password"
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+          required
+        />
+        {error && (
+          <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+            {error}
+          </p>
+        )}
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          type="submit"
+          className="rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.45)] transition-all duration-300 hover:shadow-[0_0_32px_rgba(34,211,238,0.5)]"
+        >
+          Login
+        </motion.button>
+      </form>
+
+      <div className="mt-6">
+        <div className="flex items-center gap-4 text-xs text-white/50">
+          <span className="h-px flex-1 bg-white/10" />
+          OR
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
+        <button
+          type="button"
+          className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm text-white/70 transition-all duration-300 hover:border-white/20"
+          disabled
+        >
+          Continue with Google (soon)
+        </button>
+      </div>
+    </AuthCard>
   )
 }
 

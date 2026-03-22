@@ -1,135 +1,161 @@
-import { motion } from 'framer-motion'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import Navbar from './Navbar.jsx'
+import Hero3D from './Hero3D'
 
-const containerVariants = {
-  hidden: { opacity: 0 },
+const container = {
+  hidden: { opacity: 0, y: 18 },
   show: {
     opacity: 1,
-    transition: { staggerChildren: 0.15, delayChildren: 0.2 }
+    y: 0,
+    transition: { duration: 0.7, ease: 'easeOut', staggerChildren: 0.12 }
   }
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
+const item = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: 'easeOut' } }
 }
 
 const Hero = () => {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  )
+  const [videoLoaded, setVideoLoaded] = useState(false)
+  const [videoFailed, setVideoFailed] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 767px)')
+    const handleChange = (event) => {
+      setIsMobile(event.matches)
+      setVideoLoaded(false)
+      setVideoFailed(false)
+    }
+    handleChange(media)
+    if (media.addEventListener) {
+      media.addEventListener('change', handleChange)
+      return () => media.removeEventListener('change', handleChange)
+    }
+    media.addListener(handleChange)
+    return () => media.removeListener(handleChange)
+  }, [])
+
+  const source = isMobile ? '/hero-video-mobile.mp4' : '/hero-video-desktop.mp4'
+
   return (
-    <section className="relative min-h-screen overflow-hidden">
-      <div className="absolute inset-0">
-        <video
-          className="h-full w-full object-cover"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="none"
-          poster="/landing-preview.png"
-          aria-hidden="true"
-        >
-          <source
-            src="https://cdn.coverr.co/videos/coverr-students-studying-5401/1080p.mp4"
-            type="video/mp4"
-          />
-        </video>
-        <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-950/80 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
-      </div>
+    <section className="relative h-screen w-full overflow-hidden flex items-center">
+      <Navbar />
 
-      <div className="absolute top-0 z-20 w-full">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
-          <Link to="/" className="text-xl font-semibold text-white">
-            BacTracker
-          </Link>
-          <div className="hidden items-center gap-6 text-sm text-zinc-300 md:flex">
-            <a href="#features" className="transition hover:text-white">
-              Features
-            </a>
-            <a href="#pricing" className="transition hover:text-white">
-              Pricing
-            </a>
-            <a href="#how" className="transition hover:text-white">
-              How it works
-            </a>
-          </div>
-          <div className="hidden items-center gap-3 md:flex">
-            <Link
-              to="/login"
-              className="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-white transition hover:border-white/30"
-            >
-              Sign in
-            </Link>
-            <Link
-              to="/register"
-              className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-zinc-900 transition hover:scale-[1.03]"
-            >
-              Get started
-            </Link>
-          </div>
-        </div>
-      </div>
+      <img
+        src="/assets/images/hero-study-fallback-dark.png"
+        alt="Study workspace background"
+        className="absolute inset-0 z-0 h-full w-full object-cover"
+      />
 
-      <motion.div
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-        className="relative z-10 mx-auto grid w-full max-w-6xl gap-12 px-6 pb-24 pt-32 lg:grid-cols-[1.05fr_0.95fr] lg:items-center"
+      <video
+        key={source}
+        className={`absolute inset-0 z-0 h-full w-full object-cover transition-opacity duration-700 ${
+          videoLoaded && !videoFailed ? 'opacity-100' : 'opacity-0'
+        }`}
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        onLoadedData={() => setVideoLoaded(true)}
+        onError={() => setVideoFailed(true)}
       >
-        <div className="space-y-6">
+        <source src={source} type="video/mp4" />
+      </video>
+
+      <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-[2px]" />
+      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-black/20 via-black/35 to-black/75" />
+      <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-black via-transparent to-black opacity-60" />
+      <div className="pointer-events-none absolute -left-36 top-24 z-10 h-80 w-80 rounded-full bg-purple-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute left-1/3 top-1/2 z-10 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+
+      <div className="relative z-20 mx-auto w-full max-w-7xl px-6 lg:px-12">
+        <div className="grid w-full items-center gap-12 lg:grid-cols-2">
           <motion.div
-            variants={itemVariants}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase tracking-[0.3em] text-zinc-300"
+            variants={container}
+            initial="hidden"
+            animate="show"
+            className="relative z-20 space-y-6 text-center lg:max-w-xl lg:text-left"
           >
-            Live Bac Countdown
-          </motion.div>
-          <motion.h1
-            variants={itemVariants}
-            className="text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl lg:text-7xl"
-          >
-            Track Your Bac Progress Like a Pro
-          </motion.h1>
-          <motion.p
-            variants={itemVariants}
-            className="max-w-xl text-base text-zinc-300 sm:text-lg"
-          >
-            Measure your study time, track productivity, and stay consistent
-            until exam day.
+          <motion.p variants={item} className="text-xs uppercase tracking-[0.35em] text-white/65">
+            PREMIUM BAC PREPARATION
           </motion.p>
-          <motion.div variants={itemVariants} className="flex flex-wrap gap-4">
+
+          <motion.h1
+            variants={item}
+            className="text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl md:text-6xl"
+          >
+            Master your{' '}
+            <span className="bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
+              Baccalaureate
+            </span>
+            .
+          </motion.h1>
+
+          <motion.p
+            variants={item}
+            className="mx-auto max-w-xl text-sm text-white/75 sm:text-base md:mx-0 md:text-lg"
+          >
+            Build deep study habits, stay consistent, and improve your performance with a
+            clear plan every day.
+          </motion.p>
+
+          <motion.div
+            variants={item}
+            className="flex flex-wrap items-center justify-center gap-3 lg:justify-start"
+          >
             <Link
               to="/register"
-              className="rounded-full bg-gradient-to-r from-emerald-400 to-emerald-600 px-6 py-3 text-sm font-semibold text-zinc-900 shadow-[0_0_25px_rgba(74,225,118,0.35)] transition hover:scale-[1.03]"
+              className="rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_38px_rgba(34,211,238,0.55)]"
             >
               Start Free Trial
             </Link>
-            <button className="rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/30">
-              Watch Demo
-            </button>
+            <Link
+              to="/login"
+              className="rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_18px_rgba(255,255,255,0.2)]"
+            >
+              Login
+            </Link>
+            <Link
+              to="/register"
+              className="rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_18px_rgba(255,255,255,0.2)]"
+            >
+              Register
+            </Link>
+          </motion.div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut', delay: 0.2 }}
+            className="relative z-10 hidden w-full items-center justify-center lg:flex"
+          >
+            <div className="relative flex h-[570px] w-full items-center justify-center overflow-visible">
+              <div className="relative w-full max-w-[820px] -translate-x-6 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl shadow-[0_40px_120px_rgba(0,0,0,0.6)] lg:-translate-x-8 xl:-translate-x-10">
+                <div className="pointer-events-none absolute -bottom-10 left-1/2 z-0 h-[60px] w-[70%] -translate-x-1/2 rounded-full bg-purple-500/30 blur-[60px]" />
+                <div className="relative z-10">
+                  <Hero3D />
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
 
-        <motion.div
-          className="hidden lg:block"
-          variants={itemVariants}
-          animate={{ y: [0, -12, 0] }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <div className="relative">
-            <div className="glass rounded-3xl p-3 shadow-lg">
-              <img
-                src="/landing-preview.png"
-                alt="BacTracker preview"
-                className="rounded-2xl object-cover"
-                loading="lazy"
-              />
-            </div>
-            <div className="absolute -bottom-6 -left-6 glass rounded-2xl px-4 py-3 text-xs text-zinc-200 shadow-lg">
-              +24% improvement
-            </div>
-          </div>
-        </motion.div>
-      </motion.div>
+        <div className="mt-8 lg:hidden">
+          <img
+            src="/assets/images/hero-study-fallback-dark.png"
+            alt="Study workspace background"
+            className="w-full max-h-[260px] rounded-2xl border border-white/10 bg-white/5 object-cover shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+          />
+        </div>
+      </div>
     </section>
   )
 }

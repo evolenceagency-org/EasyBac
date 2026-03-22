@@ -8,6 +8,7 @@ import Payment from './pages/Payment.jsx'
 import Landing from './pages/Landing.jsx'
 import Contact from './pages/Contact.jsx'
 import Pricing from './pages/Pricing.jsx'
+import DonatePage from './pages/DonatePage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import useAppAnalytics from './hooks/useAppAnalytics.js'
@@ -75,6 +76,7 @@ function App() {
           <Route element={<MainLayout />}>
             <Route path="/contact" element={<Contact />} />
             <Route path="/pricing" element={<Pricing />} />
+            <Route path="/donate" element={<DonatePage />} />
           </Route>
 
           <Route element={<ProtectedRoute />}>

@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "inverse-surface": "#dae2fd",
+            "primary-fixed-dim": "#d0bcff",
+            "tertiary-fixed-dim": "#ffb869",
+            "surface": "#0b1326",
+            "surface-container-lowest": "#060e20",
+            "on-surface": "#dae2fd",
+            "on-secondary-fixed": "#001a42",
+            "on-tertiary-container": "#3f2300",
+            "on-surface-variant": "#cbc3d7",
+            "surface-dim": "#0b1326",
+            "on-error-container": "#ffdad6",
+            "on-secondary": "#002e6a",
+            "error-container": "#93000a",
+            "surface-container-high": "#222a3d",
+            "on-tertiary-fixed": "#2c1700",
+            "tertiary-container": "#ca801e",
+            "surface-container": "#171f33",
+            "secondary-container": "#0566d9",
+            "surface-container-low": "#131b2e",
+            "outline-variant": "#494454",
+            "secondary": "#adc6ff",
+            "on-tertiary": "#482900",
+            "on-primary-fixed-variant": "#5516be",
+            "on-secondary-container": "#e6ecff",
+            "surface-bright": "#31394d",
+            "secondary-fixed": "#d8e2ff",
+            "tertiary-fixed": "#ffdcbb",
+            "on-primary-fixed": "#23005c",
+            "surface-container-highest": "#2d3449",
+            "tertiary": "#ffb869",
+            "on-secondary-fixed-variant": "#004395",
+            "inverse-on-surface": "#283044",
+            "surface-variant": "#2d3449",
+            "primary-fixed": "#e9ddff",
+            "on-primary-container": "#340080",
+            "primary": "#d0bcff",
+            "secondary-fixed-dim": "#adc6ff",
+            "on-primary": "#3c0091",
+            "on-tertiary-fixed-variant": "#673d00",
+            "on-background": "#dae2fd",
+            "on-error": "#690005",
+            "error": "#ffb4ab",
+            "primary-container": "#a078ff",
+            "inverse-primary": "#6d3bd7",
+            "outline": "#958ea0",
+            "background": "#0b1326",
+            "surface-tint": "#d0bcff"
+          },
+          fontFamily: {
+            "headline": ["Inter"],
+            "body": ["Inter"],
+            "label": ["Inter"]
+          },
+          borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+        },
+      },
+    }
+  </script>
+<style>
+    .perspective-container {
+      perspective: 2000px;
+    }
+    .tilted-card {
+      transform: rotateX(10deg) rotateY(-12deg) rotateZ(1deg);
+      transform-style: preserve-3d;
+    }
+    .glass {
+      backdrop-filter: blur(24px);
+      background: rgba(23, 31, 51, 0.7);
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    .glow-purple {
+      filter: blur(80px);
+      background: radial-gradient(circle, rgba(160, 120, 255, 0.15) 0%, transparent 70%);
+    }
+    .glow-blue {
+      filter: blur(100px);
+      background: radial-gradient(circle, rgba(5, 102, 217, 0.1) 0%, transparent 70%);
+    }
+    .inner-light-leak {
+      box-shadow: inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-surface text-on-surface font-body selection:bg-primary/30 selection:text-primary min-h-screen overflow-hidden flex items-center justify-center p-8">
+<!-- Background Decorative Blobs -->
+<div class="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+<div class="absolute -top-[10%] -left-[5%] w-[500px] h-[500px] glow-purple"></div>
+<div class="absolute bottom-[10%] right-[0%] w-[600px] h-[600px] glow-blue"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-20 bg-[radial-gradient(#494454_1px,transparent_1px)] [background-size:32px_32px]"></div>
+</div>
+<main class="relative z-10 w-full max-w-7xl perspective-container">
+<!-- Tilted Dashboard Canvas -->
+<div class="tilted-card w-full glass rounded-full overflow-hidden border border-outline-variant/15 shadow-[0_40px_100px_rgba(0,0,0,0.5),0_20px_40px_rgba(139,92,246,0.1)] flex h-[800px] inner-light-leak">
+<!-- Side Navigation (Authority Source: Shared Components JSON) -->
+<aside class="w-64 bg-[#0b1326] flex flex-col py-8 px-4 gap-4 border-r border-outline-variant/10">
+<div class="px-4 mb-8">
+<h1 class="text-lg font-black text-[#d0bcff] tracking-tight">BacTracker</h1>
+<p class="text-[10px] uppercase tracking-widest text-on-surface-variant/60 font-medium mt-1">June 4, 2026</p>
+</div>
+<nav class="flex-1 flex flex-col gap-2">
+<div class="flex items-center gap-3 py-3 px-4 rounded-xl text-[#d0bcff] border-r-2 border-[#d0bcff] bg-[#171f33] transition-all duration-300 ease-in-out cursor-pointer">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span class="text-sm font-medium uppercase tracking-widest">Dashboard</span>
+</div>
+<div class="flex items-center gap-3 py-3 px-4 rounded-xl text-[#cbc3d7]/60 hover:text-[#d0bcff] hover:bg-[#131b2e] transition-all duration-300 ease-in-out cursor-pointer">
+<span class="material-symbols-outlined text-xl">insights</span>
+<span class="text-sm font-medium uppercase tracking-widest">Analytics</span>
+</div>
+<div class="flex items-center gap-3 py-3 px-4 rounded-xl text-[#cbc3d7]/60 hover:text-[#d0bcff] hover:bg-[#131b2e] transition-all duration-300 ease-in-out cursor-pointer">
+<span class="material-symbols-outlined text-xl">menu_book</span>
+<span class="text-sm font-medium uppercase tracking-widest">Library</span>
+</div>
+<div class="flex items-center gap-3 py-3 px-4 rounded-xl text-[#cbc3d7]/60 hover:text-[#d0bcff] hover:bg-[#131b2e] transition-all duration-300 ease-in-out cursor-pointer">
+<span class="material-symbols-outlined text-xl">timer</span>
+<span class="text-sm font-medium uppercase tracking-widest">Study Timer</span>
+</div>
+<div class="flex items-center gap-3 py-3 px-4 rounded-xl text-[#cbc3d7]/60 hover:text-[#d0bcff] hover:bg-[#131b2e] transition-all duration-300 ease-in-out cursor-pointer">
+<span class="material-symbols-outlined text-xl">flag</span>
+<span class="text-sm font-medium uppercase tracking-widest">Goals</span>
+</div>
+</nav>
+<button class="mt-auto mx-2 bg-gradient-to-br from-[#d0bcff] to-[#a078ff] text-on-primary-container font-bold py-4 rounded-full flex items-center justify-center gap-2 shadow-lg shadow-primary/20 scale-100 hover:scale-[1.02] active:scale-95 transition-all">
+<span class="material-symbols-outlined text-lg">bolt</span>
+<span class="text-xs uppercase tracking-widest">Start Focus Session</span>
+</button>
+</aside>
+<!-- Main Content Area -->
+<section class="flex-1 flex flex-col min-w-0">
+<!-- Top App Bar (Authority Source: Shared Components JSON) -->
+<header class="h-16 flex items-center justify-between px-8 border-b border-[#494454]/15">
+<div class="flex items-center gap-4">
+<div class="bg-surface-container-highest px-4 py-1.5 rounded-full flex items-center gap-2 border border-outline-variant/10">
+<span class="material-symbols-outlined text-on-surface-variant text-lg">search</span>
+<span class="text-xs text-on-surface-variant/50 font-medium">Search knowledge base...</span>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#cbc3d7] hover:text-[#d0bcff] transition-colors cursor-pointer">notifications</span>
+<span class="material-symbols-outlined text-[#cbc3d7] hover:text-[#d0bcff] transition-colors cursor-pointer">settings</span>
+</div>
+<div class="h-8 w-8 rounded-full bg-surface-container-highest border border-outline-variant/20 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User profile avatar close up" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCu3EPtu0X-1uJQnEQUIIonzeeamCvGGj7RcSziNpmYyVotwULiEAh9a5yeTB44G3r3IOk1_G4LI8bBwKLRyWwnZON8dLyJpQf6y4oQ5Y3Ol2sJcp6ZGhtTfLB9bC4GNszuwg9xQzKqLkGUOIT3wgCXehuoh5Pe109siZ7RVv33-g2UG0YU13hK_nRloHIVvbl76W1wGtFL0TihRyR-iOBtol6zikhl1lIgFEJS2VD1uRVqTPr_gz7aQKSD35GZtS4HbL-j5x00miAB"/>
+</div>
+</div>
+</header>
+<!-- Dashboard Content Grid -->
+<div class="flex-1 overflow-y-auto p-10 space-y-8 scrollbar-hide">
+<!-- Hero Section: Countdown & Quick Stats -->
+<div class="grid grid-cols-3 gap-6">
+<div class="col-span-2 surface-container border border-outline-variant/15 rounded-full p-8 flex flex-col justify-between bg-gradient-to-br from-surface-container to-surface-container-low relative overflow-hidden">
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-[80px] -mr-32 -mt-32"></div>
+<div>
+<span class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary mb-2 block">Countdown to Excellence</span>
+<h2 class="text-4xl font-extrabold tracking-tighter text-on-surface leading-none">BAC EXAM 2026</h2>
+</div>
+<div class="flex gap-10 items-end mt-8">
+<div class="flex flex-col">
+<span class="text-5xl font-black text-on-surface tracking-tighter">182</span>
+<span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">Days</span>
+</div>
+<div class="flex flex-col">
+<span class="text-5xl font-black text-on-surface tracking-tighter">14</span>
+<span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">Hours</span>
+</div>
+<div class="flex flex-col">
+<span class="text-5xl font-black text-on-surface tracking-tighter">42</span>
+<span class="text-[10px] font-bold text-on-surface-variant/40 uppercase tracking-widest mt-1">Minutes</span>
+</div>
+</div>
+</div>
+<div class="surface-container border border-outline-variant/15 rounded-full p-8 flex flex-col justify-center items-center text-center bg-gradient-to-tr from-surface-container to-surface-container-low">
+<div class="relative w-32 h-32 flex items-center justify-center">
+<svg class="w-full h-full -rotate-90">
+<circle class="text-outline-variant/10" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-secondary drop-shadow-[0_0_8px_rgba(173,198,255,0.4)]" cx="64" cy="64" fill="transparent" r="58" stroke="currentColor" stroke-dasharray="364.4" stroke-dashoffset="100" stroke-width="8"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="text-2xl font-black text-on-surface">72%</span>
+</div>
+</div>
+<span class="text-[10px] font-bold text-primary uppercase tracking-[0.15em] mt-4">Curriculum Completion</span>
+</div>
+</div>
+<!-- Secondary Grid: Analytics & Trends -->
+<div class="grid grid-cols-12 gap-6">
+<!-- Progress Line Chart Visualization -->
+<div class="col-span-8 surface-container border border-outline-variant/15 rounded-full p-8 flex flex-col bg-surface-container">
+<div class="flex justify-between items-center mb-10">
+<h3 class="text-sm font-bold tracking-tight uppercase text-on-surface-variant">Focus Intensity (Weekly)</h3>
+<div class="flex gap-2">
+<div class="h-2 w-2 rounded-full bg-primary"></div>
+<div class="h-2 w-2 rounded-full bg-outline-variant/20"></div>
+</div>
+</div>
+<div class="flex-1 flex items-end gap-4 h-48">
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[40%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[65%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[55%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[90%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[75%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[85%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+<div class="flex-1 bg-gradient-to-t from-primary/20 to-primary/5 rounded-t-lg relative group h-[60%]">
+<div class="absolute -top-1 w-full h-[2px] bg-primary shadow-[0_0_15px_rgba(208,188,255,1)]"></div>
+</div>
+</div>
+<div class="flex justify-between mt-4 px-2">
+<span class="text-[9px] font-bold text-on-surface-variant/40">MON</span>
+<span class="text-[9px] font-bold text-on-surface-variant/40">TUE</span>
+<span class="text-[9px] font-bold text-on-surface-variant/40">WED</span>
+<span class="text-[9px] font-bold text-on-surface-variant/40">THU</span>
+<span class="text-[9px] font-bold text-on-surface-variant/40">FRI</span>
+<span class="text-[9px] font-bold text-on-surface-variant/40">SAT</span>
+<span class="text-[9px] font-bold text-on-surface-variant/40">SUN</span>
+</div>
+</div>
+<!-- Subject Breakdown -->
+<div class="col-span-4 surface-container border border-outline-variant/15 rounded-full p-8 flex flex-col bg-surface-container-low">
+<h3 class="text-sm font-bold tracking-tight uppercase text-on-surface-variant mb-6">Mastery Distribution</h3>
+<div class="space-y-6">
+<div>
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-2">
+<span class="text-on-surface">Mathematics</span>
+<span class="text-primary">88%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[88%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-2">
+<span class="text-on-surface">Physics</span>
+<span class="text-secondary">64%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-[64%]"></div>
+</div>
+</div>
+<div>
+<div class="flex justify-between text-[10px] font-bold uppercase tracking-wider mb-2">
+<span class="text-on-surface">Philosophy</span>
+<span class="text-tertiary">42%</span>
+</div>
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[42%]"></div>
+</div>
+</div>
+</div>
+<div class="mt-auto pt-6">
+<div class="bg-surface-container p-4 rounded-xl border border-outline-variant/10 flex items-center gap-3">
+<div class="p-2 bg-primary/10 rounded-lg">
+<span class="material-symbols-outlined text-primary text-xl">trending_up</span>
+</div>
+<div>
+<p class="text-[10px] font-bold text-on-surface">Study streak</p>
+<p class="text-xs text-on-surface-variant">12 Days Active</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom: Minimal Task Preview -->
+<div class="surface-container border border-outline-variant/15 rounded-full p-6 bg-gradient-to-r from-surface-container-low to-surface-container">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-xs font-black uppercase tracking-[0.2em] text-on-surface-variant/70 px-4">Focus Queue</h3>
+<span class="text-[10px] font-bold text-primary uppercase px-4 cursor-pointer hover:underline">View All</span>
+</div>
+<div class="flex gap-4 overflow-x-auto pb-2 px-4 scrollbar-hide">
+<div class="min-w-[280px] bg-surface-container-high/50 p-4 rounded-xl border border-outline-variant/10 flex items-center justify-between group hover:border-primary/30 transition-colors">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant/10">
+<span class="material-symbols-outlined text-primary text-xl">functions</span>
+</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">Calculus Review</p>
+<p class="text-[10px] text-on-surface-variant/60">Module 4: Derivatives</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-primary transition-colors">arrow_forward_ios</span>
+</div>
+<div class="min-w-[280px] bg-surface-container-high/50 p-4 rounded-xl border border-outline-variant/10 flex items-center justify-between group hover:border-primary/30 transition-colors">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant/10">
+<span class="material-symbols-outlined text-secondary text-xl">science</span>
+</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">Atomic Theory</p>
+<p class="text-[10px] text-on-surface-variant/60">Practice Quiz • 15 min</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-secondary transition-colors">arrow_forward_ios</span>
+</div>
+<div class="min-w-[280px] bg-surface-container-high/50 p-4 rounded-xl border border-outline-variant/10 flex items-center justify-between group hover:border-primary/30 transition-colors">
+<div class="flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface flex items-center justify-center border border-outline-variant/10">
+<span class="material-symbols-outlined text-tertiary text-xl">history_edu</span>
+</div>
+<div>
+<p class="text-sm font-semibold text-on-surface">Industrial Era</p>
+<p class="text-[10px] text-on-surface-variant/60">Draft Essay • History</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant/40 group-hover:text-tertiary transition-colors">arrow_forward_ios</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Reflective Floating Elements -->
+<div class="absolute -top-10 -right-20 w-40 h-40 glass rounded-full opacity-20 border border-white/10 blur-sm pointer-events-none"></div>
+<div class="absolute -bottom-20 -left-10 w-64 h-64 glass rounded-full opacity-10 border border-white/10 blur-md pointer-events-none"></div>
+</main>
+<!-- Ambient Light Reflection Overlays -->
+<div class="fixed top-0 left-0 w-full h-1/4 bg-gradient-to-b from-white/5 to-transparent pointer-events-none z-50"></div>
+</body></html>

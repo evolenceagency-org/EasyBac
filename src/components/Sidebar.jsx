@@ -6,6 +6,7 @@ import {
   ListTodo,
   BarChart3,
   BadgeDollarSign,
+  Heart,
   Mail,
   LogOut,
   ChevronLeft,
@@ -26,6 +27,7 @@ const mainLinks = [
 
 const secondaryLinks = [
   { label: 'Pricing', path: '/pricing', icon: BadgeDollarSign },
+  { label: 'Donate', path: '/donate', icon: Heart, variant: 'donate', badge: 'NEW' },
   { label: 'Contact', path: '/contact', icon: Mail }
 ]
 
@@ -37,10 +39,10 @@ const SidebarContent = ({
   onLogout
 }) => {
   return (
-    <div className="relative z-10 flex flex-1 flex-col gap-6 px-3">
-      <div className="flex flex-col gap-2">
+    <>
+      <div className="flex flex-col gap-4">
         {!collapsed && (
-          <p className="px-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+          <p className="px-2 text-[11px] uppercase tracking-normal text-zinc-500">
             Main
           </p>
         )}
@@ -56,9 +58,9 @@ const SidebarContent = ({
         ))}
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-4">
         {!collapsed && (
-          <p className="px-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+          <p className="px-2 text-[11px] uppercase tracking-normal text-zinc-500">
             Secondary
           </p>
         )}
@@ -70,56 +72,21 @@ const SidebarContent = ({
             label={link.label}
             collapsed={collapsed}
             onClick={onLinkClick}
+            variant={link.variant}
+            badge={link.badge}
           />
         ))}
       </div>
 
-      <div className="flex-1" />
-
-      <div className="border-t border-white/10 px-3 pb-5 pt-4">
-        {subscriptionBadge && !collapsed && (
-          <div className="mb-3 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white">
-            {subscriptionBadge}
-          </div>
-        )}
-
-        {user && (
-          <div className="space-y-3">
-            {!collapsed ? (
-              <>
-                <div className="flex items-center gap-2 text-xs text-gray-400">
-                  <User className="h-4 w-4" />
-                  <span className="truncate">{user.email}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={onLogout}
-                  className="w-full rounded-xl border border-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:border-white/40"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={onLogout}
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 text-white transition hover:border-white/40"
-                aria-label="Logout"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   )
 }
 
 const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) => {
   const { user, profile, signOut } = useAuth()
   const [internalCollapsed, setInternalCollapsed] = useState(false)
-  const resolvedCollapsed = typeof collapsed === 'boolean' ? collapsed : internalCollapsed
+  const isExternallyControlled = typeof collapsed === 'boolean'
+  const resolvedCollapsed = isExternallyControlled ? collapsed : internalCollapsed
   const handleToggle = () => {
     if (onToggleCollapsed) {
       onToggleCollapsed()
@@ -155,44 +122,27 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
         aria-hidden="true"
       />
 
-      {/* Desktop: centered with gradient border */}
-      <div className="fixed left-0 top-0 z-50 hidden h-screen items-center md:flex">
-        <div
-          className={cn(
-            'relative rounded-2xl p-[1px]',
-            'bg-gradient-to-b from-purple-500/30 via-blue-500/20 to-transparent',
-            resolvedCollapsed && 'opacity-60'
-          )}
-        >
-          <motion.aside
-            initial={false}
-            animate={{ width: resolvedCollapsed ? 80 : 260 }}
-            transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            className={cn(
-              'relative flex h-[90vh] flex-col overflow-hidden rounded-2xl bg-black/80 py-6 backdrop-blur-xl',
-              'border border-white/10 shadow-[0_0_30px_rgba(139,92,246,0.15)]'
-            )}
-          >
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-violet-500/10 via-blue-500/5 to-transparent" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 to-transparent" />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-30" />
+      {/* Desktop: fixed sidebar */}
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-60 flex-col bg-black/40 backdrop-blur-xl border-r border-white/10 md:flex">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-violet-500/10 via-blue-500/5 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 to-transparent" />
 
-            <div className="relative z-10 flex items-center justify-between px-4 pb-4">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
-                  <LayoutDashboard className="h-5 w-5" />
-                </div>
-                {!resolvedCollapsed && (
-                  <div className="leading-tight">
-                    <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
-                      BacTracker
-                    </p>
-                    <h1 className="text-lg font-semibold">Study Command</h1>
-                  </div>
-                )}
-              </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+          <div className="relative z-10 flex items-center gap-3 pb-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white">
+              <LayoutDashboard className="h-4 w-4" />
             </div>
+            {!resolvedCollapsed && (
+              <div className="leading-tight">
+                <p className="text-[11px] uppercase tracking-normal text-zinc-400">
+                  BacTracker
+                </p>
+                <h1 className="text-sm font-semibold">Study Command</h1>
+              </div>
+            )}
+          </div>
 
+          <div className="relative z-10 flex flex-col gap-4">
             <SidebarContent
               collapsed={resolvedCollapsed}
               onLinkClick={onMobileClose}
@@ -200,21 +150,46 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
               user={user}
               onLogout={handleLogout}
             />
-          </motion.aside>
-
-          <motion.button
-            type="button"
-            onClick={handleToggle}
-            className="absolute right-[-14px] top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/80 text-white shadow-[0_0_12px_rgba(139,92,246,0.3)] backdrop-blur-md transition hover:shadow-[0_0_18px_rgba(139,92,246,0.45)]"
-            whileHover={{ scale: 1.1 }}
-            animate={{ rotate: resolvedCollapsed ? 180 : 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            aria-label="Toggle sidebar"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </motion.button>
+          </div>
         </div>
-      </div>
+
+        <div className="relative z-10 border-t border-white/10 p-4">
+          {subscriptionBadge && !resolvedCollapsed && (
+            <div className="mb-3 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white">
+              {subscriptionBadge}
+            </div>
+          )}
+
+          {user && (
+            <div className="space-y-3">
+              {!resolvedCollapsed ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <User className="h-4 w-4" />
+                    <span className="truncate">{user.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:border-white/40"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition hover:border-white/40"
+                  aria-label="Logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </aside>
 
       {/* Mobile sidebar */}
       <motion.aside

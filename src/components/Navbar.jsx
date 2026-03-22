@@ -1,101 +1,66 @@
-import { memo } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getTrialDaysLeft, isSubscriptionActive } from '../utils/subscription.js'
 
-const Navbar = ({ onMenuClick }) => {
-  const { user, profile, signOut } = useAuth()
-
-  const handleLogout = async () => {
-    await signOut()
-  }
-
-  let subscriptionBadge = null
-  if (profile) {
-    if (profile.payment_verified) {
-      subscriptionBadge = 'Premium Access'
-    } else if (isSubscriptionActive(profile)) {
-      const daysLeft = getTrialDaysLeft(profile)
-      subscriptionBadge = `Trial - ${daysLeft} days left`
-    } else {
-      subscriptionBadge = 'Payment Required'
-    }
-  }
-
-  const navLinks = user
-    ? [
-        { label: 'Dashboard', to: '/dashboard' },
-        { label: 'Study', to: '/study' },
-        { label: 'Tasks', to: '/tasks' },
-        { label: 'Analytics', to: '/analytics' }
-      ]
-    : [
-        { label: 'Home', to: '/' },
-        { label: 'Login', to: '/login' },
-        { label: 'Register', to: '/register' },
-        { label: 'Contact', to: '/contact' }
-      ]
+const Navbar = () => {
+  const { user, profile } = useAuth()
+  const navigate = useNavigate()
+  const plan = profile?.plan || profile?.subscription_status || user?.plan || ''
+  const isFreeTrial = plan === 'free_trial' || plan === 'trial'
+  const showPremiumCta = Boolean(user && isFreeTrial)
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-6 py-4 md:px-8">
-      <div className="flex items-center gap-3">
-        {onMenuClick && user && (
-          <button
-            type="button"
-            onClick={onMenuClick}
-            className="glass rounded-xl px-3 py-2 text-sm text-white md:hidden"
-          >
-            Menu
-          </button>
-        )}
-        <Link to="/" className="block">
-          <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">
+    <motion.header
+      initial={{ opacity: 0, y: -14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+      className="fixed top-4 left-1/2 z-50 w-full max-w-6xl -translate-x-1/2 px-4"
+    >
+      <div className="fixed top-6 left-1/2 z-50 w-full -translate-x-1/2 px-4 flex justify-center">
+        <nav className="flex max-w-fit items-center gap-8 rounded-2xl border border-white/10 bg-black/40 px-6 py-3 shadow-xl backdrop-blur-xl">
+          <Link to="/" className="text-base font-semibold tracking-wide text-white sm:text-lg">
             BacTracker
-          </p>
-          <h2 className="text-xl font-semibold">Build your Bac momentum</h2>
-        </Link>
-      </div>
+          </Link>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <nav className="flex flex-wrap items-center gap-3 text-xs font-semibold">
-          {navLinks.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              className={({ isActive }) =>
-                `rounded-full border px-4 py-2 transition ${
-                  isActive
-                    ? 'border-white/40 bg-white/10 text-white'
-                    : 'border-white/10 text-zinc-300 hover:border-white/30'
-                }`
-              }
-            >
-              {link.label}
-            </NavLink>
-          ))}
-        </nav>
-        {subscriptionBadge && (
-          <div className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs text-white">
-            {subscriptionBadge}
+          <div className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em] text-white/60 sm:text-xs md:gap-6">
+            <a href="#features" className="transition hover:text-white">
+              Features
+            </a>
+            <a href="#insights" className="transition hover:text-white">
+              Insights
+            </a>
+            <a href="#faq" className="transition hover:text-white">
+              FAQ
+            </a>
           </div>
-        )}
-        {user && (
-          <>
-            <div className="glass rounded-full px-4 py-2 text-xs text-zinc-200">
-              {user.email}
-            </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:border-white/40"
+
+          <div className="flex items-center gap-2 md:gap-3">
+            <Link
+              to="/login"
+              className="rounded-xl border border-white/20 px-4 py-2 text-xs font-semibold text-white transition hover:bg-white/10"
             >
-              Logout
-            </button>
-          </>
-        )}
+              Login
+            </Link>
+            <Link
+              to="/register"
+              className="rounded-xl bg-cyan-500 px-4 py-2 text-xs font-semibold text-black transition hover:scale-105"
+            >
+              Register
+            </Link>
+            {showPremiumCta && (
+              <button
+                type="button"
+                onClick={() => navigate('/payment')}
+                className="rounded-xl bg-gradient-to-r from-purple-500 to-cyan-500 px-4 py-2 text-xs font-semibold text-white shadow-lg transition hover:scale-105"
+              >
+                Get Premium
+              </button>
+            )}
+          </div>
+        </nav>
       </div>
-    </header>
+    </motion.header>
   )
 }
 
-export default memo(Navbar)
+export default Navbar
