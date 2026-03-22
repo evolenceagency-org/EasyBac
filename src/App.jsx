@@ -13,6 +13,7 @@ import DonatePage from './pages/DonatePage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import useAppAnalytics from './hooks/useAppAnalytics.js'
+import { supabaseConfigError } from './lib/supabaseClient.js'
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Study = lazy(() => import('./pages/Study.jsx'))
@@ -50,6 +51,20 @@ function App() {
   useEffect(() => {
     analytics.trackPageView(location.pathname)
   }, [location.pathname, analytics])
+
+  if (supabaseConfigError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
+        <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
+          <h1 className="text-2xl font-semibold">Environment setup required</h1>
+          <p className="mt-3 text-sm text-white/70">
+            {supabaseConfigError}. Configure these in Vercel environment variables and
+            redeploy.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <AnimatePresence mode="wait">

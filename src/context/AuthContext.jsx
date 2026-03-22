@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../lib/supabaseClient.js'
+import { supabase, supabaseConfigError } from '../lib/supabaseClient.js'
 
 let sessionPromise = null
 let exchangePromise = null
@@ -125,6 +125,17 @@ export const AuthProvider = ({ children }) => {
 
     const fetchSession = async () => {
       setLoading(true)
+      if (supabaseConfigError || !supabase) {
+        if (!mounted) return
+        setProfileError(supabaseConfigError || 'Supabase is not configured.')
+        setSession(null)
+        setUser(null)
+        setProfile(null)
+        setProfileLoading(false)
+        setLoading(false)
+        setInitialized(true)
+        return
+      }
       try {
         await exchangeAuthFromUrlOnce()
         const { data, error } = await getSessionOnce()
@@ -158,6 +169,12 @@ export const AuthProvider = ({ children }) => {
     }
 
     fetchSession()
+
+    if (supabaseConfigError || !supabase) {
+      return () => {
+        mounted = false
+      }
+    }
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, newSession) => {
