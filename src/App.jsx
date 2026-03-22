@@ -6,9 +6,11 @@ import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Payment from './pages/Payment.jsx'
 import Verify from './pages/Verify.jsx'
+import Verified from './pages/Verified.jsx'
 import Landing from './pages/Landing.jsx'
 import Contact from './pages/Contact.jsx'
 import Pricing from './pages/Pricing.jsx'
+import ChoosePlan from './pages/ChoosePlan.jsx'
 import DonatePage from './pages/DonatePage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
@@ -19,6 +21,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Study = lazy(() => import('./pages/Study.jsx'))
 const Tasks = lazy(() => import('./pages/Tasks.jsx'))
 const Analytics = lazy(() => import('./pages/Analytics.jsx'))
+const Personalization = lazy(() => import('./pages/Personalization.jsx'))
 
 const LoadingScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -88,6 +91,8 @@ function App() {
             }
           />
           <Route path="/verify" element={<Verify />} />
+          <Route path="/verified" element={<Verified />} />
+          <Route path="/choose-plan" element={<ChoosePlan />} />
           <Route path="/payment" element={<Payment />} />
 
           <Route element={<MainLayout />}>
@@ -102,6 +107,7 @@ function App() {
               <Route path="/study" element={<Study />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/analytics" element={<Analytics />} />
+              <Route path="/personalization" element={<Personalization />} />
             </Route>
           </Route>
 

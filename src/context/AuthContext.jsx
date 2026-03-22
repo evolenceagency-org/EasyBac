@@ -209,7 +209,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true)
     const options = {}
     if (typeof window !== 'undefined') {
-      options.emailRedirectTo = window.location.origin
+      options.emailRedirectTo = `${window.location.origin}/verified`
     }
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -263,6 +263,43 @@ export const AuthProvider = ({ children }) => {
     return data
   }
 
+  const updatePersonalization = async (personalization) => {
+    if (!user?.id) {
+      throw new Error('Missing user id')
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ personalization })
+      .eq('id', user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+    setProfile(data)
+    return data
+  }
+
+  const saveDailyInsight = async ({ insightDate, insightPayload }) => {
+    if (!user?.id) {
+      throw new Error('Missing user id')
+    }
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        last_insight_date: insightDate,
+        daily_insight: insightPayload
+      })
+      .eq('id', user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+    setProfile(data)
+    return data
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -273,6 +310,8 @@ export const AuthProvider = ({ children }) => {
       loading,
       initialized,
       startFreeTrial,
+      updatePersonalization,
+      saveDailyInsight,
       signUp,
       signIn,
       signOut

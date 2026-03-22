@@ -72,7 +72,7 @@ const Register = () => {
         return
       }
 
-      navigate('/pricing', { replace: true })
+      navigate('/choose-plan', { replace: true })
     } catch (authError) {
       setError(getAuthErrorMessage(authError))
     } finally {

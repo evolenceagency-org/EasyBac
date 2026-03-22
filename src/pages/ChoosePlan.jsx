@@ -1,10 +1,10 @@
-import { useEffect, useMemo } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Sparkles } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getTrialDaysLeft, normalizeSubscriptionStatus } from '../utils/subscription.js'
 
+const freeFeatures = ['Basic tracking', 'Limited sessions', 'Pomodoro timer']
 const premiumFeatures = [
   'Unlimited sessions',
   'AI insights',
@@ -13,26 +13,27 @@ const premiumFeatures = [
   'Priority support'
 ]
 
-const Pricing = () => {
-  const { user, profile, initialized, loading } = useAuth()
+const ChoosePlan = () => {
+  const { startFreeTrial, initialized, loading } = useAuth()
   const navigate = useNavigate()
+  const [loadingPlan, setLoadingPlan] = useState('')
+  const [actionError, setActionError] = useState('')
 
-  const planStatus = useMemo(
-    () => normalizeSubscriptionStatus(profile?.subscription_status),
-    [profile]
-  )
+  const canStartTrial = initialized && !loading
 
-  const isPremium = Boolean(profile?.payment_verified || planStatus === 'premium')
-  const isTrial = planStatus === 'trial'
-  const trialDaysLeft = getTrialDaysLeft(profile)
-
-  useEffect(() => {
-    if (!initialized || loading) return
-    if (!user || !profile) return
-    if (planStatus === 'free' && !profile.payment_verified) {
-      navigate('/choose-plan', { replace: true })
+  const handleFreeTrial = async () => {
+    setActionError('')
+    if (!canStartTrial) return
+    try {
+      setLoadingPlan('free')
+      await startFreeTrial()
+      navigate('/dashboard', { replace: true })
+    } catch {
+      setActionError('Unable to start trial. Please try again.')
+    } finally {
+      setLoadingPlan('')
     }
-  }, [initialized, loading, user, profile, planStatus, navigate])
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
@@ -47,10 +48,10 @@ const Pricing = () => {
         >
           <div className="rounded-2xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
             <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
-              Focus. Track. Improve. Succeed in your Bac.
+              Choose your plan to continue
             </h1>
             <p className="mt-3 text-sm text-white/70 md:text-base">
-              Everything you need to stay consistent until exam day.
+              Select the plan that fits your Bac journey. You must choose one to proceed.
             </p>
             <span className="mt-5 block h-[2px] w-40 bg-gradient-to-r from-purple-500 to-blue-500" />
           </div>
@@ -61,17 +62,28 @@ const Pricing = () => {
               transition={{ duration: 0.28, ease: 'easeOut' }}
               className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
             >
-              <p className="text-xs uppercase tracking-wide text-white/60">Trial Plan</p>
+              <p className="text-xs uppercase tracking-wide text-white/60">Start Free Trial</p>
               <p className="mt-2 text-3xl font-bold">3 Days Trial</p>
-              <p className="mt-2 text-sm text-white/70">
-                Basic tracking, limited sessions, pomodoro timer.
-              </p>
-              {isTrial && (
-                <p className="mt-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-sm text-white/85">
-                  <Sparkles className="h-4 w-4 text-purple-300" />
-                  Trial active - {trialDaysLeft} days left
-                </p>
-              )}
+              <ul className="mt-5 space-y-3">
+                {freeFeatures.map((feature) => (
+                  <li key={feature} className="flex items-center gap-2 text-sm text-white/75">
+                    <CheckCircle2 className="h-4 w-4 text-white/60" />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={handleFreeTrial}
+                disabled={loadingPlan === 'free' || !canStartTrial}
+                className="mt-6 w-full rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingPlan === 'free'
+                  ? 'Starting...'
+                  : !canStartTrial
+                    ? 'Setting up...'
+                    : 'Start Free Trial'}
+              </button>
             </motion.div>
 
             <motion.div
@@ -82,12 +94,6 @@ const Pricing = () => {
               <div className="absolute right-4 top-4 flex flex-wrap gap-2">
                 <span className="rounded-full border border-purple-300/25 bg-purple-500/20 px-3 py-1 text-xs text-purple-100">
                   Recommended
-                </span>
-                <span className="rounded-full border border-amber-300/25 bg-amber-500/20 px-3 py-1 text-xs text-amber-100">
-                  Limited offer
-                </span>
-                <span className="rounded-full border border-red-300/25 bg-red-500/20 px-3 py-1 text-xs text-red-100">
-                  Price will increase soon
                 </span>
               </div>
 
@@ -104,31 +110,25 @@ const Pricing = () => {
                 ))}
               </ul>
 
-              {isPremium ? (
-                <div className="mt-6 rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                  You already have Premium access.
-                </div>
-              ) : isTrial ? (
-                <button
-                  type="button"
-                  onClick={() => navigate('/payment')}
-                  className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)]"
-                >
-                  Get Premium
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => navigate('/payment')}
+                className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)]"
+              >
+                Start with Premium
+              </button>
             </motion.div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
-            <p className="mt-1 text-xs text-white/70">
-              Manual activation after payment confirmation
-            </p>
-          </div>
+          {actionError && (
+            <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {actionError}
+            </div>
+          )}
         </motion.div>
       </div>
     </div>
   )
 }
 
-export default Pricing
+export default ChoosePlan

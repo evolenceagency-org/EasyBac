@@ -1,12 +1,15 @@
 import { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Sidebar.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, session, loading } = useAuth()
+  const location = useLocation()
   const hasSidebar = Boolean(loading || user || session)
+  const hideSidebar = location.pathname === '/choose-plan'
+  const showSidebar = hasSidebar && !hideSidebar
 
   return (
     <div className="relative flex min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
@@ -15,7 +18,7 @@ const MainLayout = () => {
       <div className="pointer-events-none absolute bottom-0 left-0 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
 
       <div className="relative z-10 flex min-h-screen w-full max-w-full">
-        {hasSidebar && (
+        {showSidebar && (
           <Sidebar
             isMobileOpen={sidebarOpen}
             onMobileClose={() => setSidebarOpen(false)}
@@ -23,7 +26,7 @@ const MainLayout = () => {
           />
         )}
 
-        {hasSidebar && (
+        {showSidebar && (
           <button
             type="button"
             onClick={() => setSidebarOpen((prev) => !prev)}
@@ -35,7 +38,7 @@ const MainLayout = () => {
 
         <main
           className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden p-6 space-y-6 ${
-            hasSidebar ? 'md:ml-60' : ''
+            showSidebar ? 'md:ml-60' : ''
           }`}
         >
           <Outlet />

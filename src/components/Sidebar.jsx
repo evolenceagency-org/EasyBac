@@ -4,6 +4,7 @@ import {
   Timer,
   ListTodo,
   BarChart3,
+  Brain,
   BadgeDollarSign,
   Heart,
   Mail,
@@ -28,6 +29,7 @@ const mainLinks = [
 ]
 
 const secondaryLinks = [
+  { label: 'Personalization', path: '/personalization', icon: Brain },
   { label: 'Pricing', path: '/pricing', icon: BadgeDollarSign },
   { label: 'Donate', path: '/donate', icon: Heart, variant: 'donate', badge: 'NEW' },
   { label: 'Contact', path: '/contact', icon: Mail }
