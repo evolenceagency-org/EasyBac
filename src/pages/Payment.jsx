@@ -2,18 +2,15 @@ import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { isSubscriptionActive } from '../utils/subscription.js'
+import { normalizeSubscriptionStatus } from '../utils/subscription.js'
 import { paymentPhone, rib } from '../config/paymentConfig.js'
 
 const Payment = () => {
-  const { user, profile, loading } = useAuth()
+  const { profile } = useAuth()
   const [copied, setCopied] = useState(false)
 
-  if (!user && !loading) {
-    return <Navigate to="/login" replace />
-  }
-
-  if (profile && isSubscriptionActive(profile)) {
+  const status = normalizeSubscriptionStatus(profile?.subscription_status)
+  if (profile && (profile.payment_verified || status === 'premium')) {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -46,7 +43,7 @@ const Payment = () => {
   ]
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-black via-[#090913] to-[#05050a] px-6 py-10">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-black via-[#090913] to-[#05050a] px-6 py-10">
       <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
       <div className="pointer-events-none absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
 
@@ -107,6 +104,11 @@ const Payment = () => {
         >
           Send Receipt via WhatsApp
         </a>
+        {!normalizedPhone && (
+          <p className="mt-3 text-center text-xs text-white/50">
+            WhatsApp contact is not configured yet.
+          </p>
+        )}
 
         <p className="mt-4 text-center text-xs text-white/50">
           Access is activated manually within a few hours.

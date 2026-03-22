@@ -1,8 +1,9 @@
-import { useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { CheckCircle2, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
+import { getTrialDaysLeft, normalizeSubscriptionStatus } from '../utils/subscription.js'
 
 function getRemainingDays(date) {
   const now = new Date()
@@ -21,43 +22,33 @@ const premiumFeatures = [
 ]
 
 const Pricing = () => {
-  const { profile } = useAuth()
+  const { profile, startFreeTrial, user: authUser, initialized, loading } = useAuth()
+  const navigate = useNavigate()
+  const [actionError, setActionError] = useState('')
+  const [loadingPlan, setLoadingPlan] = useState('')
 
   const user = useMemo(() => {
     if (!profile) {
-      return {
-        plan: 'free',
-        trialEndsAt: ''
-      }
+      return { plan: 'free', trialEndsAt: '' }
     }
 
-    if (
-      profile.payment_verified ||
-      profile.subscription_status === 'premium' ||
-      profile.subscription_status === 'active'
-    ) {
-      return {
-        plan: 'premium',
-        trialEndsAt: ''
-      }
+    const normalized = normalizeSubscriptionStatus(profile.subscription_status)
+    if (profile.payment_verified || normalized === 'premium') {
+      return { plan: 'premium', trialEndsAt: '' }
     }
 
-    if (profile.subscription_status === 'trial' && profile.trial_start) {
+    if (normalized === 'trial' && profile.trial_start) {
       const trialEnd = new Date(profile.trial_start)
       trialEnd.setDate(trialEnd.getDate() + 3)
-      return {
-        plan: 'trial',
-        trialEndsAt: trialEnd.toISOString()
-      }
+      return { plan: 'trial', trialEndsAt: trialEnd.toISOString() }
     }
 
-    return {
-      plan: 'free',
-      trialEndsAt: ''
-    }
+    return { plan: 'free', trialEndsAt: '' }
   }, [profile])
 
-  const trialDaysLeft = user.plan === 'trial' ? getRemainingDays(user.trialEndsAt) : 0
+  const trialDaysLeft = user.plan === 'trial'
+    ? getRemainingDays(user.trialEndsAt)
+    : getTrialDaysLeft(profile)
 
   const statusText = useMemo(() => {
     if (user.plan === 'premium') return 'You already have full access'
@@ -65,10 +56,28 @@ const Pricing = () => {
     return ''
   }, [user.plan, trialDaysLeft])
 
-  const ctaLabel = user.plan === 'trial' ? 'Upgrade before trial ends' : 'Unlock Full Access ->'
+  const canStartTrial = Boolean(authUser && initialized && !loading)
+
+  const handleFreeTrial = async () => {
+    setActionError('')
+    if (!canStartTrial) return
+    try {
+      setLoadingPlan('free')
+      await startFreeTrial()
+      navigate('/dashboard', { replace: true })
+    } catch (error) {
+      setActionError('Unable to start trial. Please try again.')
+    } finally {
+      setLoadingPlan('')
+    }
+  }
+
+  const handlePremium = () => {
+    navigate('/payment')
+  }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
+    <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
       <div className="relative px-6 pb-16 pt-12 md:px-12">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(139,92,246,0.16),transparent_30%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.14),transparent_32%)]" />
 
@@ -90,11 +99,11 @@ const Pricing = () => {
 
           <div className="grid gap-6 md:grid-cols-2">
             <motion.div
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.03 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
               className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
             >
-              <p className="text-xs uppercase tracking-wide text-white/60">Free / Trial</p>
+              <p className="text-xs uppercase tracking-wide text-white/60">Start Free Trial</p>
               <p className="mt-2 text-3xl font-bold">3 Days Trial</p>
               <ul className="mt-5 space-y-3">
                 {freeFeatures.map((feature) => (
@@ -104,6 +113,18 @@ const Pricing = () => {
                   </li>
                 ))}
               </ul>
+              <button
+                type="button"
+                onClick={handleFreeTrial}
+                disabled={loadingPlan === 'free' || !canStartTrial}
+                className="mt-6 w-full rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loadingPlan === 'free'
+                  ? 'Starting...'
+                  : !canStartTrial
+                    ? 'Setting up...'
+                    : 'Start Free Trial'}
+              </button>
             </motion.div>
 
             <motion.div
@@ -135,6 +156,14 @@ const Pricing = () => {
                   </li>
                 ))}
               </ul>
+
+              <button
+                type="button"
+                onClick={handlePremium}
+                className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)]"
+              >
+                Start with Premium
+              </button>
             </motion.div>
           </div>
 
@@ -146,18 +175,14 @@ const Pricing = () => {
               </p>
             )}
 
-            {user.plan !== 'premium' && (
-              <Link
-                to="/payment"
-                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-7 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)]"
-              >
-                {ctaLabel}
-              </Link>
-            )}
-
             <p className="mt-3 text-xs text-white/70">
               Manual activation after payment confirmation
             </p>
+            {actionError && (
+              <p className="mt-3 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+                {actionError}
+              </p>
+            )}
           </div>
         </motion.div>
       </div>

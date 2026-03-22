@@ -5,6 +5,7 @@ import MainLayout from './layout/MainLayout.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Payment from './pages/Payment.jsx'
+import Verify from './pages/Verify.jsx'
 import Landing from './pages/Landing.jsx'
 import Contact from './pages/Contact.jsx'
 import Pricing from './pages/Pricing.jsx'
@@ -29,9 +30,9 @@ const LoadingScreen = () => (
 )
 
 const AuthRedirect = ({ children }) => {
-  const { user, loading } = useAuth()
+  const { user, initialized } = useAuth()
 
-  if (loading) {
+  if (!initialized) {
     return <LoadingScreen />
   }
 
@@ -71,6 +72,7 @@ function App() {
               </AuthRedirect>
             }
           />
+          <Route path="/verify" element={<Verify />} />
           <Route path="/payment" element={<Payment />} />
 
           <Route element={<MainLayout />}>

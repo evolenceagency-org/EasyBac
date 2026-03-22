@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+﻿import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
 import SubjectFocusChart from '../components/Charts/SubjectFocusChart.jsx'
@@ -194,3 +194,4 @@ const Analytics = () => {
 }
 
 export default Analytics
+

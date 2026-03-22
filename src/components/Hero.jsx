@@ -108,23 +108,17 @@ const Hero = () => {
 
           <motion.div
             variants={item}
-            className="flex flex-wrap items-center justify-center gap-3 lg:justify-start"
+            className="flex flex-wrap items-center justify-center gap-4 lg:justify-start"
           >
             <Link
-              to="/register"
-              className="rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_38px_rgba(34,211,238,0.55)]"
-            >
-              Start Free Trial
-            </Link>
-            <Link
               to="/login"
-              className="rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_18px_rgba(255,255,255,0.2)]"
+              className="rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-white transition-all duration-300 hover:bg-white/10"
             >
               Login
             </Link>
             <Link
               to="/register"
-              className="rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md transition-all duration-300 hover:border-white/30 hover:shadow-[0_0_18px_rgba(255,255,255,0.2)]"
+              className="rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_25px_rgba(34,211,238,0.5)] transition-all duration-300 hover:scale-105"
             >
               Register
             </Link>

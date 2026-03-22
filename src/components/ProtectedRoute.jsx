@@ -3,10 +3,10 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { isSubscriptionActive } from '../utils/subscription.js'
 
 const ProtectedRoute = () => {
-  const { user, loading, profile, profileLoading } = useAuth()
+  const { user, loading, profile, profileLoading, initialized } = useAuth()
   const location = useLocation()
 
-  if (loading) {
+  if (!initialized || loading) {
     return null
   }
 
@@ -14,7 +14,7 @@ const ProtectedRoute = () => {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (profileLoading) {
+  if (profileLoading || !profile) {
     return null
   }
 

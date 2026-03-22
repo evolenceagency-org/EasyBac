@@ -4,24 +4,40 @@ import Sidebar from '../components/Sidebar.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const MainLayout = () => {
-  const [sidebarOpen] = useState(true)
-  const { user } = useAuth()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { user, session, loading } = useAuth()
+  const hasSidebar = Boolean(loading || user || session)
 
   return (
-    <div className="relative flex min-h-screen w-full max-w-full bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
+    <div className="relative flex min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
       <div className="pointer-events-none absolute -top-32 right-0 h-72 w-72 rounded-full bg-violet-500/10 blur-3xl" />
       <div className="pointer-events-none absolute left-1/2 top-1/3 h-80 w-80 -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 left-0 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
 
       <div className="relative z-10 flex min-h-screen w-full max-w-full">
-        {user && (
+        {hasSidebar && (
           <Sidebar
             isMobileOpen={sidebarOpen}
-            onMobileClose={() => {}}
+            onMobileClose={() => setSidebarOpen(false)}
             collapsed={false}
           />
         )}
-        <main className="ml-0 flex-1 min-h-screen max-w-full overflow-y-auto p-6 space-y-6 md:ml-60">
+
+        {hasSidebar && (
+          <button
+            type="button"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+            className="fixed bottom-6 left-6 z-40 rounded-xl border border-white/10 bg-black/60 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.25)] backdrop-blur-xl transition hover:scale-[1.03] md:hidden"
+          >
+            Menu
+          </button>
+        )}
+
+        <main
+          className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden p-6 space-y-6 ${
+            hasSidebar ? 'md:ml-60' : ''
+          }`}
+        >
           <Outlet />
         </main>
       </div>

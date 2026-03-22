@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   LayoutDashboard,
@@ -12,11 +11,14 @@ import {
   ChevronLeft,
   User
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getTrialDaysLeft, isSubscriptionActive } from '../utils/subscription.js'
+import {
+  getTrialDaysLeft,
+  isSubscriptionActive,
+  normalizeSubscriptionStatus
+} from '../utils/subscription.js'
 import NavItem from './NavItem.jsx'
-
-const cn = (...classes) => classes.filter(Boolean).join(' ')
 
 const mainLinks = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
@@ -31,13 +33,7 @@ const secondaryLinks = [
   { label: 'Contact', path: '/contact', icon: Mail }
 ]
 
-const SidebarContent = ({
-  collapsed,
-  onLinkClick,
-  subscriptionBadge,
-  user,
-  onLogout
-}) => {
+const SidebarContent = ({ collapsed, onLinkClick }) => {
   return (
     <>
       <div className="flex flex-col gap-4">
@@ -82,24 +78,16 @@ const SidebarContent = ({
   )
 }
 
-const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) => {
+const Sidebar = ({ isMobileOpen, onMobileClose, collapsed }) => {
   const { user, profile, signOut } = useAuth()
-  const [internalCollapsed, setInternalCollapsed] = useState(false)
-  const isExternallyControlled = typeof collapsed === 'boolean'
-  const resolvedCollapsed = isExternallyControlled ? collapsed : internalCollapsed
-  const handleToggle = () => {
-    if (onToggleCollapsed) {
-      onToggleCollapsed()
-      return
-    }
-    setInternalCollapsed((prev) => !prev)
-  }
-
+  const resolvedCollapsed = Boolean(collapsed)
   const handleLogout = async () => {
     await signOut()
   }
 
   let subscriptionBadge = null
+  const plan = normalizeSubscriptionStatus(profile?.subscription_status)
+  const showUpgrade = Boolean(profile && plan === 'trial' && !profile.payment_verified)
   if (profile) {
     if (profile.payment_verified) {
       subscriptionBadge = 'Premium Access'
@@ -143,13 +131,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
           </div>
 
           <div className="relative z-10 flex flex-col gap-4">
-            <SidebarContent
-              collapsed={resolvedCollapsed}
-              onLinkClick={onMobileClose}
-              subscriptionBadge={subscriptionBadge}
-              user={user}
-              onLogout={handleLogout}
-            />
+            <SidebarContent collapsed={resolvedCollapsed} onLinkClick={onMobileClose} />
           </div>
         </div>
 
@@ -158,6 +140,15 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
             <div className="mb-3 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white">
               {subscriptionBadge}
             </div>
+          )}
+
+          {showUpgrade && !resolvedCollapsed && (
+            <Link
+              to="/payment"
+              className="mb-3 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3 py-2 text-xs font-semibold text-black shadow-[0_0_20px_rgba(34,211,238,0.5)] transition hover:scale-[1.02]"
+            >
+              Upgrade
+            </Link>
           )}
 
           {user && (
@@ -194,9 +185,9 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
       {/* Mobile sidebar */}
       <motion.aside
         initial={false}
-        animate={{ width: resolvedCollapsed ? 80 : 260 }}
+        animate={{ width: resolvedCollapsed ? 80 : 240 }}
         transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-        className={`fixed left-0 top-0 z-50 flex h-full flex-col overflow-hidden border-r bg-black/80 py-6 backdrop-blur-xl md:hidden ${
+        className={`fixed left-0 top-0 z-50 flex h-screen flex-col border-r bg-black/80 backdrop-blur-xl md:hidden ${
           resolvedCollapsed ? 'border-white/5' : 'border-white/10'
         } ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}
       >
@@ -204,7 +195,7 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/5 to-transparent" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 to-transparent opacity-30" />
 
-        <div className="relative z-10 flex items-center justify-between px-4 pb-4">
+        <div className="relative z-10 flex items-center justify-between px-4 pb-4 pt-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
               <LayoutDashboard className="h-5 w-5" />
@@ -228,13 +219,56 @@ const Sidebar = ({ isMobileOpen, onMobileClose, collapsed, onToggleCollapsed }) 
           </button>
         </div>
 
-        <SidebarContent
-          collapsed={resolvedCollapsed}
-          onLinkClick={onMobileClose}
-          subscriptionBadge={subscriptionBadge}
-          user={user}
-          onLogout={handleLogout}
-        />
+        <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+          <SidebarContent collapsed={resolvedCollapsed} onLinkClick={onMobileClose} />
+        </div>
+
+        <div className="relative z-10 border-t border-white/10 p-4">
+          {subscriptionBadge && !resolvedCollapsed && (
+            <div className="mb-3 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white">
+              {subscriptionBadge}
+            </div>
+          )}
+
+          {showUpgrade && !resolvedCollapsed && (
+            <Link
+              to="/payment"
+              onClick={() => onMobileClose?.()}
+              className="mb-3 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3 py-2 text-xs font-semibold text-black shadow-[0_0_20px_rgba(34,211,238,0.5)] transition hover:scale-[1.02]"
+            >
+              Upgrade
+            </Link>
+          )}
+
+          {user && (
+            <div className="space-y-3">
+              {!resolvedCollapsed ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                    <User className="h-4 w-4" />
+                    <span className="truncate">{user.email}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full rounded-lg border border-white/20 px-3 py-2 text-xs font-semibold text-white transition hover:border-white/40"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition hover:border-white/40"
+                  aria-label="Logout"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </motion.aside>
     </>
   )

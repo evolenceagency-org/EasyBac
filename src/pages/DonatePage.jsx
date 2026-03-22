@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, HeartHandshake, Zap } from 'lucide-react'
 import AmountSelector from '../components/AmountSelector.jsx'
@@ -116,7 +116,7 @@ const DonatePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
-      <div className="relative overflow-hidden px-6 pb-20 pt-16 md:px-12">
+      <div className="relative px-6 pb-20 pt-16 md:px-12">
         <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
         <div className="pointer-events-none absolute -right-10 bottom-10 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
 
@@ -284,3 +284,4 @@ const DonatePage = () => {
 }
 
 export default DonatePage
+

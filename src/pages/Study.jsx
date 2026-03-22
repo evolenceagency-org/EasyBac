@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toDateKey } from '../utils/dateUtils.js'
 import { motion } from 'framer-motion'
@@ -197,20 +197,20 @@ const Study = () => {
     return 'Ready'
   }, [isRunning, phase, sessionMinutes])
 
-  const enterFullscreen = async () => {
+  const enterFullscreen = useCallback(async () => {
     const el = document.documentElement
     if (el.requestFullscreen) {
       await el.requestFullscreen()
     }
-  }
+  }, [])
 
-  const exitFullscreen = async () => {
+  const exitFullscreen = useCallback(async () => {
     if (document.exitFullscreen) {
       await document.exitFullscreen()
     }
-  }
+  }, [])
 
-  const toggleFocusMode = async () => {
+  const toggleFocusMode = useCallback(async () => {
     if (isFocusMode) {
       await exitFullscreen()
       setIsFocusMode(false)
@@ -218,7 +218,7 @@ const Study = () => {
       await enterFullscreen()
       setIsFocusMode(true)
     }
-  }
+  }, [enterFullscreen, exitFullscreen, isFocusMode])
 
   useEffect(() => {
     const handleChange = () => {
@@ -240,7 +240,7 @@ const Study = () => {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  })
+  }, [toggleFocusMode])
 
   useEffect(() => {
     if (isFocusMode) {
@@ -605,5 +605,6 @@ const Study = () => {
 }
 
 export default Study
+
 
 

@@ -54,7 +54,7 @@ export const DataProvider = ({ children }) => {
         setLoading((prev) => ({ ...prev, tasks: false }))
       }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   const refreshStudySessions = useCallback(
@@ -80,7 +80,7 @@ export const DataProvider = ({ children }) => {
         setLoading((prev) => ({ ...prev, sessions: false }))
       }
     },
-    [user?.id]
+    [user?.id, redirectToPayment]
   )
 
   useEffect(() => {

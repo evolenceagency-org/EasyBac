@@ -23,19 +23,22 @@ export const createProfile = async (userId, email) => {
 
   const { data, error } = await supabase
     .from('profiles')
-    .upsert(
+    .insert(
       {
         id: userId,
         email,
-        subscription_status: 'trial',
-        trial_start: new Date().toISOString(),
+        subscription_status: 'free',
+        trial_start: null,
         payment_verified: false
       },
-      { onConflict: 'id' }
+      { onConflict: 'id', ignoreDuplicates: true }
     )
     .select()
-    .single()
+    .maybeSingle()
 
   if (error) throw error
+  if (!data) {
+    return getProfile(userId)
+  }
   return data
 }

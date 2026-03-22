@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }) => {
   const [profileError, setProfileError] = useState('')
   const [profileLoading, setProfileLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
   const profileLoadedRef = useRef(false)
   const profileUserRef = useRef(null)
 
@@ -94,8 +95,8 @@ export const AuthProvider = ({ children }) => {
           .insert({
             id: authUser.id,
             email: authUser.email,
-            subscription_status: 'trial',
-            trial_start: new Date().toISOString(),
+            subscription_status: 'free',
+            trial_start: null,
             payment_verified: false
           })
           .select()
@@ -151,6 +152,7 @@ export const AuthProvider = ({ children }) => {
       } finally {
         if (mounted) {
           setLoading(false)
+          setInitialized(true)
         }
       }
     }
@@ -221,6 +223,29 @@ export const AuthProvider = ({ children }) => {
     return { error }
   }
 
+  const startFreeTrial = async () => {
+    if (!user?.id) {
+      throw new Error('Missing user id')
+    }
+    if (profile?.trial_start) {
+      return profile
+    }
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({
+        subscription_status: 'free_trial',
+        trial_start: new Date().toISOString(),
+        payment_verified: false
+      })
+      .eq('id', user.id)
+      .select()
+      .single()
+
+    if (error) throw error
+    setProfile(data)
+    return data
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -229,11 +254,13 @@ export const AuthProvider = ({ children }) => {
       profileError,
       profileLoading,
       loading,
+      initialized,
+      startFreeTrial,
       signUp,
       signIn,
       signOut
     }),
-    [user, session, profile, profileError, profileLoading, loading]
+    [user, session, profile, profileError, profileLoading, loading, initialized]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
