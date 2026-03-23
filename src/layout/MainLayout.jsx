@@ -14,9 +14,13 @@ const MainLayout = () => {
     '/study',
     '/tasks',
     '/analytics',
-    '/personalization'
+    '/personalization',
+    '/pricing',
+    '/donate',
+    '/contact'
   ])
-  const showMobileBottomNav = mobileBottomNavRoutes.has(location.pathname)
+  const showMobileBottomNav =
+    hasSidebar && mobileBottomNavRoutes.has(location.pathname)
   const mobileBottomPadding = showMobileBottomNav
     ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'
     : 'pb-4'

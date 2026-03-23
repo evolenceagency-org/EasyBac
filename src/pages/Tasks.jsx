@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { toDateKey } from '../utils/dateUtils.js'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ListTodo, Plus, SlidersHorizontal } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { toDateKey } from '../utils/dateUtils.js'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 import {
@@ -12,9 +13,7 @@ import {
   isOverdueTask
 } from '../utils/taskStats.js'
 import TaskCard from '../components/Tasks/TaskCard.jsx'
-import EditTaskModal from '../components/Tasks/EditTaskModal.jsx'
 import GlassDropdown from '../components/Tasks/GlassDropdown.jsx'
-import { ListTodo } from 'lucide-react'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -58,6 +57,7 @@ const Tasks = () => {
     updateTaskById
   } = useData()
   const navigate = useNavigate()
+
   const [title, setTitle] = useState('')
   const [subject, setSubject] = useState('math')
   const [dueDate, setDueDate] = useState('')
@@ -68,15 +68,31 @@ const Tasks = () => {
   const [statusFilter, setStatusFilter] = useState('pending')
   const [dueFilter, setDueFilter] = useState('all')
   const [sortOption, setSortOption] = useState('newest')
-  const [editingTask, setEditingTask] = useState(null)
+
+  const [showSwipeHint, setShowSwipeHint] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < 768
+  )
+  const [showSwipeNudge, setShowSwipeNudge] = useState(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 768) return false
+    return window.localStorage.getItem('tasks-swipe-nudge-done') !== '1'
+  })
+  const [showCreatePanel, setShowCreatePanel] = useState(false)
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
   const subscriptionActive = useMemo(
     () => isSubscriptionActive(profile),
     [profile]
   )
+
   const lockActions = !subscriptionActive
   const showExpired = Boolean(profile) && !subscriptionActive
+
+  useEffect(() => {
+    if (!showSwipeHint) return
+    const timer = setTimeout(() => setShowSwipeHint(false), 3000)
+    return () => clearTimeout(timer)
+  }, [showSwipeHint])
 
   const handleCreate = useCallback(
     async (event) => {
@@ -94,6 +110,10 @@ const Tasks = () => {
         })
         setTitle('')
         setDueDate('')
+
+        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+          setShowCreatePanel(false)
+        }
       } catch (err) {
         setError('Unable to create the task. Please try again.')
       } finally {
@@ -129,29 +149,6 @@ const Tasks = () => {
     [removeTask, profile, navigate]
   )
 
-  const handleEdit = useCallback((task) => {
-    setEditingTask(task)
-  }, [])
-
-  const handleSaveEdit = useCallback(
-    async (updates) => {
-      if (!editingTask) return
-      if (!checkTrialAndBlock(profile, navigate)) return
-      setError('')
-      try {
-        const nextStatus = editingTask.completed ? 'completed' : 'active'
-        await updateTaskById(editingTask.id, {
-          ...updates,
-          status: nextStatus
-        })
-        setEditingTask(null)
-      } catch (err) {
-        setError('Unable to update the task.')
-      }
-    },
-    [editingTask, updateTaskById, profile, navigate]
-  )
-
   const handleReschedule = useCallback(
     async (taskId, newDate) => {
       if (!newDate) return
@@ -166,22 +163,6 @@ const Tasks = () => {
         })
       } catch (err) {
         setError('Unable to reschedule the task.')
-      }
-    },
-    [updateTaskById, profile, navigate]
-  )
-
-  const handleDismiss = useCallback(
-    async (taskId) => {
-      if (!checkTrialAndBlock(profile, navigate)) return
-      setError('')
-      try {
-        await updateTaskById(taskId, {
-          status: 'archived_overdue',
-          completed: false
-        })
-      } catch (err) {
-        setError('Unable to dismiss the task.')
       }
     },
     [updateTaskById, profile, navigate]
@@ -242,15 +223,129 @@ const Tasks = () => {
     return result
   }, [tasks, subjectFilter, statusFilter, dueFilter, sortOption, todayKey])
 
+  const shouldRunSwipeNudge =
+    showSwipeNudge && !loading.tasks && filteredTasks.length > 0
+
+  useEffect(() => {
+    if (!shouldRunSwipeNudge) return
+    const timer = setTimeout(() => {
+      setShowSwipeNudge(false)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('tasks-swipe-nudge-done', '1')
+      }
+    }, 1800)
+    return () => clearTimeout(timer)
+  }, [shouldRunSwipeNudge])
+
   const tasksDueToday = useMemo(() => getTasksDueToday(tasks), [tasks])
-  const completedToday = useMemo(
-    () => getTasksCompletedToday(tasks),
-    [tasks]
-  )
+  const completedToday = useMemo(() => getTasksCompletedToday(tasks), [tasks])
   const progressTotal = tasksDueToday.length
   const progressDone = tasksDueToday.filter((task) => task.completed).length
   const progressPercent =
     progressTotal === 0 ? 0 : Math.round((progressDone / progressTotal) * 100)
+
+  const createTaskForm = (
+    <form
+      onSubmit={handleCreate}
+      className="mt-4 grid gap-3 md:mt-6 md:grid-cols-[2fr_1fr_1fr_auto] md:gap-4"
+    >
+      <input
+        type="text"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        placeholder="Task title"
+        disabled={lockActions}
+        className="w-full box-border rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/50 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+      />
+      <GlassDropdown
+        value={subject}
+        onChange={setSubject}
+        disabled={lockActions}
+        options={subjects.filter((item) => item.value !== 'all')}
+      />
+      <input
+        type="date"
+        value={dueDate}
+        onChange={(event) => setDueDate(event.target.value)}
+        disabled={lockActions}
+        className="w-full box-border rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+      />
+      <motion.button
+        type="submit"
+        disabled={saving || lockActions}
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.97 }}
+        className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {saving ? 'Saving...' : 'Add Task'}
+      </motion.button>
+    </form>
+  )
+
+  const filtersPanel = (
+    <div className="flex flex-col gap-3">
+      <div className="w-full sm:max-w-[240px]">
+        <GlassDropdown
+          value={subjectFilter}
+          onChange={setSubjectFilter}
+          options={subjects}
+        />
+      </div>
+      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+        {[
+          { label: 'Pending', value: 'pending' },
+          { label: 'Completed', value: 'completed' },
+          { label: 'Overdue', value: 'overdue' }
+        ].map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setStatusFilter(item.value)}
+            className={`rounded-full px-4 py-1 text-xs transition ${
+              statusFilter === item.value
+                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
+                : 'border border-white/10 bg-white/5 text-white/70'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+        {[
+          { label: 'All tasks', value: 'all' },
+          { label: 'Due today', value: 'today' },
+          { label: 'Overdue tasks', value: 'overdue' }
+        ].map((item) => (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => setDueFilter(item.value)}
+            className={`rounded-full px-4 py-1 text-xs transition ${
+              dueFilter === item.value
+                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
+                : 'border border-white/10 bg-white/5 text-white/70'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+      <div className="w-full sm:max-w-[280px]">
+        <GlassDropdown
+          value={sortOption}
+          onChange={setSortOption}
+          options={[
+            { label: 'Newest first', value: 'newest' },
+            { label: 'Oldest first', value: 'oldest' },
+            { label: 'Due date (nearest first)', value: 'due-nearest' },
+            { label: 'Due date (latest first)', value: 'due-latest' },
+            { label: 'Subject alphabetical', value: 'subject' }
+          ]}
+        />
+      </div>
+    </div>
+  )
 
   return (
     <motion.div
@@ -259,7 +354,7 @@ const Tasks = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex max-w-full flex-col gap-4 md:gap-6"
+      className="flex w-full max-w-full flex-col gap-4 overflow-x-hidden box-border md:gap-6"
     >
       <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
         <p className="text-xs uppercase tracking-wide text-white/70">
@@ -293,46 +388,56 @@ const Tasks = () => {
         </div>
       )}
 
-      <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
+      <div className="grid gap-3 md:hidden">
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.97 }}
+          onClick={() => {
+            setShowCreatePanel((prev) => !prev)
+            setShowFilterPanel(false)
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 backdrop-blur-xl"
+        >
+          <Plus className="h-4 w-4" />
+          Create Task
+        </motion.button>
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.97 }}
+          onClick={() => {
+            setShowFilterPanel((prev) => !prev)
+            setShowCreatePanel(false)
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 backdrop-blur-xl"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Filters
+        </motion.button>
+      </div>
+
+      <AnimatePresence>
+        {showCreatePanel && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="glass overflow-visible rounded-2xl p-4 md:hidden"
+          >
+            <p className="text-xs uppercase tracking-wide text-white/70">
+              Create Task
+            </p>
+            {createTaskForm}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="hidden glass overflow-visible rounded-2xl p-4 md:block md:p-6">
         <p className="text-xs uppercase tracking-wide text-white/70">
           Create Task
         </p>
         <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Plan your next moves</h3>
-        <form
-          onSubmit={handleCreate}
-          className="mt-6 grid gap-4 md:grid-cols-[2fr_1fr_1fr_auto]"
-        >
-          <input
-            type="text"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Task title"
-            disabled={lockActions}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/50 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
-          />
-          <GlassDropdown
-            value={subject}
-            onChange={setSubject}
-            disabled={lockActions}
-            options={subjects.filter((item) => item.value !== 'all')}
-          />
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-            disabled={lockActions}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
-          />
-          <motion.button
-            type="submit"
-            disabled={saving || lockActions}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.97 }}
-            className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {saving ? 'Saving...' : 'Add Task'}
-          </motion.button>
-        </form>
+        {createTaskForm}
         {(error || errors.tasks) && (
           <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
             {error || errors.tasks}
@@ -340,75 +445,48 @@ const Tasks = () => {
         )}
       </div>
 
-      <div className="relative">
+      {(error || errors.tasks) && (
+        <p className="md:hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+          {error || errors.tasks}
+        </p>
+      )}
+
+      <AnimatePresence>
+        {showFilterPanel && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="glass overflow-visible rounded-2xl p-4 md:hidden"
+          >
+            {filtersPanel}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="relative hidden md:block">
         <div className="pointer-events-none absolute -top-10 left-1/2 hidden h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl md:block" />
         <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
-          <div className="flex flex-col gap-3">
-            <div className="w-full sm:max-w-[240px]">
-              <GlassDropdown
-                value={subjectFilter}
-                onChange={setSubjectFilter}
-                options={subjects}
-              />
-            </div>
-            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-              {[
-                { label: 'Pending', value: 'pending' },
-                { label: 'Completed', value: 'completed' },
-                { label: 'Overdue', value: 'overdue' }
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setStatusFilter(item.value)}
-                  className={`rounded-full px-4 py-1 text-xs transition ${
-                    statusFilter === item.value
-                      ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
-                      : 'border border-white/10 bg-white/5 text-white/70'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-              {[
-                { label: 'All tasks', value: 'all' },
-                { label: 'Due today', value: 'today' },
-                { label: 'Overdue tasks', value: 'overdue' }
-              ].map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setDueFilter(item.value)}
-                  className={`rounded-full px-4 py-1 text-xs transition ${
-                    dueFilter === item.value
-                      ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
-                      : 'border border-white/10 bg-white/5 text-white/70'
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <div className="w-full sm:max-w-[280px]">
-              <GlassDropdown
-                value={sortOption}
-                onChange={setSortOption}
-                options={[
-                  { label: 'Newest first', value: 'newest' },
-                  { label: 'Oldest first', value: 'oldest' },
-                  { label: 'Due date (nearest first)', value: 'due-nearest' },
-                  { label: 'Due date (latest first)', value: 'due-latest' },
-                  { label: 'Subject alphabetical', value: 'subject' }
-                ]}
-              />
-            </div>
-          </div>
+          {filtersPanel}
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid w-full max-w-full gap-4 overflow-x-hidden box-border">
+        <AnimatePresence>
+          {showSwipeHint && (
+            <motion.p
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 0.65, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="text-xs text-white/70 md:hidden"
+            >
+              Swipe right to complete | Swipe left to delete
+            </motion.p>
+          )}
+        </AnimatePresence>
+
         {loading.tasks && (
           <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
             Loading tasks...
@@ -434,7 +512,7 @@ const Tasks = () => {
 
         <AnimatePresence>
           {!loading.tasks &&
-            filteredTasks.map((task) => {
+            filteredTasks.map((task, index) => {
               const overdue = isOverdueTask(task)
               const dueToday = task.due_date === todayKey
               return (
@@ -445,12 +523,11 @@ const Tasks = () => {
                   getSubjectLabel={getSubjectLabel}
                   isOverdue={overdue}
                   isDueToday={dueToday}
+                  showSwipeNudge={shouldRunSwipeNudge && index === 0}
                   lockActions={lockActions}
                   onToggle={handleToggle}
                   onDelete={handleDelete}
-                  onEdit={handleEdit}
                   onReschedule={handleReschedule}
-                  onDismiss={handleDismiss}
                 />
               )
             })}
@@ -462,17 +539,8 @@ const Tasks = () => {
           Completed today: {completedToday}
         </p>
       )}
-
-      <EditTaskModal
-        task={editingTask}
-        subjects={subjects}
-        onSave={handleSaveEdit}
-        onClose={() => setEditingTask(null)}
-      />
     </motion.div>
   )
 }
 
 export default Tasks
-
-
