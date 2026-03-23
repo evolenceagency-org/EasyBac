@@ -14,14 +14,15 @@ const isPersonalizationComplete = (profile) => {
 }
 
 const ProtectedRoute = () => {
-  const { user, loading, profile, profileLoading, initialized } = useAuth()
+  const { user, session, loading, profile, profileLoading, initialized } = useAuth()
   const location = useLocation()
+  const authUser = user || session?.user || null
 
   if (!initialized || loading) {
     return null
   }
 
-  if (!user) {
+  if (!authUser) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 

@@ -130,9 +130,9 @@ const Dashboard = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex flex-col gap-6"
+      className="flex max-w-full flex-col gap-4 md:gap-6"
     >
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-4 md:gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Countdown />
         <WeeklySummary sessions={studySessions} />
       </div>
@@ -169,20 +169,20 @@ const Dashboard = () => {
         streak={streakInfo}
       />
 
-      <div className="relative">
-        <div className="pointer-events-none absolute -top-16 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl" />
-        <div className="grid gap-6 lg:grid-cols-2">
+      <div className="relative max-w-full">
+        <div className="pointer-events-none absolute -top-16 left-1/2 hidden h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl md:block" />
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           <StudyTimeChart
             data={dailyStudyData}
             title="Daily Study Time"
             subtitle="Last 30 days"
           />
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4 md:gap-6">
             <SubjectFocusChart
               data={subjectFocusData}
               breakdown={subjectFocusData.breakdown}
             />
-            <GlassCard className="p-5">
+            <GlassCard className="p-4 md:p-5">
               <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
                 Progress Score
               </p>
@@ -208,8 +208,8 @@ const Dashboard = () => {
           </div>
         </div>
 
-        <div className="mt-6">
-          <GlassCard className="p-6">
+        <div className="mt-4 md:mt-6">
+          <GlassCard className="p-4 md:p-6">
             <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
               Quick Insights Panel
             </p>

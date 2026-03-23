@@ -36,11 +36,11 @@ const DashboardCards = ({
       {cards.map((card) => (
         <GlassCard
           key={card.label}
-          className="p-5"
+          className="p-4 md:p-5"
         >
           <span className="absolute left-0 top-0 h-[2px] w-full bg-gradient-to-r from-purple-400 to-blue-400" />
           <div className="flex items-center justify-between">
-            <p className="text-sm uppercase tracking-wide text-white/70">
+            <p className="text-xs uppercase tracking-wide text-white/70 md:text-sm">
               {card.label}
             </p>
             <span

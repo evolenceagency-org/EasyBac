@@ -92,7 +92,7 @@ const CustomSelect = ({
         onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-left text-sm text-white backdrop-blur-md transition-all duration-200 ease-out hover:border-white/20 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_12px_rgba(139,92,246,0.12)] focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+        className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white backdrop-blur-md transition-all duration-200 ease-out hover:border-white/20 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_12px_rgba(139,92,246,0.12)] focus:outline-none focus:ring-2 focus:ring-purple-500/40 md:py-2"
       >
         <span className={`${selectedOption ? 'text-white' : 'text-white/45'}`}>
           {selectedOption?.label || placeholder}
@@ -112,7 +112,7 @@ const CustomSelect = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute left-0 top-full z-50 mt-2 w-full rounded-xl border border-white/10 bg-[rgba(20,20,30,0.95)] py-2 shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+            className="absolute left-0 top-full z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-white/10 bg-[rgba(20,20,30,0.95)] py-2 shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
             role="listbox"
           >
             {options.map((option, index) => {

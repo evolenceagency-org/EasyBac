@@ -116,13 +116,13 @@ const DonatePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
-      <div className="relative px-6 pb-20 pt-16 md:px-12">
-        <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -right-10 bottom-10 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
+      <div className="relative px-4 pb-16 pt-10 md:px-12 md:pb-20 md:pt-16">
+        <div className="pointer-events-none absolute -left-20 top-0 hidden h-72 w-72 rounded-full bg-purple-500/20 blur-3xl md:block" />
+        <div className="pointer-events-none absolute -right-10 bottom-10 hidden h-72 w-72 rounded-full bg-blue-500/20 blur-3xl md:block" />
 
         <div className="mx-auto max-w-5xl">
           <div className="text-center">
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-4xl">
               Support the project. Build your success.
             </h1>
             <p className="mt-3 text-sm text-white/70 md:text-base">
@@ -134,20 +134,20 @@ const DonatePage = () => {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: 'easeOut' }}
-            className="mt-10 flex justify-center"
+            className="mt-8 flex justify-center md:mt-10"
           >
             <motion.div
               whileHover={{ scale: 1.01 }}
               animate={pulse ? { scale: [1, 1.02, 1] } : { scale: 1 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className={`relative w-full max-w-3xl rounded-2xl border bg-[rgba(20,20,30,0.6)] p-8 backdrop-blur-xl ${tier.border} ${tier.glow}`}
+              className={`relative w-full max-w-3xl rounded-2xl border bg-[rgba(20,20,30,0.6)] p-5 backdrop-blur-xl md:p-8 ${tier.border} ${tier.glow}`}
             >
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60">
                 Donate
               </div>
 
-              <div className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
-                <div className="space-y-6">
+              <div className="grid gap-5 md:gap-8 lg:grid-cols-[1.2fr_1fr]">
+                <div className="space-y-5 md:space-y-6">
                   <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-purple-400/30 bg-gradient-to-br from-purple-500/30 to-blue-500/30">
                       <HeartHandshake className="h-5 w-5 text-purple-200" />
@@ -161,7 +161,7 @@ const DonatePage = () => {
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.25 }}
-                        className="text-2xl font-semibold text-white"
+                        className="text-xl font-semibold text-white md:text-2xl"
                       >
                         {amount} MAD
                       </motion.div>
@@ -183,7 +183,7 @@ const DonatePage = () => {
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-5 md:space-y-6">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-white/50">
                       Community support progress

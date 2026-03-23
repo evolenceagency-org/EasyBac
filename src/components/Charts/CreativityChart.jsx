@@ -33,6 +33,8 @@ const CreativityChart = ({
 }) => {
   applyChartTheme()
   const isLight = variant === 'light'
+  const isMobileViewport =
+    typeof window !== 'undefined' ? window.innerWidth < 768 : false
   const gridColor = isLight ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.05)'
   const tickColor = isLight ? 'rgba(15,23,42,0.6)' : 'rgba(255,255,255,0.4)'
   const titleColor = isLight ? 'text-slate-900' : 'text-white'
@@ -105,7 +107,7 @@ const CreativityChart = ({
         },
         ticks: {
           color: tickColor,
-          maxTicksLimit: 6
+          maxTicksLimit: isMobileViewport ? 4 : 6
         },
         border: {
           display: false
@@ -132,7 +134,7 @@ const CreativityChart = ({
       transition={{ duration: 0.5 }}
       className={
         containerClassName ||
-        'rounded-xl border border-white/10 bg-white/5 p-6 shadow-[0_0_30px_rgba(139,92,246,0.1)] backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]'
+        'rounded-xl border border-white/10 bg-white/5 p-4 shadow-[0_0_30px_rgba(139,92,246,0.1)] backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] md:p-6'
       }
     >
       <div>
@@ -143,7 +145,7 @@ const CreativityChart = ({
           {subtitle}
         </h3>
       </div>
-      <div className="mt-6 h-64">
+      <div className="mt-5 h-52 sm:h-56 md:mt-6 md:h-64">
         <Line data={chartData} options={options} />
       </div>
     </motion.div>

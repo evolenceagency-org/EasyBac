@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -10,18 +10,18 @@ const Payment = () => {
   const [copied, setCopied] = useState(false)
 
   const status = normalizeSubscriptionStatus(profile?.subscription_status)
-  if (profile && (profile.payment_verified || status === 'premium')) {
-    return <Navigate to="/dashboard" replace />
-  }
 
-  const normalizedPhone = useMemo(() => paymentPhone.replace(/[^\d]/g, ''), [])
-  const whatsappMessage = useMemo(
-    () => encodeURIComponent('Hello, I have completed the payment. Here is my receipt.'),
-    []
+  const normalizedPhone = paymentPhone.replace(/[^\d]/g, '')
+  const whatsappMessage = encodeURIComponent(
+    'Hello, I have completed the payment. Here is my receipt.'
   )
   const whatsappUrl = normalizedPhone
     ? `https://wa.me/${normalizedPhone}?text=${whatsappMessage}`
     : '#'
+
+  if (profile && (profile.payment_verified || status === 'premium')) {
+    return <Navigate to="/dashboard" replace />
+  }
 
   const handleCopyRib = async () => {
     if (!rib) return
@@ -43,20 +43,20 @@ const Payment = () => {
   ]
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-black via-[#090913] to-[#05050a] px-6 py-10">
-      <div className="pointer-events-none absolute -left-20 top-0 h-72 w-72 rounded-full bg-purple-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-black via-[#090913] to-[#05050a] px-4 py-8 md:px-6 md:py-10">
+      <div className="pointer-events-none absolute -left-20 top-0 hidden h-72 w-72 rounded-full bg-purple-500/20 blur-3xl md:block" />
+      <div className="pointer-events-none absolute -right-20 bottom-0 hidden h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl md:block" />
 
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: 'easeOut' }}
-        className="relative w-full max-w-[440px] rounded-2xl border border-white/10 bg-white/5 p-7 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl"
+        className="relative w-full max-w-[440px] rounded-2xl border border-white/10 bg-white/5 p-5 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl md:p-7"
       >
         <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/5" />
-        <div className="pointer-events-none absolute -inset-8 -z-10 rounded-[40px] bg-gradient-to-tr from-purple-500/25 via-blue-400/10 to-cyan-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -inset-8 -z-10 hidden rounded-[40px] bg-gradient-to-tr from-purple-500/25 via-blue-400/10 to-cyan-400/15 blur-3xl md:block" />
 
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Unlock Premium Access</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-white md:text-2xl">Unlock Premium Access</h1>
         <p className="mt-2 text-sm text-white/70">
           Complete your payment to activate your account.
         </p>

@@ -94,7 +94,7 @@ const SubjectFocusChart = ({
       transition={{ duration: 0.5, delay: 0.1 }}
       className={
         containerClassName ||
-        'rounded-xl border border-white/10 bg-white/5 p-6 shadow-[0_0_30px_rgba(139,92,246,0.1)] backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]'
+        'rounded-xl border border-white/10 bg-white/5 p-4 shadow-[0_0_30px_rgba(139,92,246,0.1)] backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] md:p-6'
       }
     >
       <div className="flex items-center justify-between">
@@ -106,13 +106,13 @@ const SubjectFocusChart = ({
             {subtitle}
           </h3>
         </div>
-        <span className="rounded-full bg-emerald-500/20 px-3 py-1 text-xs text-emerald-200">
+        <span className="hidden rounded-full bg-emerald-500/20 px-3 py-1 text-xs text-emerald-200 sm:inline-flex">
           Focus Mix
         </span>
       </div>
 
-      <div className="mt-6 flex flex-col gap-6 lg:flex-row lg:items-center">
-        <div className="h-56 w-full lg:w-56">
+      <div className="mt-5 flex flex-col gap-5 md:mt-6 md:gap-6 lg:flex-row lg:items-center">
+        <div className="h-48 w-full sm:h-56 lg:w-56">
           <Doughnut data={chartData} options={options} />
         </div>
 

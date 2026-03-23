@@ -89,13 +89,13 @@ const Analytics = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex flex-col gap-6"
+      className="flex max-w-full flex-col gap-4 md:gap-6"
     >
-      <div className="glass rounded-2xl p-6">
+      <div className="glass rounded-2xl p-4 md:p-6">
         <p className="text-xs uppercase tracking-wide text-white/70">
           Analytics Dashboard
         </p>
-        <h3 className="mt-2 text-2xl font-semibold text-white">
+        <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">
           Study Performance Intelligence
         </h3>
         <p className="mt-2 text-sm text-white/70">
@@ -136,7 +136,7 @@ const Analytics = () => {
 
       {hasData && (
         <>
-          <div className="grid gap-6 lg:grid-cols-2">
+          <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
             <StudyTimeChart
               data={dailyStudyData}
               title="Last 30 Days"
@@ -164,7 +164,7 @@ const Analytics = () => {
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {insightCards.map((card) => {
               const Icon = card.icon
               return (

@@ -33,8 +33,12 @@ const Login = () => {
   )
 
   const canSubmit = useMemo(
-    () => !emailError && !passwordError && !loading,
-    [emailError, passwordError, loading]
+    () =>
+      Boolean(email.trim() && password.trim()) &&
+      !emailError &&
+      !passwordError &&
+      !loading,
+    [email, password, emailError, passwordError, loading]
   )
 
   useEffect(() => {
@@ -63,7 +67,7 @@ const Login = () => {
       if (signInError) {
         throw signInError
       }
-      setSuccess('Welcome back 👋')
+      setSuccess('Welcome back.')
     } catch (authError) {
       setError(getAuthErrorMessage(authError))
       return
@@ -109,9 +113,9 @@ const Login = () => {
               setSuccess('')
             }}
             onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
-            onFocus={() => setTouched((prev) => ({ ...prev, email: true }))}
             placeholder="you@example.com"
             autoFocus
+            aria-invalid={Boolean(emailError || error)}
             className={`w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:outline-none focus:ring-2 ${
               emailError
                 ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/40'
@@ -124,8 +128,15 @@ const Login = () => {
         </div>
 
         <div className="space-y-2">
+          <label
+            htmlFor="login-password"
+            className="block text-xs font-medium text-white/70"
+          >
+            Password
+          </label>
           <div className="relative">
             <input
+              id="login-password"
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(event) => {
@@ -134,9 +145,9 @@ const Login = () => {
                 setSuccess('')
               }}
               onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-              onFocus={() => setTouched((prev) => ({ ...prev, password: true }))}
               onKeyUp={(event) => setCapsLock(event.getModifierState('CapsLock'))}
               placeholder="Password"
+              aria-invalid={Boolean(passwordError || error)}
               className={`w-full rounded-xl border bg-white/5 px-4 py-3 pr-12 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:outline-none focus:ring-2 ${
                 passwordError
                   ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/40'
@@ -200,3 +211,4 @@ const Login = () => {
 }
 
 export default Login
+

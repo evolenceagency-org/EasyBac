@@ -44,7 +44,7 @@ const Hero = () => {
   const source = isMobile ? '/hero-video-mobile.mp4' : '/hero-video-desktop.mp4'
 
   return (
-    <section className="relative h-screen w-full overflow-hidden flex items-center">
+    <section className="relative flex min-h-[100dvh] w-full items-center overflow-hidden">
       <Navbar />
 
       <img
@@ -72,16 +72,16 @@ const Hero = () => {
       <div className="absolute inset-0 z-10 bg-black/60 backdrop-blur-[2px]" />
       <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-b from-black/20 via-black/35 to-black/75" />
       <div className="pointer-events-none absolute inset-0 z-10 bg-gradient-to-r from-black via-transparent to-black opacity-60" />
-      <div className="pointer-events-none absolute -left-36 top-24 z-10 h-80 w-80 rounded-full bg-purple-500/25 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/3 top-1/2 z-10 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+      <div className="pointer-events-none absolute -left-36 top-24 z-10 hidden h-80 w-80 rounded-full bg-purple-500/25 blur-3xl md:block" />
+      <div className="pointer-events-none absolute left-1/3 top-1/2 z-10 hidden h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl md:block" />
 
-      <div className="relative z-20 mx-auto w-full max-w-7xl px-6 lg:px-12">
-        <div className="grid w-full items-center gap-12 lg:grid-cols-2">
+      <div className="relative z-20 mx-auto w-full max-w-7xl px-4 md:px-6 lg:px-12">
+        <div className="grid w-full items-center gap-8 md:gap-12 lg:grid-cols-2">
           <motion.div
             variants={container}
             initial="hidden"
             animate="show"
-            className="relative z-20 space-y-6 text-center lg:max-w-xl lg:text-left"
+            className="relative z-20 space-y-5 text-center lg:max-w-xl lg:space-y-6 lg:text-left"
           >
           <motion.p variants={item} className="text-xs uppercase tracking-[0.35em] text-white/65">
             PREMIUM BAC PREPARATION
@@ -146,7 +146,7 @@ const Hero = () => {
           <img
             src="/assets/images/hero-study-fallback-dark.png"
             alt="Study workspace background"
-            className="w-full max-h-[260px] rounded-2xl border border-white/10 bg-white/5 object-cover shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+            className="w-full max-h-[220px] rounded-2xl border border-white/10 bg-white/5 object-cover shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:max-h-[260px]"
           />
         </div>
       </div>

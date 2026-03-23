@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Brain, Timer, LineChart, Target, Sparkles, Flame, ChevronDown } from 'lucide-react'
@@ -46,8 +46,8 @@ const GlassButton = ({ to, children }) => (
 )
 
 const FeaturesSection = () => (
-  <section id="features" className="relative py-24">
-    <div className="mx-auto max-w-6xl px-6">
+  <section id="features" className="relative py-16 md:py-24">
+    <div className="mx-auto max-w-6xl px-4 md:px-6">
       <motion.div
         variants={fadeUp}
         initial="hidden"
@@ -56,13 +56,13 @@ const FeaturesSection = () => (
         className="mx-auto max-w-2xl text-center"
       >
         <p className="text-xs uppercase tracking-[0.3em] text-white/50">Features</p>
-        <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Built for serious focus</h2>
+        <h2 className="mt-4 text-2xl font-semibold sm:text-4xl">Built for serious focus</h2>
         <p className="mt-3 text-sm text-white/70 sm:text-base">
           The tools you need to plan, execute, and reflect on every session.
         </p>
       </motion.div>
 
-      <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-10 grid gap-4 md:mt-12 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
         {features.map((feature, index) => {
           const Icon = feature.icon
           return (
@@ -73,7 +73,7 @@ const FeaturesSection = () => (
               viewport={{ once: true, amount: 0.3 }}
               transition={{ duration: 0.5, delay: index * 0.05 }}
               whileHover={{ scale: 1.04 }}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_0_25px_rgba(124,58,237,0.18)] backdrop-blur-xl"
+              className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_25px_rgba(124,58,237,0.18)] backdrop-blur-xl md:p-6"
             >
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]">
                 <Icon className="h-5 w-5" />
@@ -89,9 +89,9 @@ const FeaturesSection = () => (
 )
 
 const InsightsSection = () => (
-  <section id="insights" className="relative py-24">
+  <section id="insights" className="relative py-16 md:py-24">
     <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-blue-600/10 to-cyan-500/10" />
-    <div className="relative mx-auto grid max-w-6xl gap-10 px-6 lg:grid-cols-2 lg:items-center">
+    <div className="relative mx-auto grid max-w-6xl gap-8 px-4 md:gap-10 md:px-6 lg:grid-cols-2 lg:items-center">
       <motion.div
         variants={fadeUp}
         initial="hidden"
@@ -100,7 +100,7 @@ const InsightsSection = () => (
         className="space-y-6"
       >
         <p className="text-xs uppercase tracking-[0.3em] text-white/60">Insights</p>
-        <h2 className="text-3xl font-semibold sm:text-4xl">Smart study insights</h2>
+        <h2 className="text-2xl font-semibold sm:text-4xl">Smart study insights</h2>
         <p className="text-sm text-white/70 sm:text-base">
           BacTracker surfaces patterns you might miss and suggests what to do next.
         </p>
@@ -111,7 +111,7 @@ const InsightsSection = () => (
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.4 }}
-        className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-[0_0_35px_rgba(59,130,246,0.25)] backdrop-blur-xl"
+        className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-[0_0_35px_rgba(59,130,246,0.25)] backdrop-blur-xl md:p-6"
       >
         <div className="text-xs uppercase tracking-[0.3em] text-white/50">Insight feed</div>
         <div className="mt-4 space-y-3">
@@ -136,8 +136,8 @@ const ProductPreview = () => {
   const [active, setActive] = useState(tabs[0])
 
   return (
-    <section className="py-24">
-      <div className="mx-auto max-w-6xl px-6">
+    <section className="py-16 md:py-24">
+      <div className="mx-auto max-w-6xl px-4 md:px-6">
         <motion.div
           variants={fadeUp}
           initial="hidden"
@@ -146,13 +146,13 @@ const ProductPreview = () => {
           className="mx-auto max-w-3xl text-center"
         >
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">Product preview</p>
-          <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Your command center</h2>
+          <h2 className="mt-4 text-2xl font-semibold sm:text-4xl">Your command center</h2>
           <p className="mt-3 text-sm text-white/70">
             Switch between key surfaces for a quick look.
           </p>
         </motion.div>
 
-        <div className="mt-10 flex flex-wrap justify-center gap-2">
+        <div className="mt-8 flex flex-wrap justify-center gap-2 md:mt-10">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -169,8 +169,8 @@ const ProductPreview = () => {
           ))}
         </div>
 
-        <div className="relative mt-10">
-          <div className="pointer-events-none absolute inset-0 bg-purple-500/10 blur-[80px]" />
+        <div className="relative mt-8 md:mt-10">
+          <div className="pointer-events-none absolute inset-0 hidden bg-purple-500/10 blur-[80px] md:block" />
           <AnimatePresence mode="wait">
             <motion.div
               key={active.id}
@@ -178,17 +178,17 @@ const ProductPreview = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.4, ease: 'easeOut' }}
-              className="relative mx-auto grid max-w-3xl gap-6"
+              className="relative mx-auto grid max-w-3xl gap-4 md:gap-6"
             >
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:p-6">
                 <h3 className="text-xl font-semibold">{active.title}</h3>
                 <p className="mt-2 text-sm text-white/70">{active.desc}</p>
               </div>
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-3 md:gap-4">
                 {['Dashboard', 'Tasks', 'Analytics'].map((label) => (
                   <div
                     key={label}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70 shadow-[0_0_20px_rgba(255,255,255,0.08)] backdrop-blur-xl"
+                    className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/70 shadow-[0_0_20px_rgba(255,255,255,0.08)] backdrop-blur-xl md:p-4"
                   >
                     <p className="text-xs uppercase tracking-[0.2em] text-white/50">{label}</p>
                     <div className="mt-4 space-y-2">
@@ -211,8 +211,8 @@ const FAQSection = () => {
   const [openIndex, setOpenIndex] = useState(null)
 
   return (
-    <section id="faq" className="py-24">
-      <div className="mx-auto max-w-4xl px-6">
+    <section id="faq" className="py-16 md:py-24">
+      <div className="mx-auto max-w-4xl px-4 md:px-6">
         <motion.div
           variants={fadeUp}
           initial="hidden"
@@ -221,10 +221,10 @@ const FAQSection = () => {
           className="text-center"
         >
           <p className="text-xs uppercase tracking-[0.3em] text-white/50">FAQ</p>
-          <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">Frequently asked questions</h2>
+          <h2 className="mt-4 text-2xl font-semibold sm:text-4xl">Frequently asked questions</h2>
         </motion.div>
 
-        <div className="mt-10 space-y-4">
+        <div className="mt-8 space-y-3 md:mt-10 md:space-y-4">
           {faqs.map((item, index) => {
             const open = openIndex === index
             return (
@@ -234,7 +234,7 @@ const FAQSection = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.4, delay: index * 0.05 }}
-                className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl"
+                className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:p-5"
               >
                 <button
                   type="button"
@@ -269,18 +269,18 @@ const FAQSection = () => {
 }
 
 const CTASection = () => (
-  <section className="py-24">
-    <div className="mx-auto max-w-5xl px-6">
+  <section className="py-16 md:py-24">
+    <div className="mx-auto max-w-5xl px-4 md:px-6">
       <motion.div
         variants={fadeUp}
         initial="hidden"
         whileInView="show"
         viewport={{ once: true, amount: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-purple-600/30 via-blue-600/20 to-transparent p-10 text-center"
+        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-purple-600/30 via-blue-600/20 to-transparent p-6 text-center md:p-10"
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_60%)]" />
         <div className="relative space-y-6">
-          <h2 className="text-3xl font-semibold sm:text-4xl">Your highest score starts today.</h2>
+          <h2 className="text-2xl font-semibold sm:text-4xl">Your highest score starts today.</h2>
           <p className="text-sm text-white/70 sm:text-base">
             Join BacTracker and build the habits that drive success.
           </p>
@@ -293,7 +293,7 @@ const CTASection = () => (
 
 const Footer = () => (
   <footer className="border-t border-white/10 py-12">
-    <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 text-center text-sm text-white/60 md:flex-row md:justify-between md:text-left">
+    <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 text-center text-sm text-white/60 md:flex-row md:justify-between md:px-6 md:text-left">
       <div>
         <p className="text-lg font-semibold text-white">BacTracker</p>
         <p className="mt-2 text-xs text-white/50">Built for premium Bac performance.</p>

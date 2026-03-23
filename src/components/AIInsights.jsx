@@ -175,10 +175,10 @@ const AIInsights = ({ studySessions = [], tasks = [], streak = { current: 0, lon
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-purple-600/35 to-blue-900/35 p-6 shadow-[0_0_40px_rgba(139,92,246,0.2)] backdrop-blur-xl md:p-8"
+      className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-purple-600/35 to-blue-900/35 p-4 shadow-[0_0_40px_rgba(139,92,246,0.2)] backdrop-blur-xl md:p-8"
     >
-      <div className="pointer-events-none absolute -top-20 left-8 h-56 w-56 rounded-full bg-purple-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-10 right-12 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -top-20 left-8 hidden h-56 w-56 rounded-full bg-purple-500/20 blur-3xl md:block" />
+      <div className="pointer-events-none absolute bottom-10 right-12 hidden h-64 w-64 rounded-full bg-blue-500/20 blur-3xl md:block" />
 
       <div className="relative">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -187,7 +187,7 @@ const AIInsights = ({ studySessions = [], tasks = [], streak = { current: 0, lon
               <Brain className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-semibold text-white md:text-3xl">Daily AI Insight</h2>
+              <h2 className="text-xl font-semibold text-white md:text-3xl">Daily AI Insight</h2>
               <p className="mt-1 text-sm text-white/75">
                 Your daily AI insight is updated once per day based on your activity.
               </p>

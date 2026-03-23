@@ -31,7 +31,7 @@ const TaskCard = ({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
-      className={`rounded-xl border bg-white/5 px-5 py-4 backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] ${
+      className={`rounded-xl border bg-white/5 px-4 py-3 backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] md:px-5 md:py-4 ${
         isOverdue ? 'border-red-500/40 bg-red-500/10' : 'border-white/10'
       }`}
     >

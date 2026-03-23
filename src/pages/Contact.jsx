@@ -5,14 +5,14 @@ import CustomSelect from '../components/CustomSelect.jsx'
 
 const typeOptions = [
   { label: 'Question', value: 'question' },
+  { label: 'Feedback', value: 'feedback' },
   { label: 'Bug Report', value: 'bug-report' },
-  { label: 'Feature Request', value: 'feature-request' },
-  { label: 'Payment Issue', value: 'payment-issue' }
+  { label: 'Idea', value: 'idea' }
 ]
 
 const quickPills = [
   { label: 'Report a bug', value: 'bug-report' },
-  { label: 'Suggest a feature', value: 'feature-request' },
+  { label: 'Suggest a feature', value: 'idea' },
   { label: 'Ask a question', value: 'question' }
 ]
 
@@ -49,7 +49,7 @@ const SupportForm = ({
 }) => {
   return (
     <form onSubmit={onSubmit} className="grid gap-4 overflow-visible">
-      <div className="mb-1 flex flex-wrap items-center justify-center gap-2">
+      <div className="mb-1 flex w-full items-center justify-start gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:justify-center">
         {quickPills.map((pill) => (
           <button
             key={pill.value}
@@ -71,7 +71,7 @@ const SupportForm = ({
         value={name}
         onChange={(event) => setName(event.target.value)}
         placeholder="Name (optional)"
-        className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/45 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+        className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/45 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
       />
 
       <input
@@ -80,7 +80,7 @@ const SupportForm = ({
         onChange={(event) => setEmail(event.target.value)}
         placeholder="Email"
         required
-        className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/45 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+        className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/45 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
       />
 
       <CustomSelect value={type} onChange={setType} options={typeOptions} />
@@ -91,13 +91,13 @@ const SupportForm = ({
         onChange={(event) => setMessage(event.target.value)}
         placeholder="Describe your issue or idea..."
         required
-        className="relative z-0 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/45 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+        className="relative z-0 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/45 transition-all duration-300 focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
       />
 
       <button
         type="submit"
         disabled={!canSubmit}
-        className="rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(139,92,246,0.32)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(139,92,246,0.32)] transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? 'Sending...' : 'Send Message'}
       </button>
@@ -163,14 +163,14 @@ const SupportPage = () => {
 
   return (
     <div className="min-h-screen overflow-visible bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
-      <div className="relative overflow-visible px-6 pb-16 pt-12 md:px-12">
+      <div className="relative overflow-visible px-4 pb-14 pt-8 md:px-12 md:pb-16 md:pt-12">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_25%_20%,rgba(139,92,246,0.18),transparent_35%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.14),transparent_35%)]" />
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: 'easeOut' }}
-          className="mx-auto w-full max-w-xl overflow-visible rounded-3xl border border-white/10 bg-white/5 p-7 shadow-[0_0_60px_rgba(139,92,246,0.15)] backdrop-blur-xl"
+          className="mx-auto w-full max-w-xl overflow-visible rounded-3xl border border-white/10 bg-white/5 p-5 shadow-[0_0_60px_rgba(139,92,246,0.15)] backdrop-blur-xl md:p-7"
         >
           <div className="mb-6 flex flex-col items-center text-center">
             <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-purple-500/35 to-blue-500/35 shadow-[inset_0_1px_12px_rgba(255,255,255,0.2),0_0_18px_rgba(139,92,246,0.25)]">

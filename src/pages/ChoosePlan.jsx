@@ -37,17 +37,17 @@ const ChoosePlan = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
-      <div className="relative px-6 pb-16 pt-12 md:px-12">
+      <div className="relative px-4 pb-14 pt-8 md:px-12 md:pb-16 md:pt-12">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(139,92,246,0.16),transparent_30%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.14),transparent_32%)]" />
 
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, ease: 'easeOut' }}
-          className="mx-auto mt-20 flex w-full max-w-4xl flex-col gap-6"
+          className="mx-auto mt-14 flex w-full max-w-4xl flex-col gap-4 md:mt-20 md:gap-6"
         >
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-7 backdrop-blur-xl">
-            <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl md:p-7">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-4xl">
               Choose your plan to continue
             </h1>
             <p className="mt-3 text-sm text-white/70 md:text-base">
@@ -56,11 +56,11 @@ const ChoosePlan = () => {
             <span className="mt-5 block h-[2px] w-40 bg-gradient-to-r from-purple-500 to-blue-500" />
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:gap-6 md:grid-cols-2">
             <motion.div
               whileHover={{ scale: 1.03 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl"
+              className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl md:p-6"
             >
               <p className="text-xs uppercase tracking-wide text-white/60">Start Free Trial</p>
               <p className="mt-2 text-3xl font-bold">3 Days Trial</p>
@@ -89,7 +89,7 @@ const ChoosePlan = () => {
             <motion.div
               whileHover={{ scale: 1.05 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="relative rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-600/20 to-blue-600/20 p-6 shadow-[0_0_40px_rgba(139,92,246,0.25)] backdrop-blur-xl"
+              className="relative rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-600/20 to-blue-600/20 p-5 shadow-[0_0_40px_rgba(139,92,246,0.25)] backdrop-blur-xl md:p-6"
             >
               <div className="absolute right-4 top-4 flex flex-wrap gap-2">
                 <span className="rounded-full border border-purple-300/25 bg-purple-500/20 px-3 py-1 text-xs text-purple-100">
@@ -98,7 +98,7 @@ const ChoosePlan = () => {
               </div>
 
               <p className="pt-12 text-xs uppercase tracking-wide text-white/70">Premium</p>
-              <p className="mt-2 text-3xl font-bold">299 MAD - Full access until exam</p>
+              <p className="mt-2 text-2xl font-bold md:text-3xl">299 MAD - Full access until exam</p>
               <p className="mt-1 text-sm text-white/70">One-time payment</p>
 
               <ul className="mt-5 space-y-3">

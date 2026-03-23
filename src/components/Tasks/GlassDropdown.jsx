@@ -51,7 +51,7 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
         onClick={() => setOpen((prev) => !prev)}
         disabled={disabled}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out',
+          'flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out md:py-2',
           'hover:border-purple-400/40 hover:shadow-[0_0_10px_rgba(139,92,246,0.2)]',
           disabled && 'cursor-not-allowed opacity-60'
         )}

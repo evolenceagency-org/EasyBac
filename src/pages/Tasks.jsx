@@ -259,13 +259,13 @@ const Tasks = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex flex-col gap-6"
+      className="flex max-w-full flex-col gap-4 md:gap-6"
     >
-      <div className="glass rounded-2xl p-6 overflow-visible">
+      <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
         <p className="text-xs uppercase tracking-wide text-white/70">
           Task Productivity
         </p>
-        <h3 className="mt-2 text-2xl font-semibold text-white">Today's Task Progress</h3>
+        <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Today's Task Progress</h3>
         <div className="mt-4">
           <div className="flex items-center justify-between text-sm text-white/70">
             <span>
@@ -293,11 +293,11 @@ const Tasks = () => {
         </div>
       )}
 
-      <div className="glass rounded-2xl p-6 overflow-visible">
+      <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
         <p className="text-xs uppercase tracking-wide text-white/70">
           Create Task
         </p>
-        <h3 className="mt-2 text-2xl font-semibold text-white">Plan your next moves</h3>
+        <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Plan your next moves</h3>
         <form
           onSubmit={handleCreate}
           className="mt-6 grid gap-4 md:grid-cols-[2fr_1fr_1fr_auto]"
@@ -308,7 +308,7 @@ const Tasks = () => {
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Task title"
             disabled={lockActions}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/50 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/50 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           />
           <GlassDropdown
             value={subject}
@@ -321,14 +321,14 @@ const Tasks = () => {
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
             disabled={lockActions}
-            className="rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
           />
           <motion.button
             type="submit"
             disabled={saving || lockActions}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.97 }}
-            className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-2 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {saving ? 'Saving...' : 'Add Task'}
           </motion.button>
@@ -341,15 +341,17 @@ const Tasks = () => {
       </div>
 
       <div className="relative">
-        <div className="pointer-events-none absolute -top-10 left-1/2 h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl" />
-        <div className="glass rounded-2xl p-6 overflow-visible">
-          <div className="flex flex-wrap items-center gap-4">
-            <GlassDropdown
-              value={subjectFilter}
-              onChange={setSubjectFilter}
-              options={subjects}
-            />
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="pointer-events-none absolute -top-10 left-1/2 hidden h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl md:block" />
+        <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
+          <div className="flex flex-col gap-3">
+            <div className="w-full sm:max-w-[240px]">
+              <GlassDropdown
+                value={subjectFilter}
+                onChange={setSubjectFilter}
+                options={subjects}
+              />
+            </div>
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
               {[
                 { label: 'Pending', value: 'pending' },
                 { label: 'Completed', value: 'completed' },
@@ -369,7 +371,7 @@ const Tasks = () => {
                 </button>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
               {[
                 { label: 'All tasks', value: 'all' },
                 { label: 'Due today', value: 'today' },
@@ -389,17 +391,19 @@ const Tasks = () => {
                 </button>
               ))}
             </div>
-            <GlassDropdown
-              value={sortOption}
-              onChange={setSortOption}
-              options={[
-                { label: 'Newest first', value: 'newest' },
-                { label: 'Oldest first', value: 'oldest' },
-                { label: 'Due date (nearest first)', value: 'due-nearest' },
-                { label: 'Due date (latest first)', value: 'due-latest' },
-                { label: 'Subject alphabetical', value: 'subject' }
-              ]}
-            />
+            <div className="w-full sm:max-w-[280px]">
+              <GlassDropdown
+                value={sortOption}
+                onChange={setSortOption}
+                options={[
+                  { label: 'Newest first', value: 'newest' },
+                  { label: 'Oldest first', value: 'oldest' },
+                  { label: 'Due date (nearest first)', value: 'due-nearest' },
+                  { label: 'Due date (latest first)', value: 'due-latest' },
+                  { label: 'Subject alphabetical', value: 'subject' }
+                ]}
+              />
+            </div>
           </div>
         </div>
       </div>

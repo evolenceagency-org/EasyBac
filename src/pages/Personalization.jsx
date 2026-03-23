@@ -99,9 +99,9 @@ const Personalization = () => {
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0_0_25px_rgba(139,92,246,0.12)] backdrop-blur-xl"
+        className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_25px_rgba(139,92,246,0.12)] backdrop-blur-xl md:p-6"
       >
-        <h1 className="text-2xl font-semibold text-white">Personalization</h1>
+        <h1 className="text-xl font-semibold text-white md:text-2xl">Personalization</h1>
         <p className="mt-2 text-sm text-white/70">
           Help BacTracker generate strict daily insights using your study profile and activity.
         </p>
@@ -239,18 +239,18 @@ const Personalization = () => {
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               type="submit"
               disabled={saving}
-              className="rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(139,92,246,0.35)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-70"
+              className="rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(139,92,246,0.35)] transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-70"
             >
               {saving ? 'Saving...' : 'Save Personalization'}
             </button>
             <button
               type="button"
               onClick={() => navigate('/dashboard')}
-              className="rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm text-white/80 transition hover:bg-white/10"
+              className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm text-white/80 transition hover:bg-white/10"
             >
               Back to Dashboard
             </button>

@@ -8,7 +8,7 @@ const RecentSessions = ({ sessions = [], loading }) => {
     return 'bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
   }
   return (
-    <GlassCard className="p-6">
+    <GlassCard className="p-4 md:p-6">
       <div className="flex items-center justify-between">
         <div>
           <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
@@ -18,7 +18,7 @@ const RecentSessions = ({ sessions = [], loading }) => {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col gap-3">
+      <div className="mt-4 flex flex-col gap-3 md:mt-6">
         {loading && (
           <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/70">
             Loading sessions...

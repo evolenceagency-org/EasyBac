@@ -260,12 +260,12 @@ const Study = () => {
 
   const timerContent = (
     <GlassCard
-      className={`relative p-6 transition-all duration-500 ${
-        isFocusMode ? 'scale-125 shadow-[0_0_60px_rgba(139,92,246,0.4)]' : ''
+      className={`relative p-4 transition-all duration-500 md:p-6 ${
+        isFocusMode ? 'scale-105 md:scale-125 shadow-[0_0_60px_rgba(139,92,246,0.4)]' : ''
       }`}
     >
       {isRunning && (
-        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-purple-500/10 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-purple-500/10 blur-2xl md:blur-3xl" />
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -273,10 +273,10 @@ const Study = () => {
           <p className="text-xs uppercase tracking-wide text-white/70">
             Study Timer
           </p>
-          <h3 className="mt-2 text-2xl font-semibold text-white">
+          <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">
             Deep Focus Session
           </h3>
-          <p className="mt-2 text-sm text-white/70">
+          <p className="mt-2 hidden text-sm text-white/70 sm:block">
             Choose a mode, start the timer, and save your session when you are
             done.
           </p>
@@ -340,11 +340,11 @@ const Study = () => {
         </div>
       )}
 
-      <div className="mt-10 flex flex-col items-center">
+      <div className="mt-8 flex flex-col items-center md:mt-10">
         <motion.div
           animate={isRunning ? { scale: [1, 1.02, 1] } : { scale: 1 }}
           transition={{ duration: 2.6, repeat: isRunning ? Infinity : 0 }}
-          className="relative h-72 w-72"
+          className="relative h-60 w-60 md:h-72 md:w-72"
         >
           <svg className="h-full w-full" viewBox="0 0 260 260">
             <defs>
@@ -390,7 +390,7 @@ const Study = () => {
                     : 'Focus'
                 : 'Session'}
             </p>
-            <p className="mt-3 text-4xl font-semibold text-white">
+            <p className="mt-3 text-3xl font-semibold text-white md:text-4xl">
               {formatTwoDigits(minutes)}:{formatTwoDigits(seconds)}
             </p>
             <p className="mt-2 text-xs text-white/70">{statusLabel}</p>
@@ -402,7 +402,7 @@ const Study = () => {
           </div>
         </motion.div>
 
-        <div className="mt-8 flex flex-wrap gap-3">
+        <div className="mt-8 flex w-full flex-wrap gap-3">
           {!isRunning ? (
             <motion.button
               type="button"
@@ -410,7 +410,7 @@ const Study = () => {
               whileTap={{ scale: 0.97 }}
               onClick={handleStart}
               disabled={lockActions}
-              className="rounded-full bg-gradient-to-r from-green-400 to-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900 shadow-[0_0_20px_rgba(34,197,94,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-full bg-gradient-to-r from-green-400 to-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-900 shadow-[0_0_20px_rgba(34,197,94,0.4)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               Start
             </motion.button>
@@ -421,7 +421,7 @@ const Study = () => {
               whileTap={{ scale: 0.97 }}
               onClick={pause}
               disabled={lockActions}
-              className="rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_12px_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full rounded-full border border-white/20 bg-white/5 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_12px_rgba(255,255,255,0.08)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               Pause
             </motion.button>
@@ -432,7 +432,7 @@ const Study = () => {
             whileTap={{ scale: 0.97 }}
             onClick={reset}
             disabled={lockActions}
-            className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             Reset
           </motion.button>
@@ -442,7 +442,7 @@ const Study = () => {
             whileTap={{ scale: 0.97 }}
             onClick={handleFinish}
             disabled={lockActions}
-            className="rounded-full border border-white/10 bg-white/10 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_15px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full rounded-full border border-white/10 bg-white/10 px-6 py-3 text-sm font-semibold text-white shadow-[0_0_15px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
             Finish Session
           </motion.button>
@@ -451,7 +451,7 @@ const Study = () => {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={toggleFocusMode}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 transition hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 transition hover:shadow-[0_0_15px_rgba(139,92,246,0.3)] sm:w-auto"
           >
             <Maximize2 className="h-4 w-4" />
             {isFocusMode ? 'Exit Focus' : 'Focus Mode'}
@@ -469,15 +469,15 @@ const Study = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex flex-col gap-6"
+      className="flex max-w-full flex-col gap-4 md:gap-6"
     >
       {isFocusMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-6 transition-all duration-500">
-          <div className="pointer-events-none absolute inset-0 bg-purple-500/10 blur-3xl" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black px-4 transition-all duration-500 md:px-6">
+          <div className="pointer-events-none absolute inset-0 bg-purple-500/10 blur-2xl md:blur-3xl" />
           <button
             type="button"
             onClick={toggleFocusMode}
-            className="absolute right-6 top-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/80 shadow-[0_0_12px_rgba(139,92,246,0.35)] backdrop-blur-md transition hover:shadow-[0_0_18px_rgba(139,92,246,0.45)]"
+            className="absolute right-4 top-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 shadow-[0_0_12px_rgba(139,92,246,0.35)] backdrop-blur-md transition hover:shadow-[0_0_18px_rgba(139,92,246,0.45)] md:right-6 md:top-6 md:px-4"
           >
             <X className="h-4 w-4" />
             Exit Focus
@@ -508,13 +508,13 @@ const Study = () => {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid max-w-full gap-4 md:gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         {timerContent}
         <RecentSessions sessions={recentSessions} loading={loading.sessions} />
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 md:px-6">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -550,7 +550,7 @@ const Study = () => {
       )}
 
       {showRecoveryModal && recoverySession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 md:px-6">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}

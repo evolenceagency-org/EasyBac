@@ -29,7 +29,7 @@ const AuthCard = ({
         />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center px-6 py-16 md:px-12">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-10 md:px-12 md:py-16">
         <div className="grid w-full gap-10 md:grid-cols-[1.1fr_0.9fr]">
           <div className="hidden flex-col justify-center rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent p-10 backdrop-blur-xl md:flex">
             <div className="mb-4 h-1.5 w-12 rounded-full bg-gradient-to-r from-purple-400 to-blue-400" />
@@ -52,7 +52,7 @@ const AuthCard = ({
             className="relative"
           >
             <div className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-b from-white/10 to-transparent opacity-40" />
-            <div className="relative rounded-3xl border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl md:p-10">
+            <div className="relative rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-xl md:p-10">
               <p className="text-xs uppercase tracking-[0.3em] text-white/50">{label}</p>
               <h1 className="mt-3 text-3xl font-semibold">{title}</h1>
               <p className="mt-2 text-sm text-white/70">{subtitle}</p>

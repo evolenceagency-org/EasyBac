@@ -35,7 +35,7 @@ const WeeklySummary = ({ sessions = [] }) => {
   }
 
   return (
-    <GlassCard className="p-6">
+    <GlassCard className="p-4 md:p-6">
       <p className="text-xs uppercase tracking-wide text-white/70">
         Weekly Summary
       </p>
