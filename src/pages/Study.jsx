@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { toDateKey } from '../utils/dateUtils.js'
 import { motion } from 'framer-motion'
 import { Maximize2, X } from 'lucide-react'
@@ -11,6 +11,14 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 import GlassCard from '../components/GlassCard.jsx'
+import GlassDropdown from '../components/Tasks/GlassDropdown.jsx'
+import {
+  clearActiveFocusTaskId,
+  formatFocusSummary,
+  getActiveFocusTaskId,
+  getSuggestedFocusTask,
+  setActiveFocusTaskId
+} from '../utils/focusTasks.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -47,14 +55,16 @@ const Study = () => {
     finish
   } = useStudyTimer()
 
-  const { profile } = useAuth()
-  const { studySessions, loading, errors, addStudySession } = useData()
+  const { profile, user } = useAuth()
+  const location = useLocation()
+  const { tasks, studySessions, loading, errors, addStudySession, updateTaskById } = useData()
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
   const [showRecoveryModal, setShowRecoveryModal] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [savedMessage, setSavedMessage] = useState('')
   const [isFocusMode, setIsFocusMode] = useState(false)
+  const [activeTaskId, setActiveTaskId] = useState(null)
 
   const recentSessions = useMemo(
     () => studySessions.slice(0, 5),
@@ -67,6 +77,71 @@ const Study = () => {
   )
   const lockActions = !subscriptionActive
   const showExpired = Boolean(profile) && !subscriptionActive
+  const pendingTasks = useMemo(
+    () => tasks.filter((task) => !task.completed && task.status !== 'completed'),
+    [tasks]
+  )
+  const activeTask = useMemo(
+    () => pendingTasks.find((task) => task.id === activeTaskId) || null,
+    [pendingTasks, activeTaskId]
+  )
+  const suggestedTask = useMemo(
+    () => getSuggestedFocusTask(pendingTasks, profile?.personalization || profile),
+    [pendingTasks, profile]
+  )
+  const taskOptions = useMemo(
+    () => [
+      { label: 'Free session', value: 'free-session' },
+      ...pendingTasks.map((task) => ({
+        label: `${task.title} • ${task.subject || 'General'}`,
+        value: task.id
+      }))
+    ],
+    [pendingTasks]
+  )
+  const shouldSuggestComplete = useMemo(() => {
+    if (!activeTask || activeTask.completed) return false
+    return (activeTask.totalFocusTime || 0) + sessionMinutes >= 90
+  }, [activeTask, sessionMinutes])
+
+  useEffect(() => {
+    const routeTaskId = location.state?.taskId
+    if (routeTaskId) {
+      setActiveTaskId(routeTaskId)
+      return
+    }
+
+    if (!user?.id) return
+    const storedTaskId = getActiveFocusTaskId(user.id)
+    if (storedTaskId) {
+      setActiveTaskId(storedTaskId)
+    }
+  }, [location.state, user?.id])
+
+  useEffect(() => {
+    if (loading.tasks) return
+    if (!pendingTasks.length) {
+      setActiveTaskId(null)
+      return
+    }
+
+    if (activeTaskId && pendingTasks.some((task) => task.id === activeTaskId)) {
+      return
+    }
+
+    if (suggestedTask) {
+      setActiveTaskId(suggestedTask.id)
+    }
+  }, [activeTaskId, loading.tasks, pendingTasks, suggestedTask])
+
+  useEffect(() => {
+    if (!user?.id) return
+    if (activeTaskId) {
+      setActiveFocusTaskId(user.id, activeTaskId)
+    } else {
+      clearActiveFocusTaskId(user.id)
+    }
+  }, [activeTaskId, user?.id])
 
   useEffect(() => {
     if (phase === 'completed') {
@@ -92,22 +167,38 @@ const Study = () => {
     }
   }, [isRunning])
 
+  const buildLinkedSessionPayload = useCallback(
+    (minutesToSave, sessionMode = mode) => {
+      const endedAt = new Date().toISOString()
+      const startedAt = new Date(
+        Date.now() - Math.max(1, minutesToSave) * 60 * 1000
+      ).toISOString()
+
+      return {
+        date: toDateKey(new Date()),
+        duration_minutes: minutesToSave,
+        mode: sessionMode,
+        taskId: activeTask?.id || null,
+        startedAt,
+        endedAt
+      }
+    },
+    [activeTask?.id, mode]
+  )
+
   const handleSaveSession = async () => {
     if (!checkTrialAndBlock(profile, navigate)) return
     setSaveError('')
     try {
-      const todayKey = toDateKey(new Date())
-      await addStudySession({
-        date: todayKey,
-        duration_minutes: sessionMinutes,
-        mode
-      })
+      await addStudySession(buildLinkedSessionPayload(sessionMinutes, mode))
       setShowModal(false)
       setSavedMessage('Session saved!')
       reset()
       setTimeout(() => setSavedMessage(''), 2500)
+      return true
     } catch (error) {
       setSaveError('Unable to save the session. Please try again.')
+      return false
     }
   }
 
@@ -123,18 +214,33 @@ const Study = () => {
     setShowModal(true)
   }
 
+  const handleTaskSelection = useCallback((taskId) => {
+    setActiveTaskId(taskId === 'free-session' ? null : taskId)
+  }, [])
+
+  const handleMarkTaskDone = useCallback(async () => {
+    if (!activeTask || activeTask.completed) return
+    if (!checkTrialAndBlock(profile, navigate)) return
+
+    try {
+      await updateTaskById(activeTask.id, {
+        completed: true,
+        status: 'completed'
+      })
+      setSavedMessage('Task marked as done!')
+      setTimeout(() => setSavedMessage(''), 2500)
+    } catch {
+      setSaveError('Unable to mark the task as done right now.')
+    }
+  }, [activeTask, navigate, profile, updateTaskById])
+
   const handleSaveAndSwitch = async () => {
     if (!pendingMode) return
     if (!checkTrialAndBlock(profile, navigate)) return
     setSaveError('')
     try {
       if (sessionMinutes > 0) {
-        const todayKey = toDateKey(new Date())
-        await addStudySession({
-          date: todayKey,
-          duration_minutes: sessionMinutes,
-          mode
-        })
+        await addStudySession(buildLinkedSessionPayload(sessionMinutes, mode))
       }
       applyPendingModeSwitch()
     } catch (error) {
@@ -172,12 +278,7 @@ const Study = () => {
         setShowRecoveryModal(false)
         return
       }
-      const todayKey = toDateKey(new Date())
-      await addStudySession({
-        date: todayKey,
-        duration_minutes: minutesToSave,
-        mode: recoverySession.mode
-      })
+      await addStudySession(buildLinkedSessionPayload(minutesToSave, recoverySession.mode))
       discardRecovery()
       setShowRecoveryModal(false)
       setSavedMessage('Session saved!')
@@ -282,6 +383,56 @@ const Study = () => {
           </p>
         </div>
 
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-white/60">
+              Focus task
+            </p>
+            <p className="mt-1 text-sm text-white/72">
+              {pendingTasks.length > 0
+                ? 'Pick a task to link this session and track real progress.'
+                : 'No tasks available yet. You can still run a free focus session.'}
+            </p>
+          </div>
+          {suggestedTask && !activeTask && (
+            <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-medium text-cyan-100">
+              Suggested: {suggestedTask.title}
+            </span>
+          )}
+        </div>
+
+        <GlassDropdown
+          value={activeTaskId || 'free-session'}
+          onChange={handleTaskSelection}
+          options={taskOptions}
+          placeholder="Select a task"
+          disabled={lockActions}
+        />
+
+        {activeTask ? (
+          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/8 px-4 py-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-white">
+                  {activeTask.title}
+                </p>
+                <p className="mt-1 text-xs text-cyan-100/80">
+                  {activeTask.subject} • {formatFocusSummary(activeTask.totalFocusTime, activeTask.sessionsCount)}
+                </p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] text-white/70">
+                {activeTask.status === 'completed' || activeTask.completed ? 'Completed' : 'Active'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">
+            No task selected — start a free session or choose a task above.
+          </div>
+        )}
       </div>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -526,6 +677,22 @@ const Study = () => {
                 ? `Pomodoro focus: ${sessionMinutes} minutes.`
                 : `Free study duration: ${sessionMinutes} minutes.`}
             </p>
+            {activeTask && (
+              <div className="mt-3 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-100/85">
+                Linked to: <span className="font-semibold text-white">{activeTask.title}</span>
+                <p className="mt-1 text-xs text-cyan-100/70">
+                  {formatFocusSummary(
+                    (activeTask.totalFocusTime || 0) + sessionMinutes,
+                    (activeTask.sessionsCount || 0) + 1
+                  )}
+                </p>
+              </div>
+            )}
+            {shouldSuggestComplete && activeTask && (
+              <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100/85">
+                This task now has enough focus time. You can mark it as done after saving.
+              </div>
+            )}
             <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="button"
@@ -587,6 +754,20 @@ const Study = () => {
               >
                 Discard
               </button>
+              {shouldSuggestComplete && activeTask && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const saved = await handleSaveSession()
+                    if (saved) {
+                      await handleMarkTaskDone()
+                    }
+                  }}
+                  className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-6 py-3 text-sm font-semibold text-cyan-100"
+                >
+                  Save & Mark Done
+                </button>
+              )}
             </div>
           </motion.div>
         </div>

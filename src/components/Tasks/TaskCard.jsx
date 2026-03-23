@@ -12,6 +12,7 @@ import {
   Check,
   CheckCircle2,
   EllipsisVertical,
+  Play,
   Trash2
 } from 'lucide-react'
 
@@ -34,7 +35,10 @@ const TaskCard = ({
   disableSwipe = false,
   onToggle,
   onDelete,
-  onReschedule
+  onReschedule,
+  onStartFocus,
+  focusSummary,
+  isRecommended = false
 }) => {
   const x = useMotionValue(0)
   const rightReveal = useTransform(x, [0, 120], [0, 1])
@@ -219,7 +223,7 @@ const TaskCard = ({
   }
 
   return (
-    <div ref={cardRef} className="relative z-0 w-full max-w-full overflow-hidden rounded-xl box-border">
+    <div ref={cardRef} className="relative z-0 w-full max-w-full overflow-visible rounded-xl box-border">
       <motion.div
         style={{ opacity: rightReveal }}
         className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500/45 to-emerald-400/10"
@@ -254,8 +258,12 @@ const TaskCard = ({
         initial={{ opacity: 0, y: 8 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
-        className={`w-full max-w-full box-border rounded-xl border bg-white/5 px-4 py-3 backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] ${
-          isOverdue ? 'border-red-500/35 bg-red-500/10' : 'border-white/10'
+        className={`w-full max-w-full box-border rounded-2xl border bg-white/5 px-4 py-4 backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] ${
+          isRecommended
+            ? 'border-cyan-400/35 shadow-[0_0_26px_rgba(34,211,238,0.14)]'
+            : isOverdue
+              ? 'border-red-500/35 bg-red-500/10'
+              : 'border-white/10'
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -269,6 +277,11 @@ const TaskCard = ({
             </p>
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {isRecommended ? (
+                <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-1 text-[11px] font-semibold text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.16)]">
+                  Recommended
+                </span>
+              ) : null}
               <span
                 className={`rounded-full px-2 py-1 text-xs ${
                   subjectColorMap[task.subject] || 'bg-white/10 text-zinc-200'
@@ -290,6 +303,19 @@ const TaskCard = ({
             <p className="mt-2 text-xs text-white/60">
               Due: {task.due_date || 'No date'}
             </p>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="text-[11px] text-white/55">{focusSummary}</span>
+              <button
+                type="button"
+                onClick={() => onStartFocus?.(task)}
+                disabled={lockActions}
+                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition hover:scale-[1.02] hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Play className="h-3 w-3" />
+                Start Focus
+              </button>
+            </div>
           </div>
 
           <button

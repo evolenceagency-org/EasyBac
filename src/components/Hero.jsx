@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from './Navbar.jsx'
 import Hero3D from './Hero3D'
+import heroMobile from '../assets/images/hero-mobile.png'
 
 const container = {
   hidden: { opacity: 0, y: 18 },
@@ -44,7 +45,7 @@ const Hero = () => {
   const source = isMobile ? '/hero-video-mobile.mp4' : '/hero-video-desktop.mp4'
 
   return (
-    <section className="relative flex min-h-[100dvh] w-full items-center overflow-hidden">
+    <section className="relative flex min-h-[100dvh] w-full items-center overflow-hidden pt-32 md:pt-36">
       <Navbar />
 
       <img
@@ -142,11 +143,14 @@ const Hero = () => {
           </motion.div>
         </div>
 
-        <div className="mt-8 lg:hidden">
-          <img
-            src="/assets/images/hero-study-fallback-dark.png"
-            alt="Study workspace background"
-            className="w-full max-h-[220px] rounded-2xl border border-white/10 bg-white/5 object-cover shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:max-h-[260px]"
+        <div className="mt-8 block md:hidden">
+          <motion.img
+            src={heroMobile}
+            alt="BacTracker Dashboard Preview"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
+            className="mx-auto w-full max-w-sm rounded-2xl shadow-2xl"
           />
         </div>
       </div>

@@ -22,7 +22,7 @@ const Study = lazy(() => import('./pages/Study.jsx'))
 const Tasks = lazy(() => import('./pages/Tasks.jsx'))
 const Analytics = lazy(() => import('./pages/Analytics.jsx'))
 const Personalization = lazy(() => import('./pages/Personalization.jsx'))
-const WelcomeAI = lazy(() => import('./pages/WelcomeAI.jsx'))
+const AIResult = lazy(() => import('./pages/AIResult.jsx'))
 
 const LoadingScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -109,7 +109,8 @@ function App() {
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/personalization" element={<Personalization />} />
-              <Route path="/welcome-ai" element={<WelcomeAI />} />
+              <Route path="/ai-result" element={<AIResult />} />
+              <Route path="/welcome-ai" element={<Navigate to="/ai-result" replace />} />
             </Route>
           </Route>
 

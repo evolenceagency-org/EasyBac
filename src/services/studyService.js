@@ -66,14 +66,21 @@ export const createStudySession = async (userId, sessionData) => {
   ensureUserId(userId)
   logDev('Creating study session in Supabase')
 
-  const payload = {
+  const basePayload = {
     user_id: userId,
     date: sessionData.date,
     duration_minutes: sessionData.duration_minutes,
     mode: sessionData.mode || 'free'
   }
 
-  const data = await retryWithBackoff(async () => {
+  const extendedPayload = {
+    ...basePayload,
+    ...(sessionData.taskId ? { task_id: sessionData.taskId } : {}),
+    ...(sessionData.startedAt ? { started_at: sessionData.startedAt } : {}),
+    ...(sessionData.endedAt ? { ended_at: sessionData.endedAt } : {})
+  }
+
+  const insertPayload = async (payload) => {
     const { data: created, error } = await supabase
       .from('study_sessions')
       .insert(payload)
@@ -82,13 +89,50 @@ export const createStudySession = async (userId, sessionData) => {
 
     if (error) throw error
     return created
-  }, 'study_sessions:create')
-
-  if (cachedStudySessions) {
-    cachedStudySessions = [data, ...cachedStudySessions]
   }
 
-  return data
+  let data
+
+  try {
+    data = await retryWithBackoff(
+      () => insertPayload(extendedPayload),
+      'study_sessions:create'
+    )
+  } catch (error) {
+    const details = `${error?.code || ''} ${error?.message || ''}`.toLowerCase()
+    const shouldFallback =
+      details.includes('column') ||
+      details.includes('pgrst') ||
+      details.includes('schema')
+
+    if (!shouldFallback) {
+      throw error
+    }
+
+    data = await retryWithBackoff(
+      () => insertPayload(basePayload),
+      'study_sessions:create:legacy'
+    )
+  }
+
+  if (cachedStudySessions) {
+    cachedStudySessions = [
+      {
+        ...data,
+        task_id: data.task_id ?? sessionData.taskId ?? null,
+        started_at: data.started_at ?? sessionData.startedAt ?? null,
+        ended_at: data.ended_at ?? sessionData.endedAt ?? null
+      },
+      ...cachedStudySessions
+    ]
+  }
+
+  return {
+    ...data,
+    task_id: data.task_id ?? sessionData.taskId ?? null,
+    started_at: data.started_at ?? sessionData.startedAt ?? null,
+    ended_at: data.ended_at ?? sessionData.endedAt ?? null
+  }
 }
 
 export const deleteStudySession = async (userId, sessionId) => {

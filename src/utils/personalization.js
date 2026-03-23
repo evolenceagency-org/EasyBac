@@ -1,17 +1,19 @@
-const REQUIRED_PERSONALIZATION_KEYS = [
-  'level',
-  'dailyStudyTime',
-  'mainGoal',
-  'biggestProblem'
-]
+const hasValue = (value) => typeof value === 'string' && value.trim().length > 0
+
+const hasArrayValue = (value) => Array.isArray(value) && value.length > 0
 
 export const hasRequiredPersonalization = (personalization) => {
   if (!personalization || typeof personalization !== 'object') return false
 
-  return REQUIRED_PERSONALIZATION_KEYS.every((key) => {
-    const value = personalization[key]
-    return typeof value === 'string' && value.trim().length > 0
-  })
+  const level = hasValue(personalization.level)
+  const studyHours = hasValue(personalization.studyHours || personalization.dailyStudyTime)
+  const goal = hasValue(personalization.goal || personalization.mainGoal)
+  const focusIssue =
+    hasArrayValue(personalization.focusIssues) ||
+    hasValue(personalization.biggestProblem) ||
+    hasValue(personalization.mainIssue)
+
+  return level && studyHours && goal && focusIssue
 }
 
 export const isPersonalized = (profile) => {

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarDays, Check, ChevronLeft, ChevronRight, ListTodo, MoreHorizontal, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, ListTodo, Plus, Search } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { toDateKey } from '../utils/dateUtils.js'
+import { getBestTask } from '../utils/aiEngine.ts'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 import {
@@ -12,6 +13,7 @@ import {
   getTasksDueToday,
   isOverdueTask
 } from '../utils/taskStats.js'
+import { formatFocusSummary } from '../utils/focusTasks.js'
 import TaskCard from '../components/Tasks/TaskCard.jsx'
 import GlassDropdown from '../components/Tasks/GlassDropdown.jsx'
 
@@ -72,6 +74,22 @@ const buildCalendarDays = (monthDate) => {
   })
 }
 
+const FILTER_DEFAULTS = {
+  subject: 'all',
+  status: 'all',
+  due: 'all',
+  sort: 'newest',
+  search: ''
+}
+
+const sortLabels = {
+  newest: 'Newest',
+  oldest: 'Oldest',
+  'due-nearest': 'Due nearest',
+  'due-latest': 'Due latest',
+  subject: 'Subject A-Z'
+}
+
 const Tasks = () => {
   const { profile } = useAuth()
   const {
@@ -91,10 +109,10 @@ const Tasks = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
-  const [subjectFilter, setSubjectFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('pending')
-  const [dueFilter, setDueFilter] = useState('all')
-  const [sortOption, setSortOption] = useState('newest')
+  const [subjectFilter, setSubjectFilter] = useState(FILTER_DEFAULTS.subject)
+  const [statusFilter, setStatusFilter] = useState(FILTER_DEFAULTS.status)
+  const [dueFilter, setDueFilter] = useState(FILTER_DEFAULTS.due)
+  const [sortOption, setSortOption] = useState(FILTER_DEFAULTS.sort)
 
   const [showSwipeHint, setShowSwipeHint] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < 768
@@ -104,7 +122,7 @@ const Tasks = () => {
     return window.localStorage.getItem('tasks-swipe-nudge-done') !== '1'
   })
   const [showCreatePanel, setShowCreatePanel] = useState(false)
-  const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [searchTerm, setSearchTerm] = useState(FILTER_DEFAULTS.search)
   const [viewMode, setViewMode] = useState('list')
   const [calendarMonth, setCalendarMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState(null)
@@ -112,8 +130,23 @@ const Tasks = () => {
   const [dragOverDayKey, setDragOverDayKey] = useState(null)
   const [showCalendarCreateSheet, setShowCalendarCreateSheet] = useState(false)
   const [activePressDayKey, setActivePressDayKey] = useState(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteQuery, setPaletteQuery] = useState('')
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
+  const [recentCommands, setRecentCommands] = useState(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem('tasks-recent-commands') || '[]')
+      return Array.isArray(parsed) ? parsed.slice(0, 5) : []
+    } catch {
+      return []
+    }
+  })
   const longPressTimerRef = useRef(null)
   const longPressTriggeredRef = useRef(false)
+  const paletteInputRef = useRef(null)
+  const taskCardRefs = useRef({})
+  const lastScrolledTaskRef = useRef(null)
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
   const subscriptionActive = useMemo(
@@ -206,60 +239,167 @@ const Tasks = () => {
     [updateTaskById, profile, navigate]
   )
 
-  const filteredTasks = useMemo(() => {
-    let result = tasks.filter(
-      (task) => getTaskStatus(task) !== 'archived_overdue'
-    )
+  const handleStartFocus = useCallback(
+    (task) => {
+      if (!checkTrialAndBlock(profile, navigate)) return
+      navigate('/study', {
+        state: {
+          taskId: task.id
+        }
+      })
+    },
+    [navigate, profile]
+  )
 
-    if (subjectFilter !== 'all') {
-      result = result.filter((task) => task.subject === subjectFilter)
-    }
+  const resetFilters = useCallback(() => {
+    setSubjectFilter(FILTER_DEFAULTS.subject)
+    setStatusFilter(FILTER_DEFAULTS.status)
+    setDueFilter(FILTER_DEFAULTS.due)
+    setSortOption(FILTER_DEFAULTS.sort)
+    setSearchTerm(FILTER_DEFAULTS.search)
+  }, [])
 
-    if (statusFilter === 'completed') {
-      result = result.filter((task) => getTaskStatus(task) === 'completed')
-    } else if (statusFilter === 'pending') {
-      result = result.filter((task) => getTaskStatus(task) === 'active')
-    } else if (statusFilter === 'overdue') {
-      result = result.filter(
-        (task) => isOverdueTask(task) && getTaskStatus(task) !== 'completed'
-      )
-    }
-
-    if (dueFilter === 'today') {
-      result = result.filter((task) => task.due_date === todayKey)
-    } else if (dueFilter === 'overdue') {
-      result = result.filter(
-        (task) => isOverdueTask(task) && getTaskStatus(task) !== 'completed'
-      )
-    }
-
-    const getCreatedTime = (task) =>
-      task.created_at ? new Date(task.created_at).getTime() : 0
-
-    const getDueTimeNearest = (task) =>
-      task.due_date ? new Date(`${task.due_date}T00:00:00`).getTime() : Infinity
-
-    const getDueTimeLatest = (task) =>
-      task.due_date ? new Date(`${task.due_date}T00:00:00`).getTime() : -Infinity
-
-    result.sort((a, b) => {
-      switch (sortOption) {
-        case 'oldest':
-          return getCreatedTime(a) - getCreatedTime(b)
-        case 'due-nearest':
-          return getDueTimeNearest(a) - getDueTimeNearest(b)
-        case 'due-latest':
-          return getDueTimeLatest(b) - getDueTimeLatest(a)
-        case 'subject':
-          return (a.subject || '').localeCompare(b.subject || '')
-        case 'newest':
-        default:
-          return getCreatedTime(b) - getCreatedTime(a)
+  const executeCommand = useCallback((command) => {
+    command.run()
+    setPaletteOpen(false)
+    setPaletteQuery('')
+    setSelectedCommandIndex(0)
+    setRecentCommands((prev) => {
+      const next = [command.title, ...prev.filter((item) => item !== command.title)].slice(0, 5)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('tasks-recent-commands', JSON.stringify(next))
       }
+      return next
     })
+  }, [])
+
+  const commandItems = useMemo(
+    () => [
+      { id: 'filter-all', title: 'Filter: All subjects', group: 'Filters', run: () => setSubjectFilter('all') },
+      { id: 'filter-math', title: 'Filter: Math', group: 'Filters', run: () => setSubjectFilter('math') },
+      { id: 'filter-physics', title: 'Filter: Physics', group: 'Filters', run: () => setSubjectFilter('physics') },
+      { id: 'filter-svt', title: 'Filter: SVT', group: 'Filters', run: () => setSubjectFilter('svt') },
+      { id: 'filter-english', title: 'Filter: English', group: 'Filters', run: () => setSubjectFilter('english') },
+      { id: 'filter-status-all', title: 'Filter: All statuses', group: 'Filters', run: () => setStatusFilter('all') },
+      { id: 'filter-completed', title: 'Filter: Completed', group: 'Filters', run: () => setStatusFilter('completed') },
+      { id: 'filter-pending', title: 'Filter: Pending', group: 'Filters', run: () => setStatusFilter('pending') },
+      { id: 'filter-overdue', title: 'Filter: Overdue', group: 'Filters', run: () => setStatusFilter('overdue') },
+      { id: 'filter-due-all', title: 'Filter: Due all', group: 'Filters', run: () => setDueFilter('all') },
+      { id: 'filter-due-today', title: 'Filter: Due today', group: 'Filters', run: () => setDueFilter('today') },
+      { id: 'filter-due-overdue', title: 'Filter: Due overdue', group: 'Filters', run: () => setDueFilter('overdue') },
+      { id: 'filter-due-unscheduled', title: 'Filter: Unscheduled', group: 'Filters', run: () => setDueFilter('unscheduled') },
+      { id: 'sort-newest', title: 'Sort: Newest first', group: 'Filters', run: () => setSortOption('newest') },
+      { id: 'sort-oldest', title: 'Sort: Oldest first', group: 'Filters', run: () => setSortOption('oldest') },
+      { id: 'sort-due-nearest', title: 'Sort: Due nearest', group: 'Filters', run: () => setSortOption('due-nearest') },
+      { id: 'sort-due-latest', title: 'Sort: Due latest', group: 'Filters', run: () => setSortOption('due-latest') },
+      { id: 'sort-subject', title: 'Sort: Subject A-Z', group: 'Filters', run: () => setSortOption('subject') },
+      { id: 'filter-clear', title: 'Clear all filters', group: 'Filters', run: () => {
+        resetFilters()
+      } },
+      { id: 'view-list', title: 'View List', group: 'Actions', run: () => setViewMode('list') },
+      { id: 'view-calendar', title: 'View Calendar', group: 'Actions', run: () => setViewMode('calendar') },
+      { id: 'create-task', title: 'Create Task', group: 'Actions', run: () => setShowCreatePanel(true) },
+      { id: 'go-dashboard', title: 'Go to Dashboard', group: 'Navigation', run: () => navigate('/dashboard') },
+      { id: 'go-tasks', title: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') }
+    ],
+    [navigate, resetFilters]
+  )
+
+  const visibleCommands = useMemo(() => {
+    if (!paletteQuery.trim()) {
+      const recent = recentCommands
+        .map((title) => commandItems.find((command) => command.title === title))
+        .filter(Boolean)
+      const suggestions = commandItems.filter((command) => !recent.some((item) => item.id === command.id)).slice(0, 7)
+      return [...recent, ...suggestions]
+    }
+
+    const query = paletteQuery.toLowerCase()
+    const matching = commandItems.filter((command) => command.title.toLowerCase().includes(query))
+    const searchCommand = {
+      id: `search-${query}`,
+      title: `Search tasks: "${paletteQuery}"`,
+      group: 'Search',
+      run: () => setSearchTerm(paletteQuery.trim())
+    }
+    return [searchCommand, ...matching]
+  }, [commandItems, paletteQuery, recentCommands])
+
+  const filteredTasks = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase()
+
+    const getCreatedTime = (task) => {
+      const createdAt = task.created_at ? new Date(task.created_at).getTime() : 0
+      return Number.isFinite(createdAt) ? createdAt : 0
+    }
+
+    const getDueTime = (task, fallback) => {
+      if (!task.due_date) return fallback
+      const dueAt = new Date(`${task.due_date}T00:00:00`).getTime()
+      return Number.isFinite(dueAt) ? dueAt : fallback
+    }
+
+    const result = tasks
+      .filter((task) => getTaskStatus(task) !== 'archived_overdue')
+      .filter((task) => subjectFilter === 'all' || task.subject === subjectFilter)
+      .filter((task) => {
+        if (statusFilter === 'all') return true
+        if (statusFilter === 'completed') return getTaskStatus(task) === 'completed'
+        if (statusFilter === 'pending') {
+          return getTaskStatus(task) === 'active' && !isOverdueTask(task)
+        }
+        if (statusFilter === 'overdue') {
+          return getTaskStatus(task) !== 'completed' && isOverdueTask(task)
+        }
+        return true
+      })
+      .filter((task) => {
+        if (dueFilter === 'all') return true
+        if (dueFilter === 'today') return task.due_date === todayKey
+        if (dueFilter === 'overdue') {
+          return getTaskStatus(task) !== 'completed' && isOverdueTask(task)
+        }
+        if (dueFilter === 'unscheduled') return !task.due_date
+        return true
+      })
+      .filter((task) => {
+        if (!query) return true
+        const titleText = (task.title || '').toLowerCase()
+        const subjectText = (task.subject || '').toLowerCase()
+        const subjectLabelText = getSubjectLabel(task.subject || '').toLowerCase()
+        const dueText = (task.due_date || '').toLowerCase()
+        return (
+          titleText.includes(query) ||
+          subjectText.includes(query) ||
+          subjectLabelText.includes(query) ||
+          dueText.includes(query)
+        )
+      })
+      .sort((a, b) => {
+        switch (sortOption) {
+          case 'oldest':
+            return getCreatedTime(a) - getCreatedTime(b)
+          case 'due-nearest':
+            return getDueTime(a, Number.POSITIVE_INFINITY) - getDueTime(b, Number.POSITIVE_INFINITY)
+          case 'due-latest':
+            return getDueTime(b, Number.NEGATIVE_INFINITY) - getDueTime(a, Number.NEGATIVE_INFINITY)
+          case 'subject':
+            return (a.subject || '').localeCompare(b.subject || '')
+          case 'newest':
+          default:
+            return getCreatedTime(b) - getCreatedTime(a)
+        }
+      })
 
     return result
-  }, [tasks, subjectFilter, statusFilter, dueFilter, sortOption, todayKey])
+  }, [tasks, subjectFilter, statusFilter, dueFilter, sortOption, todayKey, searchTerm])
+
+  const recommendedTask = useMemo(() => {
+    const taskPool = filteredTasks.length > 0 ? filteredTasks : tasks
+    return getBestTask(taskPool, profile?.personalization || profile)
+  }, [filteredTasks, tasks, profile])
+
+  const recommendedTaskId = recommendedTask?.id || null
 
   const tasksByDate = useMemo(() => {
     const map = {}
@@ -371,6 +511,90 @@ const Tasks = () => {
     return () => clearLongPressTimer()
   }, [clearLongPressTimer])
 
+  useEffect(() => {
+    const shouldLockScroll = Boolean(selectedDate || showCalendarCreateSheet || paletteOpen)
+    const previousOverflow = document.body.style.overflow
+    if (shouldLockScroll) {
+      document.body.style.overflow = 'hidden'
+    }
+    return () => {
+      document.body.style.overflow = previousOverflow || 'auto'
+    }
+  }, [selectedDate, showCalendarCreateSheet, paletteOpen])
+
+  useEffect(() => {
+    const handleShortcut = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setPaletteOpen((prev) => !prev)
+      }
+
+      if (event.key === 'Escape') {
+        setPaletteOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [])
+
+  useEffect(() => {
+    if (!paletteOpen) return
+    const timer = setTimeout(() => {
+      paletteInputRef.current?.focus()
+    }, 40)
+    return () => clearTimeout(timer)
+  }, [paletteOpen])
+
+  useEffect(() => {
+    setSelectedCommandIndex(0)
+  }, [paletteQuery])
+
+  useEffect(() => {
+    if (viewMode !== 'list' || !recommendedTaskId || loading.tasks) return
+    if (lastScrolledTaskRef.current === recommendedTaskId) return
+
+    const frame = window.requestAnimationFrame(() => {
+      const node = taskCardRefs.current[recommendedTaskId]
+      if (node) {
+        node.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+          inline: 'nearest'
+        })
+        lastScrolledTaskRef.current = recommendedTaskId
+      }
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [recommendedTaskId, viewMode, loading.tasks])
+
+  useEffect(() => {
+    if (!paletteOpen) return
+    const handleKeys = (event) => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSelectedCommandIndex((prev) =>
+          Math.min(prev + 1, Math.max(visibleCommands.length - 1, 0))
+        )
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSelectedCommandIndex((prev) => Math.max(prev - 1, 0))
+      }
+      if (event.key === 'Enter') {
+        event.preventDefault()
+        const selected = visibleCommands[selectedCommandIndex]
+        if (selected) {
+          executeCommand(selected)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeys)
+    return () => window.removeEventListener('keydown', handleKeys)
+  }, [executeCommand, paletteOpen, selectedCommandIndex, visibleCommands])
+
   const tasksDueToday = useMemo(() => getTasksDueToday(tasks), [tasks])
   const completedToday = useMemo(() => getTasksCompletedToday(tasks), [tasks])
   const progressTotal = tasksDueToday.length
@@ -385,7 +609,9 @@ const Tasks = () => {
         if (created && onCreated) onCreated()
       }}
       className={`mt-4 grid gap-3 ${
-        compact ? 'md:grid-cols-1' : 'md:mt-6 md:grid-cols-[2fr_1fr_1fr_auto] md:gap-4'
+        compact
+          ? 'md:grid-cols-1'
+          : 'md:mt-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end md:gap-4'
       }`}
     >
       <input
@@ -414,76 +640,11 @@ const Tasks = () => {
         disabled={saving || lockActions}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.97 }}
-        className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60 md:justify-self-end"
       >
         {saving ? 'Saving...' : 'Add Task'}
       </motion.button>
     </form>
-  )
-
-  const filtersPanel = (
-    <div className="flex flex-col gap-3">
-      <div className="w-full sm:max-w-[240px]">
-        <GlassDropdown
-          value={subjectFilter}
-          onChange={setSubjectFilter}
-          options={subjects}
-        />
-      </div>
-      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-        {[
-          { label: 'Pending', value: 'pending' },
-          { label: 'Completed', value: 'completed' },
-          { label: 'Overdue', value: 'overdue' }
-        ].map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setStatusFilter(item.value)}
-            className={`rounded-full px-4 py-1 text-xs transition ${
-              statusFilter === item.value
-                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
-                : 'border border-white/10 bg-white/5 text-white/70'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-        {[
-          { label: 'All tasks', value: 'all' },
-          { label: 'Due today', value: 'today' },
-          { label: 'Overdue tasks', value: 'overdue' }
-        ].map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => setDueFilter(item.value)}
-            className={`rounded-full px-4 py-1 text-xs transition ${
-              dueFilter === item.value
-                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
-                : 'border border-white/10 bg-white/5 text-white/70'
-            }`}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-      <div className="w-full sm:max-w-[280px]">
-        <GlassDropdown
-          value={sortOption}
-          onChange={setSortOption}
-          options={[
-            { label: 'Newest first', value: 'newest' },
-            { label: 'Oldest first', value: 'oldest' },
-            { label: 'Due date (nearest first)', value: 'due-nearest' },
-            { label: 'Due date (latest first)', value: 'due-latest' },
-            { label: 'Subject alphabetical', value: 'subject' }
-          ]}
-        />
-      </div>
-    </div>
   )
 
   const calendarView = (
@@ -668,12 +829,15 @@ const Tasks = () => {
             getSubjectLabel={getSubjectLabel}
             isOverdue={isOverdueTask(task)}
             isDueToday={task.due_date === todayKey}
+            isRecommended={task.id === recommendedTaskId}
             showSwipeNudge={false}
             lockActions={lockActions}
             disableSwipe
             onToggle={handleToggle}
             onDelete={handleDelete}
             onReschedule={handleReschedule}
+            onStartFocus={handleStartFocus}
+            focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
           />
         </motion.div>
       ))}
@@ -687,8 +851,9 @@ const Tasks = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex w-full max-w-full flex-col gap-4 overflow-x-hidden box-border md:gap-6"
+      className="w-full max-w-full overflow-x-hidden box-border px-4 md:px-6"
     >
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 md:gap-6">
       <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
         <p className="text-xs uppercase tracking-wide text-white/70">
           Task Productivity
@@ -759,30 +924,71 @@ const Tasks = () => {
         )}
       </div>
 
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
+          {searchTerm ? (
+            <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-cyan-200">
+              Search: {searchTerm}
+            </span>
+          ) : null}
+          {subjectFilter !== 'all' ? (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Subject: {getSubjectLabel(subjectFilter)}
+            </span>
+          ) : null}
+          {statusFilter !== FILTER_DEFAULTS.status ? (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Status: {statusFilter}
+            </span>
+          ) : null}
+          {dueFilter !== FILTER_DEFAULTS.due ? (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Due: {dueFilter}
+            </span>
+          ) : null}
+          {sortOption !== FILTER_DEFAULTS.sort ? (
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
+              Sort: {sortLabels[sortOption] || sortOption}
+            </span>
+          ) : null}
+          {(searchTerm ||
+            subjectFilter !== FILTER_DEFAULTS.subject ||
+            statusFilter !== FILTER_DEFAULTS.status ||
+            dueFilter !== FILTER_DEFAULTS.due ||
+            sortOption !== FILTER_DEFAULTS.sort) && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80 transition hover:border-cyan-300/50 hover:text-white"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 transition hover:border-white/20 hover:bg-white/10 md:inline-flex"
+        >
+          <Search className="h-3.5 w-3.5" />
+          Command Palette
+          <span className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-white/60">
+            Ctrl/Cmd + K
+          </span>
+        </button>
+      </div>
+
       <div className="grid gap-3 md:hidden">
         <motion.button
           type="button"
           whileTap={{ scale: 0.97 }}
           onClick={() => {
             setShowCreatePanel((prev) => !prev)
-            setShowFilterPanel(false)
           }}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 backdrop-blur-xl"
         >
           <Plus className="h-4 w-4" />
           Create Task
-        </motion.button>
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.97 }}
-          onClick={() => {
-            setShowFilterPanel((prev) => !prev)
-            setShowCreatePanel(false)
-          }}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 backdrop-blur-xl"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Filters
         </motion.button>
       </div>
 
@@ -795,25 +1001,29 @@ const Tasks = () => {
             transition={{ duration: 0.3, ease: 'easeOut' }}
             className="glass overflow-visible rounded-2xl p-4 md:hidden"
           >
-            <p className="text-xs uppercase tracking-wide text-white/70">
-              Create Task
-            </p>
-            {renderCreateTaskForm()}
+            <div className="mx-auto w-full max-w-full">
+              <p className="text-xs uppercase tracking-wide text-white/70">
+                Create Task
+              </p>
+              {renderCreateTaskForm()}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       <div className="hidden glass overflow-visible rounded-2xl p-4 md:block md:p-6">
-        <p className="text-xs uppercase tracking-wide text-white/70">
-          Create Task
-        </p>
-        <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Plan your next moves</h3>
-        {renderCreateTaskForm()}
-        {(error || errors.tasks) && (
-          <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-            {error || errors.tasks}
+        <div className="mx-auto w-full max-w-4xl">
+          <p className="text-xs uppercase tracking-wide text-white/70">
+            Create Task
           </p>
-        )}
+          <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Plan your next moves</h3>
+          {renderCreateTaskForm()}
+          {(error || errors.tasks) && (
+            <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+              {error || errors.tasks}
+            </p>
+          )}
+        </div>
       </div>
 
       {(error || errors.tasks) && (
@@ -822,31 +1032,40 @@ const Tasks = () => {
         </p>
       )}
 
-      <AnimatePresence>
-        {showFilterPanel && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="glass overflow-visible rounded-2xl p-4 md:hidden"
-          >
-            {filtersPanel}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="relative hidden md:block">
-        <div className="pointer-events-none absolute -top-10 left-1/2 hidden h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/10 blur-3xl md:block" />
-        <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
-          {filtersPanel}
+      {viewMode === 'list' && recommendedTask && !loading.tasks && (
+        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(34,211,238,0.08)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/75">
+                AI Recommendation
+              </p>
+              <p className="mt-1 truncate text-lg font-semibold text-white">
+                Start: {recommendedTask.title}
+              </p>
+              <p className="mt-1 text-sm text-white/65">
+                {getSubjectLabel(recommendedTask.subject)} - {formatFocusSummary(
+                  recommendedTask.totalFocusTime,
+                  recommendedTask.sessionsCount
+                )}
+              </p>
+            </div>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => handleStartFocus(recommendedTask)}
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
+            >
+              Start Focus
+            </motion.button>
+          </div>
         </div>
-      </div>
+      )}
 
       {viewMode === 'calendar' && calendarView}
 
       {viewMode === 'list' && (
-        <div className="grid w-full max-w-full gap-4 overflow-x-hidden box-border">
+        <div className="mx-auto grid w-full max-w-3xl gap-4 overflow-x-hidden box-border">
         <AnimatePresence>
           {showSwipeHint && (
             <motion.p
@@ -890,19 +1109,29 @@ const Tasks = () => {
               const overdue = isOverdueTask(task)
               const dueToday = task.due_date === todayKey
               return (
-                <TaskCard
+                <div
                   key={task.id}
-                  task={task}
-                  subjectColorMap={subjectColorMap}
-                  getSubjectLabel={getSubjectLabel}
-                  isOverdue={overdue}
-                  isDueToday={dueToday}
-                  showSwipeNudge={shouldRunSwipeNudge && index === 0}
-                  lockActions={lockActions}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                  onReschedule={handleReschedule}
-                />
+                  ref={(node) => {
+                    if (node) taskCardRefs.current[task.id] = node
+                    else delete taskCardRefs.current[task.id]
+                  }}
+                >
+                  <TaskCard
+                    task={task}
+                    subjectColorMap={subjectColorMap}
+                    getSubjectLabel={getSubjectLabel}
+                    isOverdue={overdue}
+                    isDueToday={dueToday}
+                    isRecommended={task.id === recommendedTaskId}
+                    showSwipeNudge={shouldRunSwipeNudge && index === 0}
+                    lockActions={lockActions}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                    onReschedule={handleReschedule}
+                    onStartFocus={handleStartFocus}
+                    focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
+                  />
+                </div>
               )
             })}
         </AnimatePresence>
@@ -910,26 +1139,37 @@ const Tasks = () => {
       )}
 
       {!loading.tasks && (
-        <p className="text-xs text-white/50">
+        <p className="mx-auto w-full max-w-3xl text-xs text-white/50">
           Completed today: {completedToday}
         </p>
       )}
+      </div>
 
       <AnimatePresence>
         {selectedDate && (
           <>
             <motion.div
-              className="pointer-events-none fixed inset-0 z-40 bg-black/60 md:hidden"
+              className="fixed inset-0 z-40 bg-black/60 md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              onClick={() => setSelectedDate(null)}
             />
             <motion.div
               className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-neutral-900/95 p-4 backdrop-blur-xl md:hidden"
-              initial={{ y: 80, opacity: 0 }}
+              initial={{ y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 80, opacity: 0 }}
+              exit={{ y: '100%', opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 320 }}
+              dragElastic={0.18}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 100) {
+                  setSelectedDate(null)
+                }
+              }}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-3 flex items-center justify-between">
                 <div>
@@ -959,17 +1199,19 @@ const Tasks = () => {
             </motion.div>
 
             <motion.div
-              className="pointer-events-none fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-6 md:flex"
+              className="fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-6 md:flex"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              onClick={() => setSelectedDate(null)}
             >
               <motion.div
                 initial={{ scale: 0.96, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.96, opacity: 0 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/10 bg-neutral-900/95 p-6 backdrop-blur-xl"
+                className="w-full max-w-xl rounded-2xl border border-white/10 bg-neutral-900/95 p-6 backdrop-blur-xl"
+                onClick={(event) => event.stopPropagation()}
               >
                 <div className="mb-4 flex items-center justify-between">
                   <div>
@@ -1014,10 +1256,19 @@ const Tasks = () => {
             />
             <motion.div
               className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-neutral-900/95 p-4 backdrop-blur-xl md:hidden"
-              initial={{ y: 90, opacity: 0 }}
+              initial={{ y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 90, opacity: 0 }}
+              exit={{ y: '100%', opacity: 0 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 320 }}
+              dragElastic={0.2}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 100) {
+                  setShowCalendarCreateSheet(false)
+                }
+              }}
+              onClick={(event) => event.stopPropagation()}
             >
               <div className="mb-3 flex items-center justify-between">
                 <div>
@@ -1077,6 +1328,84 @@ const Tasks = () => {
               </motion.div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        type="button"
+        onClick={() => setPaletteOpen(true)}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/30 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.35)] backdrop-blur-xl md:hidden"
+      >
+        <Search className="h-5 w-5" />
+      </motion.button>
+
+      <AnimatePresence>
+        {paletteOpen && (
+          <motion.div
+            className="fixed inset-0 z-[90] flex items-start justify-center bg-black/60 pt-24 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setPaletteOpen(false)}
+          >
+            <motion.div
+              className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/80 shadow-2xl backdrop-blur-xl"
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-white/10 p-3">
+                <input
+                  ref={paletteInputRef}
+                  type="text"
+                  value={paletteQuery}
+                  onChange={(event) => setPaletteQuery(event.target.value)}
+                  placeholder="Search tasks, filter, or run a command..."
+                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base text-white outline-none placeholder:text-white/45 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
+                />
+              </div>
+              <motion.div
+                className="max-h-[60vh] overflow-y-auto p-2"
+                initial="hidden"
+                animate="visible"
+                variants={{
+                  hidden: { opacity: 0 },
+                  visible: { opacity: 1, transition: { staggerChildren: 0.03 } }
+                }}
+              >
+                {visibleCommands.map((command, index) => (
+                  <motion.button
+                    key={command.id}
+                    type="button"
+                    onMouseEnter={() => setSelectedCommandIndex(index)}
+                    onClick={() => executeCommand(command)}
+                    variants={{
+                      hidden: { opacity: 0, y: 4 },
+                      visible: { opacity: 1, y: 0 }
+                    }}
+                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
+                      selectedCommandIndex === index
+                        ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
+                        : 'text-white/80 hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{command.title}</span>
+                    <span className="text-[11px] uppercase tracking-wide text-white/40">
+                      {command.group}
+                    </span>
+                  </motion.button>
+                ))}
+                {visibleCommands.length === 0 && (
+                  <p className="px-3 py-6 text-center text-sm text-white/50">
+                    No matching commands
+                  </p>
+                )}
+              </motion.div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>

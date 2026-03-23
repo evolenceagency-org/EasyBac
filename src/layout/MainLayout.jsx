@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Sidebar.jsx'
 import MobileBottomNav from '../components/MobileBottomNav.jsx'
+import DynamicIsland from '../components/DynamicIsland.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isPersonalized } from '../utils/personalization.js'
 
@@ -23,6 +24,7 @@ const MainLayout = () => {
 
   const hideSidebar =
     location.pathname === '/choose-plan' ||
+    location.pathname === '/ai-result' ||
     location.pathname === '/welcome-ai' ||
     onboardingPersonalization
   const showSidebar = hasSidebar && !hideSidebar
@@ -38,9 +40,12 @@ const MainLayout = () => {
   ])
   const showMobileBottomNav =
     hasSidebar && !onboardingPersonalization && mobileBottomNavRoutes.has(location.pathname)
+  const showDynamicIsland = isAuthenticated && !onboardingPersonalization
   const mobileBottomPadding = showMobileBottomNav
     ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'
     : 'pb-4'
+  const assistantBottomPadding = showDynamicIsland ? 'md:pb-28' : 'md:pb-6'
+  const mobileTopPadding = showDynamicIsland ? 'pt-20 md:pt-6' : 'pt-4 md:pt-6'
 
   return (
     <div className="relative flex min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
@@ -52,7 +57,7 @@ const MainLayout = () => {
         {showSidebar && <Sidebar />}
 
         <main
-          className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden px-4 pt-4 space-y-4 md:space-y-6 md:p-6 ${mobileBottomPadding} ${
+          className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden px-4 space-y-4 md:space-y-6 md:p-6 ${mobileTopPadding} ${mobileBottomPadding} ${assistantBottomPadding} ${
             showSidebar ? 'md:ml-60' : ''
           }`}
         >
@@ -60,6 +65,7 @@ const MainLayout = () => {
         </main>
 
         {showMobileBottomNav && <MobileBottomNav />}
+        {showDynamicIsland && <DynamicIsland />}
       </div>
     </div>
   )

@@ -9,12 +9,15 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
   const [open, setOpen] = useState(false)
   const [menuStyle, setMenuStyle] = useState(null)
   const ref = useRef(null)
+  const menuRef = useRef(null)
 
   const selected = options.find((opt) => opt.value === value)
 
   useEffect(() => {
     const handleClick = (event) => {
-      if (!ref.current || ref.current.contains(event.target)) return
+      if (!ref.current) return
+      if (ref.current.contains(event.target)) return
+      if (menuRef.current?.contains(event.target)) return
       setOpen(false)
     }
     window.addEventListener('mousedown', handleClick)
@@ -25,14 +28,32 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
     if (!open || !ref.current) return
     const updatePosition = () => {
       const rect = ref.current.getBoundingClientRect()
+      const viewportPadding = 12
+      const menuOffset = 8
+      const itemHeight = 36
+      const estimatedHeight = Math.min(options.length * itemHeight + 8, 280)
       const minWidth = 180
       const width = Math.max(rect.width, minWidth)
-      const maxLeft = window.innerWidth - width - 12
-      const left = Math.min(Math.max(rect.left, 12), maxLeft)
+      const maxLeft = window.innerWidth - width - viewportPadding
+      const left = Math.min(Math.max(rect.left, viewportPadding), maxLeft)
+      const spaceBelow = window.innerHeight - rect.bottom - viewportPadding
+      const spaceAbove = rect.top - viewportPadding
+      const openUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow
+      const maxHeight = Math.max(
+        120,
+        Math.floor((openUp ? spaceAbove : spaceBelow) - menuOffset)
+      )
+      const menuHeight = Math.min(estimatedHeight, maxHeight)
+      const top = openUp
+        ? Math.max(viewportPadding, rect.top - menuHeight - menuOffset)
+        : rect.bottom + menuOffset
+
       setMenuStyle({
-        top: rect.bottom + 8,
+        top,
         left,
-        width
+        width,
+        maxHeight,
+        transformOrigin: openUp ? 'bottom center' : 'top center'
       })
     }
     updatePosition()
@@ -68,17 +89,19 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
         createPortal(
           <AnimatePresence>
             <motion.div
+              ref={menuRef}
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
               style={menuStyle}
-              className="fixed z-50 overflow-hidden rounded-lg border border-white/10 bg-black/90 backdrop-blur-xl shadow-[0_0_25px_rgba(139,92,246,0.25)]"
+              className="fixed z-[120] max-h-60 overflow-y-auto rounded-xl border border-white/10 bg-neutral-900/95 backdrop-blur-xl shadow-xl"
             >
               {options.map((option) => (
                 <button
                   key={option.value}
                   type="button"
+                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => {
                     onChange(option.value)
                     setOpen(false)

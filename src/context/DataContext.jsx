@@ -1,7 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { isAccessDeniedError } from '../utils/subscription.js'
+import { generateDailyInsight, shouldRefreshDailyInsight } from '../utils/aiEngine.ts'
+import {
+  mergeStudySessionsWithTaskLinks,
+  mergeTasksWithFocusMeta,
+  trackTaskFocusSession
+} from '../utils/focusTasks.js'
 import {
   createTask,
   deleteTask,
@@ -20,12 +26,14 @@ import {
 const DataContext = createContext(null)
 
 export const DataProvider = ({ children }) => {
-  const { user, profile } = useAuth()
+  const { user, profile, updatePersonalization } = useAuth()
   const navigate = useNavigate()
   const [tasks, setTasks] = useState([])
   const [studySessions, setStudySessions] = useState([])
   const [loading, setLoading] = useState({ tasks: false, sessions: false })
   const [errors, setErrors] = useState({ tasks: '', sessions: '' })
+  const aiRefreshInFlightRef = useRef(false)
+  const aiRefreshKeyRef = useRef('')
 
   const redirectToPayment = useCallback(() => {
     navigate('/payment', { replace: true })
@@ -41,7 +49,7 @@ export const DataProvider = ({ children }) => {
       setErrors((prev) => ({ ...prev, tasks: '' }))
       try {
         const data = await getTasks(user.id, options)
-        setTasks(data)
+        setTasks(mergeTasksWithFocusMeta(user.id, data))
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()
@@ -67,7 +75,7 @@ export const DataProvider = ({ children }) => {
       setErrors((prev) => ({ ...prev, sessions: '' }))
       try {
         const data = await getStudySessions(user.id, options)
-        setStudySessions(data)
+        setStudySessions(mergeStudySessionsWithTaskLinks(user.id, data))
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()
@@ -97,13 +105,54 @@ export const DataProvider = ({ children }) => {
     refreshStudySessions({ force: true })
   }, [user?.id, refreshTasks, refreshStudySessions])
 
+  useEffect(() => {
+    if (!user?.id) return
+    if (!profile?.personalization) return
+    if (!shouldRefreshDailyInsight(profile.personalization)) return
+    if (loading.tasks || loading.sessions) return
+
+    const dailyRefreshKey = `${user.id}:${new Date().toISOString().slice(0, 10)}`
+    if (aiRefreshInFlightRef.current || aiRefreshKeyRef.current === dailyRefreshKey) {
+      return
+    }
+
+    aiRefreshInFlightRef.current = true
+    const nextSnapshot = generateDailyInsight(
+      { personalization: profile.personalization },
+      { tasks, studySessions }
+    )
+
+    updatePersonalization({
+      ...profile.personalization,
+      ai: nextSnapshot
+    })
+      .then(() => {
+        aiRefreshKeyRef.current = dailyRefreshKey
+      })
+      .catch(() => {
+        // Non-blocking: keep current profile if update fails.
+      })
+      .finally(() => {
+        aiRefreshInFlightRef.current = false
+      })
+  }, [
+    user?.id,
+    profile?.personalization,
+    tasks,
+    studySessions,
+    loading.tasks,
+    loading.sessions,
+    updatePersonalization
+  ])
+
   const addTask = useCallback(
     async (payload) => {
       if (!user?.id) throw new Error('Missing user id')
       try {
         const created = await createTask(user.id, payload)
-        setTasks((prev) => [created, ...prev])
-        return created
+        const [mergedTask] = mergeTasksWithFocusMeta(user.id, [created])
+        setTasks((prev) => [mergedTask, ...prev])
+        return mergedTask
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()
@@ -119,10 +168,14 @@ export const DataProvider = ({ children }) => {
       if (!user?.id) throw new Error('Missing user id')
       try {
         const updated = await updateTask(user.id, taskId, updates)
-        setTasks((prev) =>
-          prev.map((task) => (task.id === updated.id ? updated : task))
-        )
-        return updated
+        let nextTask = updated
+        setTasks((prev) => {
+          const next = prev.map((task) => (task.id === updated.id ? updated : task))
+          const merged = mergeTasksWithFocusMeta(user.id, next)
+          nextTask = merged.find((task) => task.id === updated.id) || updated
+          return merged
+        })
+        return nextTask
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()
@@ -142,10 +195,14 @@ export const DataProvider = ({ children }) => {
           taskId,
           currentCompleted
         )
-        setTasks((prev) =>
-          prev.map((task) => (task.id === updated.id ? updated : task))
-        )
-        return updated
+        let nextTask = updated
+        setTasks((prev) => {
+          const next = prev.map((task) => (task.id === updated.id ? updated : task))
+          const merged = mergeTasksWithFocusMeta(user.id, next)
+          nextTask = merged.find((task) => task.id === updated.id) || updated
+          return merged
+        })
+        return nextTask
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()
@@ -177,8 +234,48 @@ export const DataProvider = ({ children }) => {
       if (!user?.id) throw new Error('Missing user id')
       try {
         const created = await createStudySession(user.id, payload)
-        setStudySessions((prev) => [created, ...prev])
-        return created
+        let mergedSession = mergeStudySessionsWithTaskLinks(user.id, [created])[0] || created
+
+        if (payload?.taskId) {
+          const meta = trackTaskFocusSession(user.id, {
+            sessionId: created.id,
+            taskId: payload.taskId,
+            durationMinutes: payload.duration_minutes,
+            startedAt: payload.startedAt || null,
+            endedAt: payload.endedAt || null
+          })
+
+          mergedSession = {
+            ...mergedSession,
+            taskId: payload.taskId,
+            startedAt: payload.startedAt || null,
+            endedAt: payload.endedAt || null
+          }
+
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.id === payload.taskId
+                ? {
+                    ...task,
+                    totalFocusTime: meta?.totalFocusTime ?? task.totalFocusTime ?? 0,
+                    sessionsCount: meta?.sessionsCount ?? task.sessionsCount ?? 0,
+                    lastSessionAt: meta?.lastSessionAt ?? task.lastSessionAt ?? null
+                  }
+                : task
+            )
+          )
+
+          updateTask(user.id, payload.taskId, {
+            total_focus_time: meta?.totalFocusTime ?? 0,
+            sessions_count: meta?.sessionsCount ?? 0,
+            last_session_at: meta?.lastSessionAt ?? null
+          }).catch(() => {
+            // Optional DB columns may not exist yet. Local persistence already updated above.
+          })
+        }
+
+        setStudySessions((prev) => [mergedSession, ...prev])
+        return mergedSession
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()

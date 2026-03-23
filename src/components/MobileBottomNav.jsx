@@ -43,6 +43,17 @@ const MobileBottomNav = () => {
     return navItems.find((item) => item.path === location.pathname)?.label || 'BacTracker'
   }, [location.pathname])
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    if (moreOpen) {
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow || 'auto'
+    }
+  }, [moreOpen])
+
   const handleLogout = async () => {
     await signOut()
     setMoreOpen(false)
@@ -119,6 +130,15 @@ const MobileBottomNav = () => {
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0.9 }}
               transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 320 }}
+              dragElastic={0.2}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 100) {
+                  setMoreOpen(false)
+                }
+              }}
+              onClick={(event) => event.stopPropagation()}
               className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-white/10 bg-neutral-900/95 p-5 pb-[calc(1.1rem+env(safe-area-inset-bottom))] shadow-xl backdrop-blur-2xl md:hidden"
             >
               <div className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-white/20" />
