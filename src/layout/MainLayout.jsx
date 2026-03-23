@@ -1,13 +1,30 @@
-import { Outlet, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import Sidebar from '../components/Sidebar.jsx'
 import MobileBottomNav from '../components/MobileBottomNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import { isPersonalized } from '../utils/personalization.js'
 
 const MainLayout = () => {
-  const { user, session, loading } = useAuth()
+  const { user, session, loading, profile } = useAuth()
   const location = useLocation()
-  const hasSidebar = Boolean(loading || user || session)
-  const hideSidebar = location.pathname === '/choose-plan'
+  const isAuthenticated = Boolean(user || session)
+  const hasSidebar = Boolean(loading || isAuthenticated)
+  const onboardingPersonalization =
+    location.pathname === '/personalization' && !isPersonalized(profile)
+  const shouldForceOnboarding =
+    isAuthenticated &&
+    profile &&
+    !isPersonalized(profile) &&
+    location.pathname !== '/personalization'
+
+  if (shouldForceOnboarding) {
+    return <Navigate to="/personalization" replace />
+  }
+
+  const hideSidebar =
+    location.pathname === '/choose-plan' ||
+    location.pathname === '/welcome-ai' ||
+    onboardingPersonalization
   const showSidebar = hasSidebar && !hideSidebar
   const mobileBottomNavRoutes = new Set([
     '/dashboard',
@@ -20,7 +37,7 @@ const MainLayout = () => {
     '/contact'
   ])
   const showMobileBottomNav =
-    hasSidebar && mobileBottomNavRoutes.has(location.pathname)
+    hasSidebar && !onboardingPersonalization && mobileBottomNavRoutes.has(location.pathname)
   const mobileBottomPadding = showMobileBottomNav
     ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'
     : 'pb-4'

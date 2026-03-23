@@ -1,5 +1,7 @@
-﻿import { useMemo } from 'react'
-import { motion } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { CheckCircle2 } from 'lucide-react'
 import Countdown from '../components/Countdown.jsx'
 import DashboardCards from '../components/DashboardCards.jsx'
 import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
@@ -34,6 +36,30 @@ const getTodayKey = () => toDateKey(new Date())
 
 const Dashboard = () => {
   const { tasks, studySessions, loading, errors } = useData()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [showOnboardingToast, setShowOnboardingToast] = useState(false)
+
+  useEffect(() => {
+    const fromState = Boolean(location.state?.fromOnboarding)
+    const fromSessionStorage =
+      typeof window !== 'undefined' &&
+      window.sessionStorage.getItem('onboarding-complete-toast') === '1'
+
+    if (!fromState && !fromSessionStorage) return
+
+    setShowOnboardingToast(true)
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('onboarding-complete-toast')
+    }
+
+    if (fromState) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+
+    const timer = setTimeout(() => setShowOnboardingToast(false), 3200)
+    return () => clearTimeout(timer)
+  }, [location.pathname, location.state, navigate])
 
   const todayMinutes = useMemo(() => {
     const todayKey = getTodayKey()
@@ -90,10 +116,10 @@ const Dashboard = () => {
     const values = dailyStudyData.datasets?.[0]?.data || []
     if (!labels.length || !values.length) {
       return {
-        bestDay: '—',
-        worstDay: '—',
-        avg: '—',
-        topSubject: '—',
+        bestDay: '-',
+        worstDay: '-',
+        avg: '-',
+        topSubject: '-',
         consistency: 0
       }
     }
@@ -109,14 +135,14 @@ const Dashboard = () => {
       subjectFocusData.breakdown?.reduce((top, item) => {
         if (!top || item.value > top.value) return item
         return top
-      }, null)?.label || '—'
+      }, null)?.label || '-'
 
     const consistencyDays = values.filter((v) => v >= 40).length
     const consistency = Math.round((consistencyDays / values.length) * 100)
 
     return {
-      bestDay: labels[bestIndex] || '—',
-      worstDay: labels[worstIndex] || '—',
+      bestDay: labels[bestIndex] || '-',
+      worstDay: labels[worstIndex] || '-',
       avg: `${avg} min`,
       topSubject,
       consistency
@@ -130,8 +156,34 @@ const Dashboard = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.4 }}
-      className="flex max-w-full flex-col gap-4 md:gap-6"
+      className="relative flex max-w-full flex-col gap-4 md:gap-6"
     >
+      <AnimatePresence>
+        {showOnboardingToast && (
+          <motion.div
+            initial={{ opacity: 0, y: -24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.97 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+            className="fixed left-1/2 top-4 z-[90] w-[calc(100%-2rem)] max-w-[430px] -translate-x-1/2 rounded-2xl border border-emerald-400/25 bg-emerald-500/12 px-4 py-3 shadow-[0_0_30px_rgba(16,185,129,0.22)] backdrop-blur-xl md:left-auto md:right-6 md:top-6 md:w-[430px] md:translate-x-0"
+          >
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-200">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-emerald-100">
+                  Setup complete
+                </p>
+                <p className="mt-1 text-xs text-emerald-100/85 md:text-sm">
+                  Your workspace is ready with personalized AI insights.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid gap-4 md:gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <Countdown />
         <WeeklySummary sessions={studySessions} />
@@ -247,9 +299,3 @@ const Dashboard = () => {
 }
 
 export default Dashboard
-
-
-
-
-
-

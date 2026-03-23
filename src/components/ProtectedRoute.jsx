@@ -1,17 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isSubscriptionActive, normalizeSubscriptionStatus } from '../utils/subscription.js'
-
-const isPersonalizationComplete = (profile) => {
-  const personalization = profile?.personalization
-  if (!personalization || typeof personalization !== 'object') return false
-
-  const required = ['level', 'dailyStudyTime', 'mainGoal', 'biggestProblem']
-  return required.every((key) => {
-    const value = personalization[key]
-    return typeof value === 'string' && value.trim().length > 0
-  })
-}
+import { isPersonalized } from '../utils/personalization.js'
 
 const ProtectedRoute = () => {
   const { user, session, loading, profile, profileLoading, initialized } = useAuth()
@@ -40,7 +30,7 @@ const ProtectedRoute = () => {
   }
 
   if (
-    !isPersonalizationComplete(profile) &&
+    !isPersonalized(profile) &&
     location.pathname !== '/personalization'
   ) {
     return <Navigate to="/personalization" replace />

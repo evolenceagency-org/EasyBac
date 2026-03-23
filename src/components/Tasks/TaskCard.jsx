@@ -31,6 +31,7 @@ const TaskCard = ({
   isDueToday,
   showSwipeNudge,
   lockActions,
+  disableSwipe = false,
   onToggle,
   onDelete,
   onReschedule
@@ -243,7 +244,7 @@ const TaskCard = ({
 
       <motion.div
         layout
-        drag={isMobile && !lockActions ? 'x' : false}
+        drag={!disableSwipe && isMobile && !lockActions ? 'x' : false}
         dragConstraints={{ left: -120, right: 120 }}
         dragElastic={0.22}
         onDragEnd={handleDragEnd}

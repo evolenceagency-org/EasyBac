@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ListTodo, Plus, SlidersHorizontal } from 'lucide-react'
+import { CalendarDays, Check, ChevronLeft, ChevronRight, ListTodo, MoreHorizontal, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { toDateKey } from '../utils/dateUtils.js'
@@ -45,6 +45,33 @@ const getTaskStatus = (task) => {
   return task.completed ? 'completed' : 'active'
 }
 
+const getTaskDotClass = (task) => {
+  const overdue = isOverdueTask(task)
+  if (task.completed) return 'bg-emerald-400'
+  if (overdue) return 'bg-rose-400'
+  return 'bg-blue-400'
+}
+
+const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const buildCalendarDays = (monthDate) => {
+  const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const weekdayIndex = (firstOfMonth.getDay() + 6) % 7
+  const startDate = new Date(firstOfMonth)
+  startDate.setDate(firstOfMonth.getDate() - weekdayIndex)
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate)
+    date.setDate(startDate.getDate() + index)
+    return {
+      date,
+      key: toDateKey(date),
+      inMonth: date.getMonth() === monthDate.getMonth(),
+      isToday: toDateKey(date) === toDateKey(new Date())
+    }
+  })
+}
+
 const Tasks = () => {
   const { profile } = useAuth()
   const {
@@ -78,6 +105,15 @@ const Tasks = () => {
   })
   const [showCreatePanel, setShowCreatePanel] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
+  const [viewMode, setViewMode] = useState('list')
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date())
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [draggingTaskId, setDraggingTaskId] = useState(null)
+  const [dragOverDayKey, setDragOverDayKey] = useState(null)
+  const [showCalendarCreateSheet, setShowCalendarCreateSheet] = useState(false)
+  const [activePressDayKey, setActivePressDayKey] = useState(null)
+  const longPressTimerRef = useRef(null)
+  const longPressTriggeredRef = useRef(false)
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
   const subscriptionActive = useMemo(
@@ -97,8 +133,8 @@ const Tasks = () => {
   const handleCreate = useCallback(
     async (event) => {
       event.preventDefault()
-      if (!title.trim()) return
-      if (!checkTrialAndBlock(profile, navigate)) return
+      if (!title.trim()) return false
+      if (!checkTrialAndBlock(profile, navigate)) return false
 
       setSaving(true)
       setError('')
@@ -114,8 +150,10 @@ const Tasks = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 768) {
           setShowCreatePanel(false)
         }
+        return true
       } catch (err) {
         setError('Unable to create the task. Please try again.')
+        return false
       } finally {
         setSaving(false)
       }
@@ -223,8 +261,91 @@ const Tasks = () => {
     return result
   }, [tasks, subjectFilter, statusFilter, dueFilter, sortOption, todayKey])
 
+  const tasksByDate = useMemo(() => {
+    const map = {}
+    filteredTasks.forEach((task) => {
+      if (!task.due_date) return
+      if (!map[task.due_date]) {
+        map[task.due_date] = []
+      }
+      map[task.due_date].push(task)
+    })
+    return map
+  }, [filteredTasks])
+
+  const calendarDays = useMemo(
+    () => buildCalendarDays(calendarMonth),
+    [calendarMonth]
+  )
+  const monthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        year: 'numeric'
+      }).format(calendarMonth),
+    [calendarMonth]
+  )
+
+  const selectedKey = selectedDate ? toDateKey(selectedDate) : null
+  const selectedTasks = selectedKey ? tasksByDate[selectedKey] || [] : []
+
+  const getDayKeyFromPoint = useCallback((x, y) => {
+    if (typeof document === 'undefined') return null
+    const element = document.elementFromPoint(x, y)
+    return element?.closest?.('[data-day-key]')?.getAttribute('data-day-key') || null
+  }, [])
+
+  const openCalendarCreate = useCallback((dateKey) => {
+    setDueDate(dateKey)
+    setShowCalendarCreateSheet(true)
+  }, [])
+
+  const clearLongPressTimer = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const handleDayPointerDown = useCallback((dayKey) => {
+    setActivePressDayKey(dayKey)
+    longPressTriggeredRef.current = false
+    clearLongPressTimer()
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true
+      setActivePressDayKey(null)
+      openCalendarCreate(dayKey)
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(16)
+      }
+    }, 500)
+  }, [clearLongPressTimer, openCalendarCreate])
+
+  const handleDayPointerUp = useCallback(() => {
+    clearLongPressTimer()
+    setActivePressDayKey(null)
+  }, [clearLongPressTimer])
+
+  const handleCalendarTaskDragStart = useCallback((taskId) => {
+    setDraggingTaskId(taskId)
+  }, [])
+
+  const handleCalendarTaskDrag = useCallback((_, info) => {
+    if (!draggingTaskId) return
+    const targetKey = getDayKeyFromPoint(info.point.x, info.point.y)
+    setDragOverDayKey(targetKey)
+  }, [draggingTaskId, getDayKeyFromPoint])
+
+  const handleCalendarTaskDragEnd = useCallback(async (task, _, info) => {
+    const targetKey = getDayKeyFromPoint(info.point.x, info.point.y)
+    setDraggingTaskId(null)
+    setDragOverDayKey(null)
+    if (!targetKey || targetKey === task.due_date) return
+    await handleReschedule(task.id, targetKey)
+  }, [getDayKeyFromPoint, handleReschedule])
+
   const shouldRunSwipeNudge =
-    showSwipeNudge && !loading.tasks && filteredTasks.length > 0
+    viewMode === 'list' && showSwipeNudge && !loading.tasks && filteredTasks.length > 0
 
   useEffect(() => {
     if (!shouldRunSwipeNudge) return
@@ -237,6 +358,19 @@ const Tasks = () => {
     return () => clearTimeout(timer)
   }, [shouldRunSwipeNudge])
 
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setSelectedDate(null)
+      setDragOverDayKey(null)
+      setDraggingTaskId(null)
+      setShowCalendarCreateSheet(false)
+    }
+  }, [viewMode])
+
+  useEffect(() => {
+    return () => clearLongPressTimer()
+  }, [clearLongPressTimer])
+
   const tasksDueToday = useMemo(() => getTasksDueToday(tasks), [tasks])
   const completedToday = useMemo(() => getTasksCompletedToday(tasks), [tasks])
   const progressTotal = tasksDueToday.length
@@ -244,10 +378,15 @@ const Tasks = () => {
   const progressPercent =
     progressTotal === 0 ? 0 : Math.round((progressDone / progressTotal) * 100)
 
-  const createTaskForm = (
+  const renderCreateTaskForm = ({ compact = false, onCreated } = {}) => (
     <form
-      onSubmit={handleCreate}
-      className="mt-4 grid gap-3 md:mt-6 md:grid-cols-[2fr_1fr_1fr_auto] md:gap-4"
+      onSubmit={async (event) => {
+        const created = await handleCreate(event)
+        if (created && onCreated) onCreated()
+      }}
+      className={`mt-4 grid gap-3 ${
+        compact ? 'md:grid-cols-1' : 'md:mt-6 md:grid-cols-[2fr_1fr_1fr_auto] md:gap-4'
+      }`}
     >
       <input
         type="text"
@@ -347,6 +486,200 @@ const Tasks = () => {
     </div>
   )
 
+  const calendarView = (
+    <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-white/60">Calendar</p>
+          <h3 className="mt-1 text-lg font-semibold text-white md:text-xl">{monthLabel}</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
+            }
+            className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
+            }
+            className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <p className="mt-2 text-xs text-white/50">
+        Drag a task chip to another day. Long press any day to quick-create a task.
+      </p>
+
+      <div className="mt-4 grid grid-cols-7 gap-2 text-xs text-white/50">
+        {weekDays.map((day) => (
+          <span key={day} className="text-center uppercase tracking-wide">
+            {day}
+          </span>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}`}
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.25, ease: 'easeOut' }}
+          className="mt-2 grid grid-cols-7 gap-2"
+        >
+          {calendarDays.map((day) => {
+            const dayTasks = tasksByDate[day.key] || []
+            const visibleTasks = dayTasks.slice(0, 3)
+            const extraCount = dayTasks.length - visibleTasks.length
+            const isSelected = selectedKey === day.key
+            const isDragTarget = draggingTaskId && dragOverDayKey === day.key
+            const isPressing = activePressDayKey === day.key
+
+            return (
+              <motion.button
+                key={day.key}
+                type="button"
+                data-day-key={day.key}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => {
+                  if (longPressTriggeredRef.current) {
+                    longPressTriggeredRef.current = false
+                    return
+                  }
+                  setSelectedDate(day.date)
+                }}
+                onPointerDown={() => handleDayPointerDown(day.key)}
+                onPointerUp={handleDayPointerUp}
+                onPointerCancel={handleDayPointerUp}
+                onPointerLeave={handleDayPointerUp}
+                className={`group relative flex min-h-[96px] w-full flex-col items-start justify-between rounded-xl border px-2 py-2 text-left transition ${
+                  day.inMonth ? 'bg-white/5 text-white/80' : 'bg-white/2 text-white/30'
+                } ${
+                  day.isToday
+                    ? 'border-cyan-400/40 shadow-[0_0_18px_rgba(34,211,238,0.25)]'
+                    : 'border-white/10'
+                } ${
+                  isSelected ? 'ring-1 ring-purple-400/40' : ''
+                } ${
+                  isDragTarget ? 'bg-white/10 ring-1 ring-cyan-400/60' : ''
+                }`}
+              >
+                <motion.span
+                  initial={false}
+                  animate={{ scale: isPressing ? 0.94 : 1 }}
+                  className={`text-xs font-semibold ${day.inMonth ? 'text-white' : 'text-white/40'}`}
+                >
+                  {day.date.getDate()}
+                </motion.span>
+
+                <AnimatePresence>
+                  {isPressing && (
+                    <motion.span
+                      className="pointer-events-none absolute inset-0 rounded-xl bg-cyan-400/10"
+                      initial={{ opacity: 0, scale: 0.94 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 1.04 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                    />
+                  )}
+                </AnimatePresence>
+
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    openCalendarCreate(day.key)
+                  }}
+                  className="absolute right-1 top-1 rounded-md border border-white/10 bg-white/5 p-1 text-white/60 opacity-0 transition group-hover:opacity-100 md:opacity-0"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+
+                <div className="mt-2 flex w-full flex-col gap-1">
+                  <AnimatePresence>
+                    {visibleTasks.map((task) => (
+                      <motion.div
+                        key={`${task.id}-${day.key}`}
+                        drag
+                        dragMomentum={false}
+                        dragElastic={0.18}
+                        dragTransition={{ bounceStiffness: 380, bounceDamping: 28 }}
+                        onDragStart={() => handleCalendarTaskDragStart(task.id)}
+                        onDrag={handleCalendarTaskDrag}
+                        onDragEnd={(event, info) => handleCalendarTaskDragEnd(task, event, info)}
+                        whileDrag={{
+                          scale: 1.05,
+                          boxShadow: '0 16px 32px rgba(0,0,0,0.45)',
+                          zIndex: 60
+                        }}
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                        className="flex items-center gap-1.5 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/80"
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${getTaskDotClass(task)}`} />
+                        <span className="truncate">{task.title}</span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                  {extraCount > 0 && (
+                    <span className="text-[10px] text-white/50">+{extraCount} more</span>
+                  )}
+                </div>
+              </motion.button>
+            )
+          })}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  )
+
+  const selectedDayTaskList = (
+    <div className="grid gap-3">
+      {selectedTasks.map((task) => (
+        <motion.div
+          key={`${task.id}-daylist`}
+          drag
+          dragMomentum={false}
+          dragElastic={0.15}
+          dragTransition={{ bounceStiffness: 360, bounceDamping: 26 }}
+          whileDrag={{
+            scale: 1.03,
+            boxShadow: '0 16px 30px rgba(0,0,0,0.45)',
+            zIndex: 60
+          }}
+          onDragStart={() => handleCalendarTaskDragStart(task.id)}
+          onDrag={handleCalendarTaskDrag}
+          onDragEnd={(event, info) => handleCalendarTaskDragEnd(task, event, info)}
+          className="cursor-grab active:cursor-grabbing"
+        >
+          <TaskCard
+            task={task}
+            subjectColorMap={subjectColorMap}
+            getSubjectLabel={getSubjectLabel}
+            isOverdue={isOverdueTask(task)}
+            isDueToday={task.due_date === todayKey}
+            showSwipeNudge={false}
+            lockActions={lockActions}
+            disableSwipe
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onReschedule={handleReschedule}
+          />
+        </motion.div>
+      ))}
+    </div>
+  )
+
   return (
     <motion.div
       variants={pageMotion}
@@ -388,6 +721,44 @@ const Tasks = () => {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-xs text-white/70">
+          {[
+            { label: 'List', value: 'list', icon: ListTodo },
+            { label: 'Calendar', value: 'calendar', icon: CalendarDays }
+          ].map((tab) => {
+            const active = viewMode === tab.value
+            const Icon = tab.icon
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setViewMode(tab.value)}
+                className="relative flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
+              >
+                {active && (
+                  <motion.span
+                    layoutId="tasksViewToggle"
+                    className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500/30 to-blue-500/30"
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-2">
+                  <Icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {viewMode === 'calendar' && (
+          <p className="text-xs text-white/50">
+            Tap a day to view tasks and actions
+          </p>
+        )}
+      </div>
+
       <div className="grid gap-3 md:hidden">
         <motion.button
           type="button"
@@ -427,7 +798,7 @@ const Tasks = () => {
             <p className="text-xs uppercase tracking-wide text-white/70">
               Create Task
             </p>
-            {createTaskForm}
+            {renderCreateTaskForm()}
           </motion.div>
         )}
       </AnimatePresence>
@@ -437,7 +808,7 @@ const Tasks = () => {
           Create Task
         </p>
         <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Plan your next moves</h3>
-        {createTaskForm}
+        {renderCreateTaskForm()}
         {(error || errors.tasks) && (
           <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
             {error || errors.tasks}
@@ -472,7 +843,10 @@ const Tasks = () => {
         </div>
       </div>
 
-      <div className="grid w-full max-w-full gap-4 overflow-x-hidden box-border">
+      {viewMode === 'calendar' && calendarView}
+
+      {viewMode === 'list' && (
+        <div className="grid w-full max-w-full gap-4 overflow-x-hidden box-border">
         <AnimatePresence>
           {showSwipeHint && (
             <motion.p
@@ -532,13 +906,179 @@ const Tasks = () => {
               )
             })}
         </AnimatePresence>
-      </div>
+        </div>
+      )}
 
       {!loading.tasks && (
         <p className="text-xs text-white/50">
           Completed today: {completedToday}
         </p>
       )}
+
+      <AnimatePresence>
+        {selectedDate && (
+          <>
+            <motion.div
+              className="pointer-events-none fixed inset-0 z-40 bg-black/60 md:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-neutral-900/95 p-4 backdrop-blur-xl md:hidden"
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-white/50">Tasks on</p>
+                  <p className="text-base font-semibold text-white">
+                    {selectedDate.toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(null)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
+                >
+                  Close
+                </button>
+              </div>
+              {selectedTasks.length === 0 && (
+                <p className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                  No tasks scheduled for this day.
+                </p>
+              )}
+              {selectedDayTaskList}
+            </motion.div>
+
+            <motion.div
+              className="pointer-events-none fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-6 md:flex"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                initial={{ scale: 0.96, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.96, opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="pointer-events-auto w-full max-w-xl rounded-2xl border border-white/10 bg-neutral-900/95 p-6 backdrop-blur-xl"
+              >
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-white/50">Tasks on</p>
+                    <p className="text-lg font-semibold text-white">
+                      {selectedDate.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(null)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
+                  >
+                    Close
+                  </button>
+                </div>
+                {selectedTasks.length === 0 && (
+                  <p className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                    No tasks scheduled for this day.
+                  </p>
+                )}
+                {selectedDayTaskList}
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCalendarCreateSheet && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCalendarCreateSheet(false)}
+            />
+            <motion.div
+              className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-neutral-900/95 p-4 backdrop-blur-xl md:hidden"
+              initial={{ y: 90, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 90, opacity: 0 }}
+              transition={{ duration: 0.28, ease: 'easeOut' }}
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-white/50">Quick Create</p>
+                  <p className="text-base font-semibold text-white">
+                    {dueDate || 'No date selected'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCalendarCreateSheet(false)}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
+                >
+                  Close
+                </button>
+              </div>
+              {renderCreateTaskForm({
+                compact: true,
+                onCreated: () => setShowCalendarCreateSheet(false)
+              })}
+            </motion.div>
+
+            <motion.div
+              className="fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-6 md:flex"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCalendarCreateSheet(false)}
+            >
+              <motion.div
+                className="w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900/95 p-6 backdrop-blur-xl"
+                initial={{ scale: 0.96, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.96, opacity: 0 }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-white/50">Quick Create</p>
+                    <p className="text-lg font-semibold text-white">
+                      {dueDate || 'No date selected'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCalendarCreateSheet(false)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
+                  >
+                    Close
+                  </button>
+                </div>
+                {renderCreateTaskForm({
+                  compact: true,
+                  onCreated: () => setShowCalendarCreateSheet(false)
+                })}
+              </motion.div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </motion.div>
   )
 }
