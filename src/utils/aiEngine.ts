@@ -4,6 +4,15 @@ import {
   getTodayDateKey,
   toCanonicalProfile
 } from './aiProfiling.js'
+import {
+  adaptToCognitiveState,
+  computeCognitiveLoad
+} from './cognitiveLoadEngine.ts'
+import {
+  buildMemoryGraphSnapshot,
+  getMemoryGraphSummary,
+  getTaskMemoryBoost
+} from './memoryGraph.ts'
 import { calculateCurrentStreak } from './streak.js'
 import { isPersonalized } from './personalization.js'
 import { toDateKey } from './dateUtils.js'
@@ -230,6 +239,10 @@ const getSubjectLabel = (subject) => {
 
 export const getBestTask = (tasks = [], user = null, now = new Date()) => {
   const profile = normalizeUserProfile(user)
+  const memoryGraph = buildMemoryGraphSnapshot({
+    personalization: profile,
+    tasks
+  })
   const weakSubjects = new Set(
     (profile?.weakSubjects || []).map((item) => String(item).trim().toLowerCase())
   )
@@ -253,6 +266,7 @@ export const getBestTask = (tasks = [], user = null, now = new Date()) => {
       const focusMinutes = getTaskFocusMinutes(task)
       const sessionsCount = getTaskSessionsCount(task)
       const subject = String(task?.subject || '').trim().toLowerCase()
+      const memoryBoost = getTaskMemoryBoost(task, profile, memoryGraph)
 
       if (dueMs !== null) {
         const daysUntilDue = Math.round((dueMs - todayMs) / DAY_MS)
@@ -265,6 +279,7 @@ export const getBestTask = (tasks = [], user = null, now = new Date()) => {
       }
 
       if (weakSubjects.has(subject)) score += 120
+      score += memoryBoost.boost
       if (focusMinutes === 0) score += 85
       else score += Math.max(0, 80 - Math.min(focusMinutes, 80))
 
@@ -297,6 +312,10 @@ const buildMetrics = (user, appData = {}, now = new Date()) => {
   const studySessions = appData.studySessions || []
   const timerState = appData.timerState || null
   const profile = normalizeUserProfile(user)
+  const memoryGraph = buildMemoryGraphSnapshot({
+    personalization: profile,
+    tasks
+  })
   const scorePayload = generateScore({
     profile,
     tasks,
@@ -330,7 +349,8 @@ const buildMetrics = (user, appData = {}, now = new Date()) => {
     activeDays7,
     personalized,
     notifications: Array.isArray(appData.notifications) ? appData.notifications : [],
-    transientEvent: appData.transientEvent || null
+    transientEvent: appData.transientEvent || null,
+    memoryGraph
   }
 }
 
@@ -701,12 +721,20 @@ export const computeAIScore = (user, appData = {}) => {
 }
 
 const buildInsightMessage = (context) => {
-  const { weeklyTrend, scorePayload, taskSignals, lastActivityDays, profile } = context
+  const { weeklyTrend, scorePayload, taskSignals, lastActivityDays, profile, memoryGraph } = context
+  const graphSummary = getMemoryGraphSummary(memoryGraph || {})
 
   if (lastActivityDays > 2) {
     return {
       short: 'Low consistency',
       full: 'Recent inactivity is lowering momentum and slowing score growth.'
+    }
+  }
+
+  if (graphSummary.weakest && graphSummary.weakest.mastery <= 40) {
+    return {
+      short: `Focus ${graphSummary.weakest.subtopic}`,
+      full: `${graphSummary.weakest.label} is currently your weakest concept. Reinforce it before moving to stronger material.`
     }
   }
 
@@ -777,6 +805,7 @@ export const generateDailyInsight = (user, appData = {}) => {
     `Best study window: ${bestStudyTime.window}.`,
     `Recommended block length: ${optimalSessionLength.minutes} minutes.`
   ].join(' ')
+  const graphSummary = getMemoryGraphSummary(context.memoryGraph || {})
 
   return {
     ...snapshot,
@@ -800,6 +829,8 @@ export const generateDailyInsight = (user, appData = {}) => {
       lastActivityDays: context.lastActivityDays,
       weeklyTrend: context.weeklyTrend.percentageDelta,
       weakSubjects: context.profile.weakSubjects,
+      weakestConcept: graphSummary.weakest || null,
+      strongestConcept: graphSummary.strongest || null,
       bestStudyTime: bestStudyTime.window,
       optimalSessionLength: optimalSessionLength.minutes
     },
@@ -816,7 +847,9 @@ const buildCandidateStates = (context) => {
     streak,
     profile,
     personalized,
-    notifications
+    notifications,
+    cognitiveLoad,
+    cognitiveAdaptation
   } = context
   const aiInsight = generateDailyInsight(profile, {
     tasks: context.tasks,
@@ -827,6 +860,7 @@ const buildCandidateStates = (context) => {
     studySessions: context.studySessions,
     now: context.now
   })
+  const graphSummary = getMemoryGraphSummary(context.memoryGraph || {})
   const recommendedSession = predictivePlan.recommendedSession
   const isBestWindowNow = (() => {
     const currentHour = context.now.getHours()
@@ -940,6 +974,72 @@ const buildCandidateStates = (context) => {
     })
   }
 
+  if (cognitiveLoad?.state === 'overloaded') {
+    states.push({
+      id: 'cognitive_overloaded',
+      type: 'alert',
+      priority: 78,
+      message: cognitiveLoad.message || 'Overloaded',
+      fullMessage:
+        cognitiveAdaptation?.fullMessage ||
+        cognitiveLoad.fullMessage ||
+        'The user is overloaded. Suggest a short break and lower the next block.',
+      action: 'break',
+      metadata: {
+        icon: 'alert',
+        tone: cognitiveAdaptation?.tone || 'danger',
+        actionLabel: 'Take break',
+        actionPath: '/study',
+        cognitiveLoad,
+        cognitiveAdaptation
+      }
+    })
+  }
+
+  if (cognitiveLoad?.state === 'struggling') {
+    states.push({
+      id: 'cognitive_struggling',
+      type: 'suggestion',
+      priority: 66,
+      message: cognitiveLoad.message || 'Struggling',
+      fullMessage:
+        cognitiveAdaptation?.fullMessage ||
+        cognitiveLoad.fullMessage ||
+        'Switch to an easier task or shorten the next session.',
+      action: 'switch_task',
+      metadata: {
+        icon: 'sparkles',
+        tone: cognitiveAdaptation?.tone || 'warning',
+        actionLabel: 'Switch task',
+        actionPath: '/study',
+        cognitiveLoad,
+        cognitiveAdaptation
+      }
+    })
+  }
+
+  if (cognitiveLoad?.state === 'disengaged') {
+    states.push({
+      id: 'cognitive_disengaged',
+      type: 'suggestion',
+      priority: 57,
+      message: cognitiveLoad.message || 'Re-engage',
+      fullMessage:
+        cognitiveAdaptation?.fullMessage ||
+        cognitiveLoad.fullMessage ||
+        'The user appears disconnected. Prompt a short re-entry session.',
+      action: 'start_session',
+      metadata: {
+        icon: 'sparkles',
+        tone: cognitiveAdaptation?.tone || 'warning',
+        actionLabel: 'Start session',
+        actionPath: '/study',
+        cognitiveLoad,
+        cognitiveAdaptation
+      }
+    })
+  }
+
   if (weeklyTrend.percentageDelta <= -10) {
     states.push({
       id: 'performance_drop',
@@ -1013,21 +1113,24 @@ const buildCandidateStates = (context) => {
     })
   }
 
-  if (profile.weakSubjects.length > 0) {
-    const subject = profile.weakSubjects[0]
+  if (profile.weakSubjects.length > 0 || graphSummary.weakest) {
+    const subject = graphSummary.weakest?.subtopic || graphSummary.weakest?.topic || profile.weakSubjects[0]
     states.push({
       id: 'smart_suggestion',
       type: 'suggestion',
       priority: 30,
       message: `Focus ${subject}`,
-      fullMessage: `${subject} is still your highest-impact subject today based on profile and task load.`,
+      fullMessage: graphSummary.weakest
+        ? `${graphSummary.weakest.label} is currently the weakest concept and should be prioritized today.`
+        : `${subject} is still your highest-impact subject today based on profile and task load.`,
       action: 'start_session',
       metadata: {
         icon: 'sparkles',
         tone: 'neutral',
         actionLabel: 'Start study',
         actionPath: '/study',
-        subject
+        subject,
+        weakestConcept: graphSummary.weakest || null
       }
     })
   }
@@ -1185,6 +1288,25 @@ const eventToState = (event) => {
 export const generateAssistantState = (user, appData = {}) => {
   const now = appData.now || new Date()
   const context = buildMetrics(user, appData, now)
+  const cognitiveLoad = computeCognitiveLoad(user, {
+    tasks: context.tasks,
+    studySessions: context.studySessions,
+    timerState: context.timerState,
+    cognitiveTelemetry: appData.cognitiveTelemetry,
+    userId: appData.userId || user?.id || user?.userId,
+    sessionMinutes: appData.sessionMinutes,
+    inactivitySeconds: appData.inactivitySeconds,
+    expectedSessionMinutes: appData.expectedSessionMinutes,
+    pauseCount: appData.pauseCount,
+    taskSwitchCount: appData.taskSwitchCount,
+    interruptionCount: appData.interruptionCount,
+    rapidInteractionCount: appData.rapidInteractionCount,
+    now
+  })
+  const cognitiveAdaptation = adaptToCognitiveState(cognitiveLoad, {
+    autopilotActive: Boolean(appData.autopilotState?.active || appData.autopilotActive),
+    now
+  })
   const predictivePlan = generateDailyPlan(user, context.tasks, {
     studySessions: context.studySessions,
     now
@@ -1195,7 +1317,11 @@ export const generateAssistantState = (user, appData = {}) => {
     bestStudyTime: predictBestStudyTime(user, { ...appData, now }),
     optimalSessionLength: getOptimalSessionLength(user, { ...appData, now })
   }
-  const candidates = buildCandidateStates(context).sort((a, b) => b.priority - a.priority)
+  const candidates = buildCandidateStates({
+    ...context,
+    cognitiveLoad,
+    cognitiveAdaptation
+  }).sort((a, b) => b.priority - a.priority)
   const baseState = candidates[0]
   const eventState = eventToState(context.transientEvent)
 
@@ -1211,9 +1337,12 @@ export const generateAssistantState = (user, appData = {}) => {
       streak: context.streak,
       weeklyTrend: context.weeklyTrend.percentageDelta,
       lastActivityDays: context.lastActivityDays,
+      memoryGraph: context.memoryGraph,
       predictions,
       dailyPlan: predictivePlan.sessions,
-      recommendedSession: state.metadata?.recommendedSession || predictivePlan.recommendedSession
+      recommendedSession: state.metadata?.recommendedSession || predictivePlan.recommendedSession,
+      cognitiveLoad,
+      cognitiveAdaptation
     }
   }
 }

@@ -1,5 +1,12 @@
 import { generateAssistantState, getBestTask, getShortMessage } from './aiEngine.ts'
 import { formatFocusSummary } from './focusTasks.js'
+import {
+  buildAutopilotPlan,
+  createAutopilotLaunchPayload,
+  readAutopilotState
+} from './autopilotEngine.ts'
+import { buildExamSimulationPlan } from './examEngine.ts'
+import { readCognitiveTelemetry } from './cognitiveLoadEngine.ts'
 
 const toTone = (type, metadata = {}) => {
   if (metadata.tone) return metadata.tone
@@ -20,9 +27,23 @@ export const getAssistantSnapshot = ({
   activeTaskId = null
 }) => {
   const personalization = profile?.personalization || profile
+  const autopilotState = readAutopilotState(profile?.id || profile?.userId)
+  const cognitiveTelemetry = readCognitiveTelemetry(profile?.id || profile?.userId)
+  const examPlan = buildExamSimulationPlan(personalization, tasks, {
+    studySessions,
+    now: new Date(),
+    subject: 'auto',
+    durationMinutes: null,
+    difficulty: 'auto'
+  })
+  const autopilotPlan = buildAutopilotPlan({
+    user: personalization,
+    tasks,
+    studySessions
+  })
   const state = generateAssistantState(
     { personalization },
-    { tasks, studySessions, timerState, transientEvent }
+    { tasks, studySessions, timerState, transientEvent, cognitiveTelemetry, userId: profile?.id || profile?.userId }
   )
 
   const recommendedTask = getBestTask(tasks, personalization)
@@ -158,7 +179,57 @@ export const getAssistantSnapshot = ({
     return null
   })()
 
-  const resolved = routeSnapshot || state
+  const autopilotSnapshot = (() => {
+    if (state.type === 'timer') return null
+    if (pathname !== '/dashboard' && pathname !== '/tasks' && pathname !== '/study') {
+      return null
+    }
+
+    if (!autopilotPlan) return null
+
+    const active = Boolean(autopilotState?.active)
+    const actionState = createAutopilotLaunchPayload(autopilotPlan)
+
+    return {
+      id: active ? 'autopilot-active' : 'autopilot-ready',
+      type: active ? 'timer' : 'suggestion',
+      priority: active ? Math.max(state.priority, 72) : Math.max(state.priority, 64),
+      mobileText: active
+        ? getShortMessage(`Auto ${autopilotPlan.duration}m`, 22)
+        : getShortMessage(`Autopilot ${autopilotPlan.duration}m`, 22),
+      mobileExpandedText: active
+        ? getShortMessage(autopilotState?.reason || autopilotPlan.reason, 26)
+        : getShortMessage(autopilotPlan.reason, 26),
+      desktopTitle: active
+        ? 'Autopilot active'
+        : `Start Autopilot: ${autopilotPlan.title}`,
+      desktopDetail: active
+        ? autopilotState?.reason || autopilotPlan.reason
+        : autopilotPlan.reason,
+      actionLabel: active ? 'Open Study' : 'Start Autopilot',
+      actionPath: '/study',
+      icon: active ? 'timer' : 'sparkles',
+      tone: active ? 'active' : 'info',
+      metadata: {
+        actionState: active ? null : actionState,
+        autopilotPlan,
+        autopilotActive: active
+      }
+    }
+  })()
+
+  const resolved = autopilotSnapshot
+    ? autopilotSnapshot
+    : routeSnapshot
+      ? {
+          ...state,
+          ...routeSnapshot,
+          metadata: {
+            ...state.metadata,
+            ...routeSnapshot.metadata
+          }
+        }
+      : state
 
   return {
     id: resolved.id || resolved.type,
@@ -179,7 +250,10 @@ export const getAssistantSnapshot = ({
     actionState: resolved.metadata?.actionState || null,
     icon: resolved.metadata?.icon || resolved.icon || 'sparkles',
     tone: resolved.tone || toTone(resolved.type, resolved.metadata),
-    metadata: resolved.metadata || {}
+    metadata: {
+      ...(resolved.metadata || {}),
+      examPlan
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import { useData } from '../context/DataContext.jsx'
 import { isPersonalized } from '../utils/personalization.js'
 import { toCanonicalProfile } from '../utils/aiProfiling.js'
 import { generateDailyInsight } from '../utils/aiEngine.ts'
+import { buildMemoryGraphSnapshot, mergeMemoryGraphIntoPersonalization } from '../utils/memoryGraph.ts'
 
 const QUESTION_LEVEL = {
   id: 'level',
@@ -250,12 +251,16 @@ const Personalization = () => {
       ...payload,
       profileEditsRemaining: nextEdits
     }
+    const memoryGraph = buildMemoryGraphSnapshot({
+      personalization: mergedPayload,
+      tasks
+    })
     const aiSnapshot = generateDailyInsight(
-      { personalization: mergedPayload },
+      { personalization: mergedPayload, memoryGraph },
       { tasks, studySessions }
     )
     await updatePersonalization({
-      ...mergedPayload,
+      ...mergeMemoryGraphIntoPersonalization(mergedPayload, memoryGraph),
       ai: aiSnapshot
     })
   }
@@ -284,9 +289,17 @@ const Personalization = () => {
     setError('')
     try {
       setSaving(true)
-      await updatePersonalization({
+      const fallbackPayload = {
         ...(profile?.personalization || {}),
         ...toCanonicalProfile(profile?.personalization || {}),
+        isPersonalized: true
+      }
+      const fallbackGraph = buildMemoryGraphSnapshot({
+        personalization: fallbackPayload,
+        tasks
+      })
+      await updatePersonalization({
+        ...mergeMemoryGraphIntoPersonalization(fallbackPayload, fallbackGraph),
         isPersonalized: true
       })
       withExitAndNavigate('/dashboard')

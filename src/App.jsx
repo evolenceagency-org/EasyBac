@@ -24,6 +24,8 @@ const Tasks = lazy(() => import('./pages/Tasks.jsx'))
 const Analytics = lazy(() => import('./pages/Analytics.jsx'))
 const Personalization = lazy(() => import('./pages/Personalization.jsx'))
 const AIResult = lazy(() => import('./pages/AIResult.jsx'))
+const ExamSimulation = lazy(() => import('./pages/ExamSimulation.jsx'))
+const ExamResult = lazy(() => import('./pages/ExamResult.jsx'))
 
 const LoadingScreen = () => (
   <div className="flex min-h-screen items-center justify-center bg-black text-white">
@@ -106,6 +108,8 @@ function App() {
           </Route>
 
           <Route element={<ProtectedRoute />}>
+            <Route path="/exam-simulation" element={<ExamSimulation />} />
+            <Route path="/exam-result" element={<ExamResult />} />
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/study" element={<Study />} />

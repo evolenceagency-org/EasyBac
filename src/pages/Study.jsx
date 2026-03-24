@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { toDateKey } from '../utils/dateUtils.js'
 import { motion } from 'framer-motion'
@@ -20,6 +20,21 @@ import {
   setActiveFocusTaskId
 } from '../utils/focusTasks.js'
 import { PENDING_STUDY_ACTION_KEY } from '../utils/assistantController.ts'
+import {
+  buildAutopilotPlan,
+  clearAutopilotState,
+  describeAutopilotPlan,
+  evaluateAutopilotSession,
+  findAutopilotFollowUp,
+  persistAutopilotState,
+  readAutopilotState
+} from '../utils/autopilotEngine.ts'
+import {
+  adaptToCognitiveState,
+  computeCognitiveLoad,
+  readCognitiveTelemetry,
+  recordCognitiveSignal
+} from '../utils/cognitiveLoadEngine.ts'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -35,6 +50,7 @@ const Study = () => {
     setMode,
     pomodoroMinutes,
     setPomodoroMinutes,
+    adjustPomodoroMinutes,
     breakMinutes,
     phase,
     isRunning,
@@ -67,6 +83,16 @@ const Study = () => {
   const [savedMessage, setSavedMessage] = useState('')
   const [isFocusMode, setIsFocusMode] = useState(false)
   const [activeTaskId, setActiveTaskId] = useState(null)
+  const [autopilotState, setAutopilotState] = useState(() => readAutopilotState(user?.id))
+  const [autopilotNotice, setAutopilotNotice] = useState(null)
+  const [cognitiveNotice, setCognitiveNotice] = useState(null)
+  const [activityTick, setActivityTick] = useState(Date.now())
+  const [monitorTick, setMonitorTick] = useState(Date.now())
+  const [tabSwitchCount, setTabSwitchCount] = useState(0)
+  const autopilotLastActionRef = useRef('')
+  const autopilotRunningRef = useRef(isRunning)
+  const cognitiveSignalRef = useRef(0)
+  const cognitiveActivityRef = useRef(0)
 
   const recentSessions = useMemo(
     () => studySessions.slice(0, 5),
@@ -91,6 +117,21 @@ const Study = () => {
     () => getSuggestedFocusTask(pendingTasks, profile?.personalization || profile),
     [pendingTasks, profile]
   )
+  const autopilotPlan = useMemo(
+    () =>
+      autopilotState?.plan ||
+      buildAutopilotPlan({
+        user: profile?.personalization || profile,
+        tasks: pendingTasks,
+        studySessions
+      }),
+    [autopilotState, pendingTasks, profile, studySessions]
+  )
+  const autopilotActive = Boolean(autopilotState?.active)
+  const cognitiveTelemetry = useMemo(
+    () => readCognitiveTelemetry(user?.id),
+    [activityTick, autopilotActive, monitorTick, tabSwitchCount, user?.id]
+  )
   const taskOptions = useMemo(
     () => [
       { label: 'Free session', value: 'free-session' },
@@ -105,6 +146,68 @@ const Study = () => {
     if (!activeTask || activeTask.completed) return false
     return (activeTask.totalFocusTime || 0) + sessionMinutes >= 90
   }, [activeTask, sessionMinutes])
+
+  const inactivitySeconds = useMemo(
+    () => Math.max(0, Math.floor((monitorTick - activityTick) / 1000)),
+    [activityTick, monitorTick]
+  )
+
+  const cognitiveLoad = useMemo(
+    () =>
+      computeCognitiveLoad(profile, {
+        userId: user?.id,
+        tasks: pendingTasks,
+        studySessions,
+        timerState: {
+          isRunning,
+          phase,
+          mode,
+          formatted: `${formatTwoDigits(minutes)}:${formatTwoDigits(seconds)}`
+        },
+        cognitiveTelemetry,
+        sessionMinutes,
+        inactivitySeconds,
+        expectedSessionMinutes: autopilotPlan?.duration || pomodoroMinutes,
+        now: new Date()
+      }),
+    [
+      autopilotPlan?.duration,
+      cognitiveTelemetry,
+      inactivitySeconds,
+      isRunning,
+      minutes,
+      mode,
+      pendingTasks,
+      phase,
+      pomodoroMinutes,
+      profile,
+      seconds,
+      sessionMinutes,
+      studySessions,
+      user?.id
+    ]
+  )
+  const cognitiveAdaptation = useMemo(
+    () =>
+      adaptToCognitiveState(cognitiveLoad, {
+        autopilotActive
+      }),
+    [autopilotActive, cognitiveLoad]
+  )
+
+  useEffect(() => {
+    setAutopilotState(readAutopilotState(user?.id))
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return undefined
+    const syncAutopilot = () => {
+      setAutopilotState(readAutopilotState(user.id))
+    }
+
+    window.addEventListener('storage', syncAutopilot)
+    return () => window.removeEventListener('storage', syncAutopilot)
+  }, [user?.id])
 
   useEffect(() => {
     const routeTaskId = location.state?.taskId
@@ -170,6 +273,74 @@ const Study = () => {
   }, [isRunning])
 
   useEffect(() => {
+    if (!user?.id) return undefined
+    if (!isRunning && !autopilotActive) return undefined
+
+    const markActivity = (eventName = 'interaction') => {
+      const now = Date.now()
+      if (eventName === 'mousemove' && now - cognitiveActivityRef.current < 900) return
+      cognitiveActivityRef.current = now
+      setActivityTick(now)
+      recordCognitiveSignal(user.id, { type: 'activity', timestamp: now })
+      if (eventName !== 'mousemove') {
+        recordCognitiveSignal(user.id, { type: 'interaction', timestamp: now })
+      }
+    }
+    const markTabSwitch = () => {
+      if (document.hidden) {
+        recordCognitiveSignal(user.id, { type: 'interruption', timestamp: Date.now() })
+        setTabSwitchCount((count) => count + 1)
+      }
+    }
+
+    const onPointerDown = () => markActivity('pointerdown')
+    const onKeyDown = () => markActivity('keydown')
+    const onScroll = () => markActivity('scroll')
+    const onTouchStart = () => markActivity('touchstart')
+    const onMouseMove = () => markActivity('mousemove')
+
+    window.addEventListener('pointerdown', onPointerDown, { passive: true })
+    window.addEventListener('keydown', onKeyDown, { passive: true })
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('touchstart', onTouchStart, { passive: true })
+    window.addEventListener('mousemove', onMouseMove, { passive: true })
+    document.addEventListener('visibilitychange', markTabSwitch)
+
+    const interval = window.setInterval(() => setMonitorTick(Date.now()), 1000)
+
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('touchstart', onTouchStart)
+      window.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('visibilitychange', markTabSwitch)
+      window.clearInterval(interval)
+    }
+  }, [autopilotActive, isRunning, user?.id])
+
+  useEffect(() => {
+    if (!autopilotActive) {
+      autopilotRunningRef.current = isRunning
+      return
+    }
+
+    if (autopilotRunningRef.current && !isRunning) {
+      setAutopilotState((current) =>
+        current
+          ? {
+              ...current,
+              pauseCount: (current.pauseCount || 0) + 1,
+              lastAdjustmentAt: Date.now()
+            }
+          : current
+      )
+    }
+
+    autopilotRunningRef.current = isRunning
+  }, [autopilotActive, isRunning])
+
+  useEffect(() => {
     if (typeof window === 'undefined') return
     const raw = window.sessionStorage.getItem(PENDING_STUDY_ACTION_KEY)
     if (!raw) return
@@ -180,9 +351,30 @@ const Study = () => {
         setActiveTaskId(payload.taskId)
       }
 
+      if (payload?.autopilot && user?.id) {
+        const autopilotPayload = {
+          active: true,
+          plan: payload.plan || autopilotPlan,
+          taskId: payload.taskId || null,
+          title: payload.title || autopilotPlan.title,
+          subject: payload.subject || autopilotPlan.subject,
+          mode: payload.mode || autopilotPlan.mode,
+          duration: payload.duration || autopilotPlan.duration,
+          reason: payload.reason || autopilotPlan.reason,
+          strategy: payload.strategy || autopilotPlan.strategy,
+          startedAt: Date.now(),
+          lastAdjustmentAt: Date.now(),
+          extensions: 0,
+          pauseCount: 0,
+          inactivitySeconds: 0
+        }
+        persistAutopilotState(user.id, autopilotPayload)
+        setAutopilotState(autopilotPayload)
+      }
+
       if (payload?.mode === 'pomodoro') {
         if (payload?.duration) {
-          setPomodoroMinutes(payload.duration)
+          adjustPomodoroMinutes(payload.duration)
         }
         setMode('pomodoro')
       }
@@ -192,6 +384,9 @@ const Study = () => {
       }
 
       if ((payload?.action === 'start' || payload?.action === 'resume') && !isRunning) {
+        if (user?.id) {
+          recordCognitiveSignal(user.id, { type: 'session_start' })
+        }
         start()
       }
     } catch {
@@ -199,7 +394,7 @@ const Study = () => {
     } finally {
       window.sessionStorage.removeItem(PENDING_STUDY_ACTION_KEY)
     }
-  }, [isRunning, setMode, setPomodoroMinutes, start])
+  }, [adjustPomodoroMinutes, autopilotPlan, isRunning, setMode, start, user?.id])
 
   const buildLinkedSessionPayload = useCallback(
     (minutesToSave, sessionMode = mode) => {
@@ -227,6 +422,10 @@ const Study = () => {
       await addStudySession(buildLinkedSessionPayload(sessionMinutes, mode))
       setShowModal(false)
       setSavedMessage('Session saved!')
+      if (user?.id) {
+        recordCognitiveSignal(user.id, { type: 'session_end' })
+      }
+      stopAutopilot('Autopilot session saved')
       reset()
       setTimeout(() => setSavedMessage(''), 2500)
       return true
@@ -238,8 +437,43 @@ const Study = () => {
 
   const handleStart = () => {
     if (!checkTrialAndBlock(profile, navigate)) return
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'session_start' })
+    }
     start()
   }
+
+  const handlePauseSession = useCallback(() => {
+    if (!checkTrialAndBlock(profile, navigate)) return
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'pause' })
+    }
+    pause()
+  }, [navigate, pause, profile, user?.id])
+
+  const saveAutopilotState = useCallback(
+    (nextState) => {
+      if (!user?.id) return
+      persistAutopilotState(user.id, nextState)
+      setAutopilotState(nextState)
+    },
+    [user?.id]
+  )
+
+  const stopAutopilot = useCallback(
+    (message = 'Autopilot stopped') => {
+      if (!user?.id) return
+      clearAutopilotState(user.id)
+      setAutopilotState(null)
+      setAutopilotNotice({
+        type: 'suggestion',
+        action: 'manual',
+        message,
+        fullMessage: 'Autopilot control has been returned to you.'
+      })
+    },
+    [user?.id]
+  )
 
   useEffect(() => {
     const handleAssistantControl = (event) => {
@@ -273,10 +507,28 @@ const Study = () => {
         }
       }
 
-      if (action === 'pause' && isRunning) pause()
-      if ((action === 'resume' || action === 'start') && !isRunning) start()
-      if (action === 'reset') reset()
-      if (action === 'finish' && isActiveSession) finish()
+      if (action === 'pause' && isRunning) handlePauseSession()
+      if ((action === 'resume' || action === 'start') && !isRunning) {
+        if (user?.id) {
+          recordCognitiveSignal(user.id, { type: 'session_start' })
+        }
+        start()
+      }
+      if (action === 'reset') {
+        if (user?.id) {
+          recordCognitiveSignal(user.id, { type: 'session_end' })
+        }
+        stopAutopilot('Autopilot stopped')
+        reset()
+      }
+      if (action === 'finish' && isActiveSession) {
+        finish()
+        if (user?.id) {
+          recordCognitiveSignal(user.id, { type: 'session_end' })
+        }
+        stopAutopilot('Autopilot session completed')
+        setShowModal(true)
+      }
       if (action === 'save' && sessionMinutes > 0) {
         void handleSaveSession()
       }
@@ -292,12 +544,194 @@ const Study = () => {
     isActiveSession,
     isRunning,
     mode,
-    pause,
-    requestModeChange,
+    handlePauseSession,
     reset,
+    requestModeChange,
     sessionMinutes,
     setMode,
     setPomodoroMinutes,
+    start
+  ])
+
+  const autopilotEvaluation = useMemo(() => {
+    if (!autopilotActive || !isRunning) return null
+    return evaluateAutopilotSession({
+      state: autopilotState,
+      tasks: pendingTasks,
+      currentTaskId: activeTask?.id || activeTaskId || null,
+      sessionMinutes,
+      inactivitySeconds,
+      pauseCount: autopilotState?.pauseCount || 0,
+      tabSwitchCount
+    })
+  }, [
+    activeTask?.id,
+    activeTaskId,
+    autopilotActive,
+    autopilotState,
+    inactivitySeconds,
+    isRunning,
+    pendingTasks,
+    sessionMinutes,
+    tabSwitchCount
+  ])
+
+  useEffect(() => {
+    if (!autopilotEvaluation) return
+
+    const actionKey = [
+      autopilotEvaluation.action,
+      autopilotEvaluation.taskId || '',
+      autopilotEvaluation.delta || '',
+      Math.floor(sessionMinutes / 5),
+      tabSwitchCount,
+      inactivitySeconds
+    ].join(':')
+
+    if (autopilotLastActionRef.current === actionKey) return
+    autopilotLastActionRef.current = actionKey
+    setAutopilotNotice(autopilotEvaluation)
+
+    const nextPlan = autopilotState?.plan || autopilotPlan
+    const nextState = {
+      ...(autopilotState || {}),
+      active: true,
+      plan: nextPlan,
+      taskId: activeTask?.id || activeTaskId || null,
+      title: activeTask?.title || autopilotState?.title || nextPlan?.title || 'Autopilot',
+      subject:
+        activeTask?.subject || autopilotState?.subject || nextPlan?.subject || 'General',
+      mode: autopilotState?.mode || nextPlan?.mode || mode,
+      duration: autopilotState?.duration || nextPlan?.duration || pomodoroMinutes,
+      reason: autopilotState?.reason || nextPlan?.reason || describeAutopilotPlan(nextPlan),
+      strategy: autopilotState?.strategy || nextPlan?.strategy || 'best-task',
+      startedAt: autopilotState?.startedAt || Date.now(),
+      lastAdjustmentAt: Date.now(),
+      extensions: autopilotState?.extensions || 0,
+      pauseCount: autopilotState?.pauseCount || 0,
+      inactivitySeconds
+    }
+
+    if (autopilotEvaluation.action === 'break') {
+      pause()
+      saveAutopilotState(nextState)
+      return
+    }
+
+    if (autopilotEvaluation.action === 'extend') {
+      const nextDuration = Math.min(90, (nextState.duration || 45) + (autopilotEvaluation.delta || 5))
+      adjustPomodoroMinutes(nextDuration)
+      saveAutopilotState({
+        ...nextState,
+        duration: nextDuration,
+        extensions: (autopilotState?.extensions || 0) + 1
+      })
+      return
+    }
+
+    if (autopilotEvaluation.action === 'shorten') {
+      const nextDuration = Math.max(25, (nextState.duration || 45) - (autopilotEvaluation.delta || 5))
+      adjustPomodoroMinutes(nextDuration)
+      saveAutopilotState({
+        ...nextState,
+        duration: nextDuration
+      })
+      return
+    }
+
+    if (autopilotEvaluation.action === 'switch_task') {
+      const followUp = findAutopilotFollowUp(pendingTasks, activeTask?.id || activeTaskId || null)
+      if (followUp) {
+        setActiveTaskId(followUp.id)
+        setAutopilotNotice({
+          ...autopilotEvaluation,
+          message: `Switch to ${followUp.title}`,
+          fullMessage: `Autopilot recommends "${followUp.title}" to keep momentum stable.`
+        })
+        saveAutopilotState({
+          ...nextState,
+          taskId: followUp.id,
+          title: followUp.title,
+          subject: followUp.subject || nextState.subject
+        })
+      }
+    }
+  }, [
+    activeTask?.id,
+    activeTask?.subject,
+    activeTask?.title,
+    activeTaskId,
+    adjustPomodoroMinutes,
+    autopilotActive,
+    autopilotEvaluation,
+    autopilotPlan,
+    autopilotState,
+    inactivitySeconds,
+    mode,
+    pause,
+    pendingTasks,
+    pomodoroMinutes,
+    saveAutopilotState,
+    sessionMinutes,
+    tabSwitchCount
+  ])
+
+  useEffect(() => {
+    if (!autopilotNotice) return undefined
+    const timeout = window.setTimeout(() => setAutopilotNotice(null), 5000)
+    return () => window.clearTimeout(timeout)
+  }, [autopilotNotice])
+
+  useEffect(() => {
+    if (!cognitiveLoad || cognitiveLoad.state === 'normal' || cognitiveLoad.state === 'flow') {
+      setCognitiveNotice(null)
+      return
+    }
+
+    const key = [
+      cognitiveLoad.state,
+      cognitiveLoad.score,
+      cognitiveLoad.indicators?.pauseCount || 0,
+      cognitiveLoad.indicators?.taskSwitchCount || 0,
+      cognitiveLoad.indicators?.inactivitySeconds || 0
+    ].join(':')
+
+    if (cognitiveSignalRef.current === key) return
+    cognitiveSignalRef.current = key
+
+    const adaptation = cognitiveAdaptation
+    setCognitiveNotice({
+      ...cognitiveLoad,
+      ...adaptation
+    })
+
+    if (!autopilotActive || !adaptation.shouldAutoApply) return
+
+    if (adaptation.action === 'break') {
+      if (isRunning) pause()
+      return
+    }
+
+    if (adaptation.action === 'switch_task') {
+      const nextTask = findAutopilotFollowUp(pendingTasks, activeTask?.id || activeTaskId || null)
+      if (nextTask) {
+        setActiveTaskId(nextTask.id)
+      }
+      return
+    }
+
+    if (adaptation.action === 'reengage' && !isRunning) {
+      start()
+    }
+  }, [
+    activeTask?.id,
+    activeTaskId,
+    autopilotActive,
+    cognitiveAdaptation,
+    cognitiveLoad,
+    isRunning,
+    pause,
+    pendingTasks,
     start
   ])
 
@@ -305,12 +739,27 @@ const Study = () => {
     if (sessionMinutes === 0) return
     if (!checkTrialAndBlock(profile, navigate)) return
     finish()
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'session_end' })
+    }
+    stopAutopilot('Autopilot session completed')
     setShowModal(true)
   }
 
+  const handleResetSession = () => {
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'session_end' })
+    }
+    stopAutopilot('Autopilot stopped')
+    reset()
+  }
+
   const handleTaskSelection = useCallback((taskId) => {
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'task_switch' })
+    }
     setActiveTaskId(taskId === 'free-session' ? null : taskId)
-  }, [])
+  }, [user?.id])
 
   const handleMarkTaskDone = useCallback(async () => {
     if (!activeTask || activeTask.completed) return
@@ -336,6 +785,10 @@ const Study = () => {
       if (sessionMinutes > 0) {
         await addStudySession(buildLinkedSessionPayload(sessionMinutes, mode))
       }
+      if (user?.id) {
+        recordCognitiveSignal(user.id, { type: 'session_end' })
+      }
+      stopAutopilot('Autopilot paused while switching mode')
       applyPendingModeSwitch()
     } catch (error) {
       setSaveError('Unable to save the session. Please try again.')
@@ -343,6 +796,10 @@ const Study = () => {
   }
 
   const handleDiscardAndSwitch = () => {
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'session_end' })
+    }
+    stopAutopilot('Autopilot stopped while switching mode')
     applyPendingModeSwitch()
   }
 
@@ -357,6 +814,9 @@ const Study = () => {
   }
 
   const handleDiscardRecovery = () => {
+    if (user?.id) {
+      recordCognitiveSignal(user.id, { type: 'session_end' })
+    }
     discardRecovery()
     setShowRecoveryModal(false)
   }
@@ -373,6 +833,9 @@ const Study = () => {
         return
       }
       await addStudySession(buildLinkedSessionPayload(minutesToSave, recoverySession.mode))
+      if (user?.id) {
+        recordCognitiveSignal(user.id, { type: 'session_end' })
+      }
       discardRecovery()
       setShowRecoveryModal(false)
       setSavedMessage('Session saved!')
@@ -424,6 +887,48 @@ const Study = () => {
     document.addEventListener('fullscreenchange', handleChange)
     return () => document.removeEventListener('fullscreenchange', handleChange)
   }, [])
+
+  useEffect(() => {
+    if (!user?.id) return undefined
+
+    const markActivity = (eventName = 'interaction') => {
+      const now = Date.now()
+      if (eventName === 'mousemove' && now - cognitiveActivityRef.current < 900) return
+
+      cognitiveActivityRef.current = now
+      setActivityTick(now)
+      recordCognitiveSignal(user.id, { type: 'activity', timestamp: now })
+      if (eventName !== 'mousemove') {
+        recordCognitiveSignal(user.id, { type: 'interaction', timestamp: now })
+      }
+    }
+
+    const markInterruption = () => {
+      const now = Date.now()
+      recordCognitiveSignal(user.id, { type: 'interruption', timestamp: now })
+      setTabSwitchCount((count) => count + 1)
+    }
+
+    const eventHandlers = {
+      pointerdown: () => markActivity('pointerdown'),
+      keydown: () => markActivity('keydown'),
+      scroll: () => markActivity('scroll'),
+      touchstart: () => markActivity('touchstart'),
+      mousemove: () => markActivity('mousemove')
+    }
+
+    Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+      window.addEventListener(eventName, handler, { passive: true })
+    })
+    document.addEventListener('visibilitychange', markInterruption)
+
+    return () => {
+      Object.entries(eventHandlers).forEach(([eventName, handler]) => {
+        window.removeEventListener(eventName, handler)
+      })
+      document.removeEventListener('visibilitychange', markInterruption)
+    }
+  }, [user?.id])
 
   useEffect(() => {
     const handleKey = (event) => {
@@ -525,6 +1030,60 @@ const Study = () => {
         ) : (
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">
             No task selected — start a free session or choose a task above.
+          </div>
+        )}
+
+        {autopilotActive && (
+          <div className="rounded-2xl border border-purple-400/20 bg-gradient-to-r from-purple-500/12 via-blue-500/10 to-cyan-400/8 px-4 py-3 shadow-[0_0_20px_rgba(139,92,246,0.08)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.24em] text-purple-100/70">
+                  Autopilot active
+                </p>
+                <p className="mt-1 text-sm font-semibold text-white">
+                  {describeAutopilotPlan(autopilotState?.plan || autopilotPlan)}
+                </p>
+                <p className="mt-1 text-xs text-white/65">
+                  {autopilotNotice?.fullMessage ||
+                    autopilotState?.reason ||
+                    autopilotPlan.reason}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => stopAutopilot('Autopilot stopped')}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/80 transition hover:bg-white/10"
+              >
+                Stop Autopilot
+              </button>
+            </div>
+          </div>
+        )}
+
+        {cognitiveNotice && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm ${
+              cognitiveNotice.state === 'overloaded'
+                ? 'border-rose-400/20 bg-rose-500/10 text-rose-100'
+                : cognitiveNotice.state === 'struggling'
+                  ? 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+                  : 'border-orange-400/20 bg-orange-500/10 text-orange-100'
+            }`}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.2em] opacity-70">
+                  Cognitive load
+                </p>
+                <p className="mt-1 font-semibold">{cognitiveNotice.message}</p>
+                <p className="mt-1 text-xs opacity-80">{cognitiveNotice.fullMessage}</p>
+              </div>
+              {!cognitiveNotice.suppressNotifications && (
+                <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/80">
+                  {cognitiveNotice.state}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -675,7 +1234,7 @@ const Study = () => {
             type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            onClick={reset}
+            onClick={handleResetSession}
             disabled={lockActions}
             className="w-full rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/90 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >

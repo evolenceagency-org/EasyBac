@@ -6,6 +6,7 @@ import {
   BrainCircuit,
   CheckCircle2,
   CircleAlert,
+  GraduationCap,
   Keyboard,
   ListChecks,
   LoaderCircle,
@@ -28,6 +29,7 @@ import {
   startVoiceListening,
   stopVoiceListening
 } from '../utils/voiceAssistantEngine.ts'
+import { queueAutopilotLaunch } from '../utils/autopilotEngine.ts'
 
 const ACTIVE_SESSION_KEY = 'active_session'
 const HIDE_ROUTES = new Set([
@@ -39,7 +41,9 @@ const HIDE_ROUTES = new Set([
   '/personalization',
   '/choose-plan',
   '/ai-result',
-  '/welcome-ai'
+  '/welcome-ai',
+  '/exam-simulation',
+  '/exam-result'
 ])
 const DESKTOP_AUTO_COLLAPSE_MS = 4200
 const ASSISTANT_RESULT_AUTO_CLOSE_MS = 3600
@@ -98,6 +102,14 @@ const toneClasses = {
   }
 }
 
+const cognitiveIndicatorClasses = {
+  flow: 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.55)]',
+  normal: 'bg-violet-300 shadow-[0_0_10px_rgba(196,181,253,0.45)]',
+  struggling: 'bg-amber-300 shadow-[0_0_10px_rgba(251,191,36,0.5)]',
+  overloaded: 'bg-rose-400 shadow-[0_0_10px_rgba(251,113,133,0.55)]',
+  disengaged: 'bg-orange-300 shadow-[0_0_10px_rgba(253,186,116,0.5)]'
+}
+
 const formatTime = (totalSeconds) => {
   const safe = Math.max(0, Math.floor(totalSeconds))
   const minutes = Math.floor(safe / 60)
@@ -146,6 +158,7 @@ const mapTimerState = (session, now = Date.now()) => {
 
 const MobileIsland = ({ snapshot, tone, Icon, onTap, onVoiceStart }) => {
   const pulse = PULSE_STATES.has(snapshot.id)
+  const cognitiveState = snapshot.metadata?.cognitiveLoad?.state || null
   const longPressTimerRef = useRef(null)
   const longPressTriggeredRef = useRef(false)
 
@@ -213,6 +226,11 @@ const MobileIsland = ({ snapshot, tone, Icon, onTap, onVoiceStart }) => {
       >
         <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r opacity-80 ${tone.surface}`} />
         <motion.div layout className="relative flex min-w-0 items-center gap-2">
+          {cognitiveState ? (
+            <span
+              className={`h-2 w-2 rounded-full ${cognitiveIndicatorClasses[cognitiveState] || cognitiveIndicatorClasses.normal}`}
+            />
+          ) : null}
           <Icon className={`h-3.5 w-3.5 shrink-0 ${tone.icon}`} />
           <AnimatePresence mode="wait" initial={false}>
             <motion.span
@@ -237,6 +255,8 @@ const DesktopAssistant = ({
   tone,
   Icon,
   onAction,
+  onExamTap,
+  showExamAction,
   onVoiceTap,
   onVoiceStop,
   onTextTap,
@@ -244,6 +264,7 @@ const DesktopAssistant = ({
   assistantMode
 }) => {
   const [expanded, setExpanded] = useState(false)
+  const cognitiveState = snapshot.metadata?.cognitiveLoad?.state || null
 
   useEffect(() => {
     if (snapshot.id === 'idle') return undefined
@@ -287,10 +308,17 @@ const DesktopAssistant = ({
         <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r opacity-85 ${tone.surface}`} />
 
         <div className="relative flex w-full items-center gap-3 px-5 py-3.5">
-          <button
-            type="button"
+          <motion.div
+            role="button"
+            tabIndex={0}
             onClick={() => setExpanded((value) => !value)}
-            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                setExpanded((value) => !value)
+              }
+            }}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left outline-none"
           >
             <div
               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ${tone.icon}`}
@@ -299,7 +327,7 @@ const DesktopAssistant = ({
             </div>
 
             <AnimatePresence mode="wait" initial={false}>
-              <motion.div
+            <motion.div
                 key={`${snapshot.id}-${expanded ? 'open' : 'closed'}`}
                 initial={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
@@ -311,9 +339,19 @@ const DesktopAssistant = ({
                 <p className="truncate text-xs text-white/62">
                   {snapshot.mobileExpandedText || snapshot.mobileText}
                 </p>
+                {cognitiveState ? (
+                  <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-white/55">
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${
+                        cognitiveIndicatorClasses[cognitiveState] || cognitiveIndicatorClasses.normal
+                      }`}
+                    />
+                    {cognitiveState}
+                  </span>
+                ) : null}
               </motion.div>
             </AnimatePresence>
-          </button>
+          </motion.div>
 
           <div className="flex shrink-0 items-center gap-2">
             <button
@@ -371,6 +409,16 @@ const DesktopAssistant = ({
                   >
                     {snapshot.actionLabel}
                   </button>
+                  {showExamAction ? (
+                    <button
+                      type="button"
+                      onClick={onExamTap}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+                    >
+                      <GraduationCap className="h-3.5 w-3.5" />
+                      Start Exam Simulation
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={voiceSupported ? onVoiceTap : onTextTap}
@@ -967,12 +1015,34 @@ const DynamicIsland = () => {
       return
     }
 
+    if (displaySnapshot.actionState?.autopilot) {
+      queueAutopilotLaunch({
+        userId: user?.id,
+        plan: displaySnapshot.metadata?.autopilotPlan
+      })
+    }
+
     if (displaySnapshot.actionState) {
       navigate(displaySnapshot.actionPath, { state: displaySnapshot.actionState })
       return
     }
     navigate(displaySnapshot.actionPath)
   }
+
+  const handleExamTap = () => {
+    const examPlan = displaySnapshot.metadata?.examPlan
+    if (!examPlan) return
+    navigate('/exam-simulation', {
+      state: {
+        ...examPlan,
+        autoStart: true
+      }
+    })
+  }
+
+  const showExamAction =
+    Boolean(displaySnapshot.metadata?.examPlan) &&
+    !['/study', '/exam-simulation', '/exam-result'].includes(location.pathname)
 
   const handleMobileTap = () => {
     if (assistantMode === 'listening') {
@@ -991,6 +1061,12 @@ const DynamicIsland = () => {
         navigate('/analytics')
         break
       default:
+        if (displaySnapshot.actionState?.autopilot) {
+          queueAutopilotLaunch({
+            userId: user?.id,
+            plan: displaySnapshot.metadata?.autopilotPlan
+          })
+        }
         if (displaySnapshot.actionState) {
           navigate(displaySnapshot.actionPath, { state: displaySnapshot.actionState })
           return
@@ -1023,6 +1099,8 @@ const DynamicIsland = () => {
             tone={tone}
             Icon={Icon}
             onAction={handleAction}
+            onExamTap={handleExamTap}
+            showExamAction={showExamAction}
             onVoiceTap={startVoiceAssistant}
             onVoiceStop={stopVoiceAssistant}
             onTextTap={() => {

@@ -1,9 +1,12 @@
 import { toDateKey } from './dateUtils.js'
 import { getBestTask, getShortMessage } from './aiEngine.ts'
+import { buildAutopilotPlan, queueAutopilotLaunch } from './autopilotEngine.ts'
+import { buildExamSimulationPlan } from './examEngine.ts'
 import { setActiveFocusTaskId } from './focusTasks.js'
 import { isOverdueTask } from './taskStats.js'
 
 export const PENDING_STUDY_ACTION_KEY = 'assistant-pending-study-action'
+export const PENDING_EXAM_ACTION_KEY = 'assistant-pending-exam-action'
 
 const SUBJECT_ALIASES = {
   math: [
@@ -98,8 +101,38 @@ const START_RECOMMENDED_PATTERNS = [
   'bda recommended task',
   'bda best task',
   'commence la meilleure tache',
-  'démarre la meilleure tache',
-  'ابدأ أفضل مهمة'
+  'd??marre la meilleure tache',
+  '???????? ???????? ????????'
+]
+
+const AUTOPILOT_PATTERNS = [
+  'start autopilot',
+  'autopilot',
+  'focus autopilot',
+  'bda autopilot',
+  'demarre autopilot',
+  'd??marre autopilot',
+  'lance autopilot',
+  'mode autopilot'
+]
+
+const EXAM_PATTERNS = [
+  'start exam simulation',
+  'start exam',
+  'exam simulation',
+  'simulate exam',
+  'exam mode',
+  'mode examen',
+  'start exam mode',
+  'bda exam',
+  'bda examen',
+  'demarre exam',
+  'demarre examen',
+  'lance exam',
+  'lance examen',
+  'commence exam',
+  'commence examen',
+  'simulation examen'
 ]
 
 const FREE_FOCUS_PATTERNS = [
@@ -331,7 +364,29 @@ const clampDuration = (value) => {
 
 const extractDuration = (text = '') => {
   const normalized = sanitize(text)
-  const digitMatch = normalized.match(/(\d{1,3})\s*(minutes|minute|min|mn|dakika|دقيقة)?/)
+
+  const hourMinuteMatch = normalized.match(
+    /\b(\d{1,3})\s*(?:h|hr|hrs|hour|hours)\s*(?:and\s*)?(\d{1,2})?\s*(?:m|min|mn|minute|minutes)?\b/
+  )
+  if (hourMinuteMatch) {
+    const hours = Number(hourMinuteMatch[1]) || 0
+    const minutes = Number(hourMinuteMatch[2]) || 0
+    return clampDuration(hours * 60 + minutes)
+  }
+
+  const hourOnlyMatch = normalized.match(/\b(\d{1,3})\s*(?:h|hr|hrs|hour|hours)\b/)
+  if (hourOnlyMatch) {
+    return clampDuration(Number(hourOnlyMatch[1]) * 60)
+  }
+
+  const minuteOnlyMatch = normalized.match(
+    /\b(\d{1,3})\s*(?:minutes|minute|min|mn|m|dakika|dqiqa|minutee)\b/
+  )
+  if (minuteOnlyMatch) {
+    return clampDuration(Number(minuteOnlyMatch[1]))
+  }
+
+  const digitMatch = normalized.match(/(\d{1,3})\s*(?:minutes|minute|min|mn|dakika)?/)
   if (digitMatch) {
     return clampDuration(Number(digitMatch[1]))
   }
@@ -361,6 +416,15 @@ const extractSubject = (text = '') => {
     }
   }
   return ''
+}
+
+const extractDifficulty = (text = '') => {
+  const normalized = sanitize(text)
+  const hardSignals = ['hard', 'difficile', 'difficulte', 'difficulty', 's3ib', 'sa3b', 'challenging']
+  const easySignals = ['easy', 'facile', 'sahl', 'simple']
+  if (hardSignals.some((token) => normalized.includes(token))) return 'hard'
+  if (easySignals.some((token) => normalized.includes(token))) return 'easy'
+  return 'medium'
 }
 
 const extractDate = (text = '') => {
@@ -473,6 +537,42 @@ const parseTargetedTaskIntent = (transcript, type) => {
   }
 }
 
+const EXAM_DURATION_HINTS = ['hour', 'hours', 'h', 'hr', 'hrs', 'minute', 'minutes', 'min', 'mn']
+
+const parseExamIntent = (transcript) => {
+  const normalized = sanitize(transcript)
+  const duration = extractDuration(normalized)
+  const subject = extractSubject(normalized)
+  const difficulty = extractDifficulty(normalized)
+  const stripped = removeKnownTokens(stripLeadingPhrase(normalized, EXAM_PATTERNS), [
+    ...EXAM_PATTERNS,
+    ...FILLER_WORDS,
+    ...POMODORO_PATTERNS,
+    'exam',
+    'examen',
+    'simulation',
+    'mode',
+    'question',
+    'questions',
+    'pressure',
+    'strict',
+    'timed',
+    'timer',
+    ...EXAM_DURATION_HINTS
+  ])
+
+  return {
+    type: 'start_exam',
+    language: detectLanguage(transcript),
+    data: {
+      query: stripped,
+      subject,
+      duration: duration || null,
+      difficulty
+    }
+  }
+}
+
 const parseFocusIntent = (transcript) => {
   const normalized = sanitize(transcript)
   const duration = extractDuration(normalized)
@@ -533,6 +633,36 @@ const parseFocusIntent = (transcript) => {
   }
 }
 
+const parseAutopilotIntent = (transcript) => {
+  const normalized = sanitize(transcript)
+  const duration = extractDuration(normalized)
+  const subject = extractSubject(normalized)
+  const stripped = removeKnownTokens(stripLeadingPhrase(normalized, AUTOPILOT_PATTERNS), [
+    ...AUTOPILOT_PATTERNS,
+    ...FILLER_WORDS,
+    ...POMODORO_PATTERNS,
+    'focus',
+    'session',
+    'study',
+    'minute',
+    'minutes',
+    'min',
+    'mn',
+    'for',
+    'dial'
+  ])
+
+  return {
+    type: 'start_autopilot',
+    language: detectLanguage(transcript),
+    data: {
+      query: stripped,
+      subject,
+      duration: duration || null
+    }
+  }
+}
+
 export const detectIntent = (transcript = '') => {
   const normalized = sanitize(transcript)
   if (!normalized) {
@@ -556,6 +686,30 @@ export const detectIntent = (transcript = '') => {
 
   if (hasAnyPhrase(normalized, CLEAR_OVERDUE_PATTERNS)) {
     return { type: 'clear_overdue', data: {}, language: detectLanguage(transcript) }
+  }
+
+  if (hasAnyPhrase(normalized, AUTOPILOT_PATTERNS)) {
+    const intent = parseAutopilotIntent(normalized)
+    return {
+      ...intent,
+      preview: {
+        title: intent.data.subject || 'Autopilot',
+        subject: intent.data.subject || 'focus',
+        dueDate: intent.data.duration ? `${intent.data.duration} min` : 'Smart session'
+      }
+    }
+  }
+
+  if (hasAnyPhrase(normalized, EXAM_PATTERNS)) {
+    const intent = parseExamIntent(normalized)
+    return {
+      ...intent,
+      preview: {
+        title: intent.data.subject ? `Exam ${intent.data.subject}` : 'Exam simulation',
+        subject: intent.data.subject || 'auto',
+        dueDate: intent.data.duration ? `${intent.data.duration} min` : 'Strict exam'
+      }
+    }
   }
 
   if (hasAnyPhrase(normalized, FINISH_PATTERNS)) {
@@ -637,6 +791,11 @@ const emitStudyControl = (payload) => {
 const queuePendingStudyAction = (payload) => {
   if (typeof window === 'undefined') return
   window.sessionStorage.setItem(PENDING_STUDY_ACTION_KEY, JSON.stringify(payload))
+}
+
+const queuePendingExamAction = (payload) => {
+  if (typeof window === 'undefined') return
+  window.sessionStorage.setItem(PENDING_EXAM_ACTION_KEY, JSON.stringify(payload))
 }
 
 const updateStoredSession = (action, extra = {}) => {
@@ -828,6 +987,71 @@ export const executeIntent = async (intent, deps = {}) => {
       return buildSuccess(
         'Recommended started',
         `Starting focus for "${bestTask.title}".`
+      )
+    }
+
+    case 'start_exam': {
+      const plan = buildExamSimulationPlan(user, tasks, {
+        studySessions: deps.studySessions || [],
+        subject: intent.data.subject || 'auto',
+        durationMinutes: intent.data.duration || null,
+        difficulty: intent.data.difficulty || 'auto'
+      })
+
+      if (!plan) {
+        return buildError('No exam plan', 'I could not build an exam simulation yet.')
+      }
+
+      const payload = {
+        ...plan,
+        action: 'start',
+        autoStart: true
+      }
+
+      queuePendingExamAction(payload)
+      navigate?.('/exam-simulation', {
+        state: payload
+      })
+
+      return buildSuccess(
+        'Exam simulation ready',
+        `Starting a ${plan.durationMinutes}-minute ${plan.subjectLabel} exam simulation.`
+      )
+    }
+
+    case 'start_autopilot': {
+      const plan = buildAutopilotPlan({
+        user,
+        tasks,
+        studySessions: deps.studySessions || []
+      })
+
+      if (!plan) {
+        return buildError('No task found', 'I could not build an autopilot plan yet.')
+      }
+
+      const finalPlan = intent.data.duration ? { ...plan, duration: intent.data.duration } : plan
+
+      if (user?.id && finalPlan.taskId) {
+        setActiveFocusTaskId(user.id, finalPlan.taskId)
+      }
+
+      const payload = queueAutopilotLaunch({
+        userId: user?.id,
+        plan: finalPlan
+      })
+
+      emitStudyControl(payload)
+      navigate?.('/study', {
+        state: {
+          ...payload,
+          autopilot: true
+        }
+      })
+
+      return buildSuccess(
+        'Autopilot started',
+        `Starting ${payload.duration || finalPlan.duration} minute autopilot focus.`
       )
     }
 

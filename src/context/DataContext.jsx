@@ -4,6 +4,12 @@ import { useAuth } from './AuthContext.jsx'
 import { isAccessDeniedError } from '../utils/subscription.js'
 import { generateDailyInsight, shouldRefreshDailyInsight } from '../utils/aiEngine.ts'
 import {
+  buildMemoryGraphSnapshot,
+  mergeMemoryGraphIntoPersonalization,
+  updateMemoryGraphFromStudySession,
+  updateMemoryGraphFromTaskCompletion
+} from '../utils/memoryGraph.ts'
+import {
   mergeStudySessionsWithTaskLinks,
   mergeTasksWithFocusMeta,
   trackTaskFocusSession
@@ -35,6 +41,28 @@ export const DataProvider = ({ children }) => {
   const aiRefreshInFlightRef = useRef(false)
   const aiRefreshKeyRef = useRef('')
 
+  const persistMemoryGraph = useCallback(
+    async (nextGraph, extraPersonalization = {}) => {
+      if (!user?.id) return null
+
+      const basePersonalization = profile?.personalization || profile || {}
+      const nextPersonalization = mergeMemoryGraphIntoPersonalization(
+        {
+          ...basePersonalization,
+          ...extraPersonalization
+        },
+        nextGraph
+      )
+
+      try {
+        return await updatePersonalization(nextPersonalization)
+      } catch {
+        return null
+      }
+    },
+    [profile, updatePersonalization, user?.id]
+  )
+
   const redirectToPayment = useCallback(() => {
     navigate('/payment', { replace: true })
   }, [navigate])
@@ -49,7 +77,7 @@ export const DataProvider = ({ children }) => {
       setErrors((prev) => ({ ...prev, tasks: '' }))
       try {
         const data = await getTasks(user.id, options)
-        setTasks(mergeTasksWithFocusMeta(user.id, data))
+        setTasks(mergeTasksWithFocusMeta(user.id, data, profile?.personalization || profile))
       } catch (error) {
         if (isAccessDeniedError(error)) {
           redirectToPayment()
@@ -150,8 +178,13 @@ export const DataProvider = ({ children }) => {
       if (!user?.id) throw new Error('Missing user id')
       try {
         const created = await createTask(user.id, payload)
-        const [mergedTask] = mergeTasksWithFocusMeta(user.id, [created])
+        const [mergedTask] = mergeTasksWithFocusMeta(user.id, [created], profile?.personalization || profile)
         setTasks((prev) => [mergedTask, ...prev])
+        const nextGraph = buildMemoryGraphSnapshot({
+          personalization: profile?.personalization || profile || {},
+          tasks: [mergedTask, ...tasks]
+        })
+        void persistMemoryGraph(nextGraph)
         return mergedTask
       } catch (error) {
         if (isAccessDeniedError(error)) {
@@ -171,10 +204,18 @@ export const DataProvider = ({ children }) => {
         let nextTask = updated
         setTasks((prev) => {
           const next = prev.map((task) => (task.id === updated.id ? updated : task))
-          const merged = mergeTasksWithFocusMeta(user.id, next)
+          const merged = mergeTasksWithFocusMeta(user.id, next, profile?.personalization || profile)
           nextTask = merged.find((task) => task.id === updated.id) || updated
           return merged
         })
+        const nextGraph = updateMemoryGraphFromTaskCompletion(
+          buildMemoryGraphSnapshot({
+            personalization: profile?.personalization || profile || {},
+            tasks: tasks.map((task) => (task.id === updated.id ? updated : task))
+          }),
+          updated
+        )
+        void persistMemoryGraph(nextGraph)
         return nextTask
       } catch (error) {
         if (isAccessDeniedError(error)) {
@@ -198,10 +239,18 @@ export const DataProvider = ({ children }) => {
         let nextTask = updated
         setTasks((prev) => {
           const next = prev.map((task) => (task.id === updated.id ? updated : task))
-          const merged = mergeTasksWithFocusMeta(user.id, next)
+          const merged = mergeTasksWithFocusMeta(user.id, next, profile?.personalization || profile)
           nextTask = merged.find((task) => task.id === updated.id) || updated
           return merged
         })
+        const nextGraph = updateMemoryGraphFromTaskCompletion(
+          buildMemoryGraphSnapshot({
+            personalization: profile?.personalization || profile || {},
+            tasks: tasks.map((task) => (task.id === updated.id ? updated : task))
+          }),
+          updated
+        )
+        void persistMemoryGraph(nextGraph)
         return nextTask
       } catch (error) {
         if (isAccessDeniedError(error)) {
@@ -272,6 +321,35 @@ export const DataProvider = ({ children }) => {
           }).catch(() => {
             // Optional DB columns may not exist yet. Local persistence already updated above.
           })
+
+          const taskForGraph =
+            tasks.find((task) => task.id === payload.taskId) ||
+            ({ id: payload.taskId, subject: payload.subject || 'math', title: payload.title || 'Focus session' })
+          const nextGraph = updateMemoryGraphFromStudySession(
+            buildMemoryGraphSnapshot({
+              personalization: profile?.personalization || profile || {},
+              tasks: tasks.map((task) =>
+                task.id === payload.taskId
+                  ? {
+                      ...task,
+                      totalFocusTime: meta?.totalFocusTime ?? task.totalFocusTime ?? 0,
+                      sessionsCount: meta?.sessionsCount ?? task.sessionsCount ?? 0,
+                      lastSessionAt: meta?.lastSessionAt ?? task.lastSessionAt ?? null
+                    }
+                  : task
+              )
+            }),
+            {
+              task: taskForGraph,
+              session: {
+                duration_minutes: payload.duration_minutes,
+                pauseCount: payload.pauseCount || 0,
+                interruptionCount: payload.interruptionCount || 0
+              },
+              loadState: payload.loadState || 'normal'
+            }
+          )
+          void persistMemoryGraph(nextGraph)
         }
 
         setStudySessions((prev) => [mergedSession, ...prev])

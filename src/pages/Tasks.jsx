@@ -1,11 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarDays, ChevronLeft, ChevronRight, ListTodo, Plus, Search } from 'lucide-react'
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  GraduationCap,
+  ListTodo,
+  Plus,
+  Search
+} from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { toDateKey } from '../utils/dateUtils.js'
 import { getBestTask } from '../utils/aiEngine.ts'
+import {
+  buildAutopilotPlan,
+  queueAutopilotLaunch
+} from '../utils/autopilotEngine.ts'
+import { buildExamSimulationPlan } from '../utils/examEngine.ts'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 import {
@@ -95,6 +108,7 @@ const Tasks = () => {
   const { profile } = useAuth()
   const {
     tasks,
+    studySessions,
     loading,
     errors,
     addTask,
@@ -252,6 +266,28 @@ const Tasks = () => {
     [navigate, profile]
   )
 
+  const handleStartAutopilot = useCallback(() => {
+    if (!checkTrialAndBlock(profile, navigate)) return
+
+    const plan = autopilotPlan || buildAutopilotPlan({
+      user: profile?.personalization || profile,
+      tasks: filteredTasks.length > 0 ? filteredTasks : tasks,
+      studySessions
+    })
+
+    const payload = queueAutopilotLaunch({
+      userId: profile?.id,
+      plan
+    })
+
+    navigate('/study', {
+      state: {
+        ...payload,
+        autopilot: true
+      }
+    })
+  }, [autopilotPlan, filteredTasks, navigate, profile, studySessions, tasks])
+
   const handleToggleHold = useCallback(
     async (task) => {
       if (!checkTrialAndBlock(profile, navigate)) return
@@ -317,9 +353,21 @@ const Tasks = () => {
       { id: 'view-calendar', title: 'View Calendar', group: 'Actions', run: () => setViewMode('calendar') },
       { id: 'create-task', title: 'Create Task', group: 'Actions', run: () => setShowCreatePanel(true) },
       { id: 'go-dashboard', title: 'Go to Dashboard', group: 'Navigation', run: () => navigate('/dashboard') },
-      { id: 'go-tasks', title: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') }
+      { id: 'go-tasks', title: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') },
+      {
+        id: 'exam-simulation',
+        title: 'Start Exam Simulation',
+        group: 'Actions',
+        run: () =>
+          navigate('/exam-simulation', {
+            state: {
+              ...examPlan,
+              autoStart: true
+            }
+          })
+      }
     ],
-    [navigate, resetFilters]
+    [examPlan, navigate, resetFilters]
   )
 
   const visibleCommands = useMemo(() => {
@@ -415,6 +463,27 @@ const Tasks = () => {
     const taskPool = filteredTasks.length > 0 ? filteredTasks : tasks
     return getBestTask(taskPool, profile?.personalization || profile)
   }, [filteredTasks, tasks, profile])
+
+  const autopilotPlan = useMemo(
+    () =>
+      buildAutopilotPlan({
+        user: profile?.personalization || profile,
+        tasks: filteredTasks.length > 0 ? filteredTasks : tasks,
+        studySessions
+      }),
+    [filteredTasks, profile, studySessions, tasks]
+  )
+
+  const examPlan = useMemo(
+    () =>
+      buildExamSimulationPlan(profile?.personalization || profile, filteredTasks.length > 0 ? filteredTasks : tasks, {
+        studySessions,
+        subject: 'auto',
+        durationMinutes: null,
+        difficulty: 'auto'
+      }),
+    [filteredTasks, profile, studySessions, tasks]
+  )
 
   const recommendedTaskId = recommendedTask?.id || null
 
@@ -1075,6 +1144,68 @@ const Tasks = () => {
               className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
             >
               Start Focus
+            </motion.button>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'list' && autopilotPlan && !loading.tasks && (
+        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-purple-400/20 bg-gradient-to-r from-purple-500/12 via-blue-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(139,92,246,0.08)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-purple-200/75">
+                Focus Autopilot
+              </p>
+              <p className="mt-1 truncate text-lg font-semibold text-white">
+                {autopilotPlan.active
+                  ? `Start: ${autopilotPlan.title}`
+                  : 'Free focus session'}
+              </p>
+              <p className="mt-1 text-sm text-white/65">
+                {autopilotPlan.reason}
+              </p>
+            </div>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleStartAutopilot}
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.28)]"
+            >
+              Start Autopilot
+            </motion.button>
+          </div>
+        </div>
+      )}
+
+      {viewMode === 'list' && examPlan && !loading.tasks && (
+        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/12 via-blue-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(34,211,238,0.08)]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/75">
+                Exam Simulation
+              </p>
+              <p className="mt-1 truncate text-lg font-semibold text-white">
+                {examPlan.subjectLabel} ? {examPlan.durationMinutes} min
+              </p>
+              <p className="mt-1 text-sm text-white/65">{examPlan.reason}</p>
+            </div>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() =>
+                navigate('/exam-simulation', {
+                  state: {
+                    ...examPlan,
+                    autoStart: true
+                  }
+                })
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
+            >
+              <GraduationCap className="h-4 w-4" />
+              Start Exam Simulation
             </motion.button>
           </div>
         </div>

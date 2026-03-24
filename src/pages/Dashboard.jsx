@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, GraduationCap } from 'lucide-react'
 import Countdown from '../components/Countdown.jsx'
 import DashboardCards from '../components/DashboardCards.jsx'
 import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
@@ -25,6 +25,12 @@ import {
   isOverdueTask
 } from '../utils/taskStats.js'
 import GlassCard from '../components/GlassCard.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
+import {
+  buildAutopilotPlan,
+  queueAutopilotLaunch
+} from '../utils/autopilotEngine.ts'
+import { buildExamSimulationPlan } from '../utils/examEngine.ts'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -36,6 +42,7 @@ const getTodayKey = () => toDateKey(new Date())
 
 const Dashboard = () => {
   const { tasks, studySessions, loading, errors } = useData()
+  const { profile } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [showOnboardingToast, setShowOnboardingToast] = useState(false)
@@ -104,12 +111,56 @@ const Dashboard = () => {
     return { completedToday, pending, overdue }
   }, [tasks])
 
+  const autopilotPlan = useMemo(
+    () =>
+      buildAutopilotPlan({
+        user: profile?.personalization || profile,
+        tasks,
+        studySessions
+      }),
+    [profile, studySessions, tasks]
+  )
+
+  const examPlan = useMemo(
+    () =>
+      buildExamSimulationPlan(profile?.personalization || profile, tasks, {
+        studySessions,
+        subject: 'auto',
+        durationMinutes: null,
+        difficulty: 'auto'
+      }),
+    [profile, studySessions, tasks]
+  )
+
   const dailyStudyData = useMemo(
     () => getDailyStudyData(studySessions),
     [studySessions]
   )
 
   const subjectFocusData = useMemo(() => getSubjectFocus(tasks), [tasks])
+
+  const handleStartAutopilot = () => {
+    const payload = queueAutopilotLaunch({
+      userId: profile?.id,
+      plan: autopilotPlan
+    })
+
+    navigate('/study', {
+      state: {
+        ...payload,
+        autopilot: true
+      }
+    })
+  }
+
+  const handleStartExamSimulation = () => {
+    navigate('/exam-simulation', {
+      state: {
+        ...examPlan,
+        autoStart: true
+      }
+    })
+  }
 
   const quickInsights = useMemo(() => {
     const labels = dailyStudyData.labels || []
@@ -194,6 +245,57 @@ const Dashboard = () => {
         pending={taskSummary.pending}
         overdue={taskSummary.overdue}
       />
+
+      <GlassCard className="p-4 md:p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.24em] text-purple-200/75">
+              Focus Autopilot
+            </p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {autopilotPlan.active
+                ? `Autopilot will start ${autopilotPlan.title}`
+                : 'No task ready, start a free focus block'}
+            </p>
+            <p className="mt-1 text-sm text-white/65">{autopilotPlan.reason}</p>
+          </div>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleStartAutopilot}
+            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-cyan-400 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.28)]"
+          >
+            Start Autopilot
+          </motion.button>
+        </div>
+      </GlassCard>
+
+      {examPlan && !loading.tasks && (
+        <GlassCard className="p-4 md:p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/75">
+                Exam Simulation
+              </p>
+              <p className="mt-1 text-lg font-semibold text-white">
+                {examPlan.subjectLabel} • {examPlan.durationMinutes} min
+              </p>
+              <p className="mt-1 text-sm text-white/65">{examPlan.reason}</p>
+            </div>
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={handleStartExamSimulation}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
+            >
+              <GraduationCap className="h-4 w-4" />
+              Start Exam Simulation
+            </motion.button>
+          </div>
+        </GlassCard>
+      )}
 
       {(errors.tasks || errors.sessions) && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]">

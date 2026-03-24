@@ -87,6 +87,10 @@ const useStudyTimer = () => {
     [clearTimer, mode]
   )
 
+  const adjustPomodoroMinutes = useCallback((minutes) => {
+    setPomodoroMinutesState(minutes)
+  }, [])
+
   const start = useCallback(() => {
     if (isRunning) return
     if (phase === 'completed') {
@@ -385,6 +389,7 @@ const useStudyTimer = () => {
     setMode,
     pomodoroMinutes,
     setPomodoroMinutes,
+    adjustPomodoroMinutes,
     breakMinutes,
     phase,
     isRunning,

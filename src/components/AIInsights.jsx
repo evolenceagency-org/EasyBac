@@ -10,6 +10,7 @@ import {
   getTodayDateKey,
   mergeAIInsight
 } from '../utils/aiInsights.js'
+import { getMemoryGraphSummary } from '../utils/memoryGraph.ts'
 
 const containerVariants = {
   hidden: { opacity: 0, y: 20 },
@@ -89,6 +90,10 @@ const AIInsights = ({ studySessions = [], tasks = [], streak = { current: 0, lon
   const fallbackInsight = useMemo(
     () => analyzeUserData({ studySessions, tasks, streak, profile }),
     [studySessions, tasks, streak, profile]
+  )
+  const memoryGraphSummary = useMemo(
+    () => getMemoryGraphSummary(profile?.personalization?.memoryGraph || {}),
+    [profile?.personalization?.memoryGraph]
   )
 
   useEffect(() => {
@@ -233,6 +238,24 @@ const AIInsights = ({ studySessions = [], tasks = [], streak = { current: 0, lon
             icon={Wrench}
             title="Specific Corrections"
             items={activeInsight.specificCorrections || []}
+          />
+          <InsightList
+            icon={Brain}
+            title="Memory Graph"
+            items={[
+              memoryGraphSummary.weakest
+                ? `Weakest: ${memoryGraphSummary.weakest.label} (${memoryGraphSummary.weakest.mastery}/100)`
+                : 'Weakest: not enough data yet',
+              memoryGraphSummary.strongest
+                ? `Strongest: ${memoryGraphSummary.strongest.label} (${memoryGraphSummary.strongest.mastery}/100)`
+                : 'Strongest: not enough data yet',
+              memoryGraphSummary.subjectStrengths[0]
+                ? `Top subject: ${memoryGraphSummary.subjectStrengths[0].subject}`
+                : 'Top subject: not enough data yet',
+              memoryGraphSummary.weakest
+                ? `Reinforce ${memoryGraphSummary.weakest.subtopic}`
+                : 'Complete a few sessions to build the concept map'
+            ]}
           />
         </motion.div>
       </div>

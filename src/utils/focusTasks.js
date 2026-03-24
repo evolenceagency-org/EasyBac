@@ -1,3 +1,9 @@
+import {
+  buildMemoryGraphSnapshot,
+  getTaskMemoryProfile,
+  inferConceptPathFromTask
+} from './memoryGraph.ts'
+
 const ACTIVE_TASK_PREFIX = 'active-focus-task'
 const TASK_META_PREFIX = 'task-focus-meta'
 const SESSION_LINK_PREFIX = 'task-session-links'
@@ -71,8 +77,9 @@ export const getSessionTaskLinks = (userId) => {
   return readJson(getSessionLinksKey(userId), {})
 }
 
-export const mergeTasksWithFocusMeta = (userId, tasks = []) => {
+export const mergeTasksWithFocusMeta = (userId, tasks = [], profile = null) => {
   const metaMap = getTaskFocusMetaMap(userId)
+  const memoryGraph = buildMemoryGraphSnapshot({ personalization: profile || {}, tasks })
 
   return tasks.map((task) => {
     const meta = metaMap[task.id] || {}
@@ -83,12 +90,19 @@ export const mergeTasksWithFocusMeta = (userId, tasks = []) => {
       task.sessions_count ?? task.sessionsCount ?? meta.sessionsCount ?? 0
     )
     const lastSessionAt = task.last_session_at ?? task.lastSessionAt ?? meta.lastSessionAt ?? null
+    const concept = getTaskMemoryProfile(task, profile || {}, memoryGraph)
 
     return {
       ...task,
       totalFocusTime,
       sessionsCount,
-      lastSessionAt
+      lastSessionAt,
+      topic: task.topic || concept.topic,
+      subtopic: task.subtopic || concept.subtopic,
+      conceptLabel: concept.label,
+      conceptMastery: concept.mastery,
+      conceptConfidence: concept.confidence,
+      conceptPath: concept
     }
   })
 }
@@ -151,6 +165,7 @@ export const getSuggestedFocusTask = (tasks = [], profile = null) => {
     String(item).trim().toLowerCase()
   )
   const todayKey = new Date().toISOString().slice(0, 10)
+  const memoryGraph = buildMemoryGraphSnapshot({ personalization: profile || {}, tasks: pendingTasks })
 
   const rankedTasks = [...pendingTasks].sort((a, b) => {
     const getScore = (task) => {
@@ -158,6 +173,7 @@ export const getSuggestedFocusTask = (tasks = [], profile = null) => {
       const subject = String(task.subject || '').trim().toLowerCase()
       const focusMinutes = normalizeMinutes(task.total_focus_time ?? task.totalFocusTime ?? 0)
       const sessionsCount = normalizeMinutes(task.sessions_count ?? task.sessionsCount ?? 0)
+      const concept = getTaskMemoryProfile(task, profile || {}, memoryGraph)
 
       if (task.due_date && task.due_date < todayKey) {
         score += 500
@@ -168,6 +184,10 @@ export const getSuggestedFocusTask = (tasks = [], profile = null) => {
       }
 
       if (weakSubjects.includes(subject)) score += 120
+      if (concept.mastery <= 30) score += 140
+      else if (concept.mastery <= 45) score += 90
+      else if (concept.mastery <= 60) score += 40
+      else if (concept.mastery >= 80) score -= 30
       if (focusMinutes === 0) score += 90
       else score += Math.max(0, 75 - focusMinutes)
       if (sessionsCount === 0) score += 24
