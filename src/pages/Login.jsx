@@ -9,9 +9,13 @@ import {
   validateEmail,
   validatePassword
 } from '../utils/authValidation.js'
+import {
+  ensureValidRoute,
+  persistPendingVerificationEmail
+} from '../utils/authFlow.js'
 
 const Login = () => {
-  const { signIn, user } = useAuth()
+  const { signIn, user, profile, initialized } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -42,10 +46,12 @@ const Login = () => {
   )
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard', { replace: true })
+    if (!initialized || !user) return
+    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/login' })
+    if (safeRoute) {
+      navigate(safeRoute, { replace: true })
     }
-  }, [user, navigate])
+  }, [initialized, navigate, profile, user])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -69,13 +75,28 @@ const Login = () => {
       }
       setSuccess('Welcome back.')
     } catch (authError) {
-      setError(getAuthErrorMessage(authError))
+      const friendlyError = getAuthErrorMessage(authError)
+      setError(friendlyError)
+      if (friendlyError === 'Please verify your email before logging in') {
+        persistPendingVerificationEmail(email.trim().toLowerCase())
+        navigate('/verify-code', {
+          replace: true,
+          state: { email: email.trim().toLowerCase() }
+        })
+      }
       return
     } finally {
       setLoading(false)
     }
 
-    const redirectTo = location.state?.from?.pathname || '/dashboard'
+    const redirectTo =
+      ensureValidRoute({
+        user,
+        profile,
+        currentPath: location.state?.from?.pathname || '/login'
+      }) ||
+      location.state?.from?.pathname ||
+      '/dashboard'
     navigate(redirectTo, { replace: true })
   }
 

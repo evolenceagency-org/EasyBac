@@ -10,9 +10,10 @@ import {
   validateEmail,
   validatePassword
 } from '../utils/authValidation.js'
+import { ensureValidRoute } from '../utils/authFlow.js'
 
 const Register = () => {
-  const { signUp, user } = useAuth()
+  const { signUp, user, profile, initialized } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -42,10 +43,12 @@ const Register = () => {
   )
 
   useEffect(() => {
-    if (user) {
-      navigate('/dashboard', { replace: true })
+    if (!initialized || !user) return
+    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/register' })
+    if (safeRoute) {
+      navigate(safeRoute, { replace: true })
     }
-  }, [user, navigate])
+  }, [initialized, navigate, profile, user])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -69,10 +72,11 @@ const Register = () => {
       }
 
       if (!data?.session) {
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('pendingEmail', email.trim())
-        }
-        navigate('/verify', { replace: true })
+        setSuccess('We sent a verification code to your email.')
+        navigate('/verify-code', {
+          replace: true,
+          state: { email: email.trim().toLowerCase() }
+        })
         return
       }
 

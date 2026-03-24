@@ -1,17 +1,28 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { MailCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
+import { ensureValidRoute } from '../utils/authFlow.js'
 
 const Verified = () => {
   const navigate = useNavigate()
-  const { user, initialized } = useAuth()
+  const { user, profile, initialized } = useAuth()
+
+  useEffect(() => {
+    if (!initialized || !user) return
+    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/verified' })
+    if (safeRoute) {
+      navigate(safeRoute, { replace: true })
+    }
+  }, [initialized, navigate, profile, user])
 
   const helperText = useMemo(() => {
     if (!initialized) return 'Verifying your session...'
-    if (!user) return 'Your email is verified. Continue to finish setup.'
-    return 'Your email has been successfully verified.'
+    if (!user) {
+      return 'If you just confirmed from an old email link, continue to the code screen and finish your setup there.'
+    }
+    return 'Your email has been successfully verified. Continue to finish setup.'
   }, [initialized, user])
 
   return (
@@ -35,10 +46,10 @@ const Verified = () => {
 
         <button
           type="button"
-          onClick={() => navigate('/choose-plan', { replace: true })}
+          onClick={() => navigate(user ? '/choose-plan' : '/verify-code', { replace: true })}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.45)] transition-all duration-300 hover:shadow-[0_0_32px_rgba(34,211,238,0.5)]"
         >
-          Continue
+          {user ? 'Continue' : 'Enter verification code'}
         </button>
       </motion.div>
     </div>

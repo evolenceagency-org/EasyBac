@@ -1,5 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, supabaseConfigError } from '../lib/supabaseClient.js'
+import {
+  clearPendingVerificationEmail,
+  isEmailVerified,
+  persistPendingVerificationEmail
+} from '../utils/authFlow.js'
 
 let sessionPromise = null
 let exchangePromise = null
@@ -97,7 +102,8 @@ export const AuthProvider = ({ children }) => {
             email: authUser.email,
             subscription_status: 'free',
             trial_start: null,
-            payment_verified: false
+            payment_verified: false,
+            personalization: null
           })
           .select()
           .single()
@@ -207,15 +213,13 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = async (email, password) => {
     setLoading(true)
-    const options = {}
-    if (typeof window !== 'undefined') {
-      options.emailRedirectTo = `${window.location.origin}/verified`
-    }
     const { data, error } = await supabase.auth.signUp({
       email,
-      password,
-      options
+      password
     })
+    if (!error && !data?.session) {
+      persistPendingVerificationEmail(email)
+    }
     setLoading(false)
     return { data, error }
   }
@@ -236,31 +240,107 @@ export const AuthProvider = ({ children }) => {
     setSession(null)
     setUser(null)
     resetProfileState()
+    clearPendingVerificationEmail()
     setLoading(false)
     return { error }
   }
 
-  const startFreeTrial = async () => {
+  const refreshAuthState = async () => {
+    if (supabaseConfigError || !supabase) {
+      return { session: null, user: null }
+    }
+
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+
+    const nextSession = data?.session ?? null
+    setSession(nextSession)
+    setUser(nextSession?.user ?? null)
+
+    if (nextSession?.user) {
+      profileLoadedRef.current = false
+      await fetchProfile(nextSession.user)
+    } else {
+      resetProfileState()
+    }
+
+    return {
+      session: nextSession,
+      user: nextSession?.user ?? null
+    }
+  }
+
+  const sendVerificationCode = async (email) => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const normalizedEmail = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: normalizedEmail
+    })
+
+    if (error) throw error
+    persistPendingVerificationEmail(normalizedEmail)
+    return data
+  }
+
+  const verifyCode = async (email, code) => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+    const normalizedEmail = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: code.trim(),
+      type: 'signup'
+    })
+
+    if (error) throw error
+
+    const verifiedUser = data?.user || data?.session?.user || null
+    if (verifiedUser) {
+      setSession(data?.session ?? null)
+      setUser(verifiedUser)
+      profileLoadedRef.current = false
+      await fetchProfile(verifiedUser)
+    } else {
+      await refreshAuthState()
+    }
+
+    clearPendingVerificationEmail()
+    return data
+  }
+
+  const selectPlan = async (plan) => {
     if (!user?.id) {
       throw new Error('Missing user id')
     }
-    if (profile?.trial_start) {
+
+    if (plan === 'trial') {
+      const payload = {
+        id: user.id,
+        email: user.email,
+        subscription_status: 'trial',
+        trial_start: profile?.trial_start || new Date().toISOString(),
+        payment_verified: false,
+        personalization: profile?.personalization ?? null,
+        daily_insight: profile?.daily_insight ?? null,
+        last_insight_date: profile?.last_insight_date ?? null
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' })
+        .select()
+        .single()
+
+      if (error) throw error
+      setProfile(data)
+      return data
+    }
+
+    if (plan === 'premium') {
       return profile
     }
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({
-        subscription_status: 'free_trial',
-        trial_start: new Date().toISOString(),
-        payment_verified: false
-      })
-      .eq('id', user.id)
-      .select()
-      .single()
 
-    if (error) throw error
-    setProfile(data)
-    return data
+    throw new Error('Invalid plan')
   }
 
   const updatePersonalization = async (personalization) => {
@@ -270,8 +350,19 @@ export const AuthProvider = ({ children }) => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .update({ personalization })
-      .eq('id', user.id)
+      .upsert(
+        {
+          id: user.id,
+          email: user.email,
+          subscription_status: profile?.subscription_status || 'free',
+          trial_start: profile?.trial_start || null,
+          payment_verified: profile?.payment_verified || false,
+          personalization,
+          daily_insight: profile?.daily_insight ?? null,
+          last_insight_date: profile?.last_insight_date ?? null
+        },
+        { onConflict: 'id' }
+      )
       .select()
       .single()
 
@@ -287,17 +378,32 @@ export const AuthProvider = ({ children }) => {
 
     const { data, error } = await supabase
       .from('profiles')
-      .update({
-        last_insight_date: insightDate,
-        daily_insight: insightPayload
-      })
-      .eq('id', user.id)
+      .upsert(
+        {
+          id: user.id,
+          email: user.email,
+          subscription_status: profile?.subscription_status || 'free',
+          trial_start: profile?.trial_start || null,
+          payment_verified: profile?.payment_verified || false,
+          personalization: profile?.personalization ?? null,
+          last_insight_date: insightDate,
+          daily_insight: insightPayload
+        },
+        { onConflict: 'id' }
+      )
       .select()
       .single()
 
     if (error) throw error
     setProfile(data)
     return data
+  }
+
+  const startFreeTrial = async () => {
+    if (profile?.trial_start && profile?.subscription_status === 'trial') {
+      return profile
+    }
+    return selectPlan('trial')
   }
 
   const value = useMemo(
@@ -309,9 +415,14 @@ export const AuthProvider = ({ children }) => {
       profileLoading,
       loading,
       initialized,
+      isEmailVerified: isEmailVerified(user),
       startFreeTrial,
+      selectPlan,
       updatePersonalization,
       saveDailyInsight,
+      sendVerificationCode,
+      verifyCode,
+      refreshAuthState,
       signUp,
       signIn,
       signOut

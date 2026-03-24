@@ -57,7 +57,7 @@ with check (
     )
     or (
       (select p.trial_start is null from public.profiles p where p.id = auth.uid())
-      and subscription_status = 'free_trial'
+      and subscription_status = 'trial'
       and trial_start is not null
     )
   )

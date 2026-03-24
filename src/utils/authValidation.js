@@ -43,6 +43,18 @@ export const getAuthErrorMessage = (error) => {
     return 'Please verify your email before logging in'
   }
 
+  if (msg.includes('Token has expired') || msg.includes('expired')) {
+    return 'This code expired. Request a new one.'
+  }
+
+  if (msg.includes('Token is invalid') || msg.includes('invalid token')) {
+    return 'Invalid code. Please check the 6-digit code and try again.'
+  }
+
+  if (msg.includes('rate limit') || msg.includes('too many requests')) {
+    return 'Too many attempts. Please wait a moment and try again.'
+  }
+
   return 'Something went wrong. Please try again'
 }
 

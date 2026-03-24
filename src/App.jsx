@@ -16,6 +16,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import useAppAnalytics from './hooks/useAppAnalytics.js'
 import { supabaseConfigError } from './lib/supabaseClient.js'
+import { ensureValidRoute } from './utils/authFlow.js'
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Study = lazy(() => import('./pages/Study.jsx'))
@@ -35,14 +36,15 @@ const LoadingScreen = () => (
 )
 
 const AuthRedirect = ({ children }) => {
-  const { user, initialized } = useAuth()
+  const { user, profile, initialized } = useAuth()
 
   if (!initialized) {
     return <LoadingScreen />
   }
 
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    const safeRoute = ensureValidRoute({ user, profile })
+    return <Navigate to={safeRoute || '/dashboard'} replace />
   }
 
   return children
@@ -91,7 +93,8 @@ function App() {
               </AuthRedirect>
             }
           />
-          <Route path="/verify" element={<Verify />} />
+          <Route path="/verify" element={<Navigate to="/verify-code" replace />} />
+          <Route path="/verify-code" element={<Verify />} />
           <Route path="/verified" element={<Verified />} />
           <Route path="/choose-plan" element={<ChoosePlan />} />
           <Route path="/payment" element={<Payment />} />

@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isSubscriptionActive, normalizeSubscriptionStatus } from '../utils/subscription.js'
 import { isPersonalized } from '../utils/personalization.js'
+import { isEmailVerified } from '../utils/authFlow.js'
 
 const ProtectedRoute = () => {
   const { user, session, loading, profile, profileLoading, initialized } = useAuth()
@@ -16,8 +17,16 @@ const ProtectedRoute = () => {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (profileLoading || !profile) {
+  if (!isEmailVerified(authUser)) {
+    return <Navigate to="/verify-code" replace state={{ email: authUser.email }} />
+  }
+
+  if (profileLoading) {
     return null
+  }
+
+  if (!profile) {
+    return <Navigate to="/choose-plan" replace />
   }
 
   const planStatus = normalizeSubscriptionStatus(profile.subscription_status)

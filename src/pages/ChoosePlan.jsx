@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
+import { ensureValidRoute, isEmailVerified } from '../utils/authFlow.js'
+import { normalizeSubscriptionStatus } from '../utils/subscription.js'
 
 const freeFeatures = ['Basic tracking', 'Limited sessions', 'Pomodoro timer']
 const premiumFeatures = [
@@ -14,22 +16,63 @@ const premiumFeatures = [
 ]
 
 const ChoosePlan = () => {
-  const { startFreeTrial, initialized, loading } = useAuth()
+  const { user, profile, initialized, loading, selectPlan } = useAuth()
   const navigate = useNavigate()
   const [loadingPlan, setLoadingPlan] = useState('')
   const [actionError, setActionError] = useState('')
 
-  const canStartTrial = initialized && !loading
+  const planStatus = normalizeSubscriptionStatus(profile?.subscription_status)
+  const canSelectPlan = initialized && !loading && Boolean(user)
+
+  useEffect(() => {
+    if (!initialized) return
+
+    if (!user) {
+      navigate('/login', { replace: true })
+      return
+    }
+
+    if (!isEmailVerified(user)) {
+      navigate('/verify-code', { replace: true, state: { email: user.email } })
+      return
+    }
+
+    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/choose-plan' })
+    if (safeRoute && safeRoute !== '/choose-plan' && planStatus !== 'free') {
+      navigate(safeRoute, { replace: true })
+    }
+  }, [initialized, navigate, planStatus, profile, user])
 
   const handleFreeTrial = async () => {
     setActionError('')
-    if (!canStartTrial) return
+    if (!canSelectPlan) {
+      setActionError('Please log in first.')
+      return
+    }
     try {
       setLoadingPlan('free')
-      await startFreeTrial()
+      await selectPlan('trial')
       navigate('/dashboard', { replace: true })
     } catch {
-      setActionError('Unable to start trial. Please try again.')
+      setActionError('Unable to start your trial right now. Please try again.')
+    } finally {
+      setLoadingPlan('')
+    }
+  }
+
+  const handleSkipForNow = async () => {
+    setActionError('')
+    if (!canSelectPlan) {
+      setActionError('Please log in first.')
+      return
+    }
+
+    try {
+      setLoadingPlan('skip')
+      await selectPlan('trial')
+      navigate('/dashboard', { replace: true })
+    } catch {
+      setActionError('We could not continue yet. Try again in a moment.')
     } finally {
       setLoadingPlan('')
     }
@@ -51,7 +94,7 @@ const ChoosePlan = () => {
               Choose your plan to continue
             </h1>
             <p className="mt-3 text-sm text-white/70 md:text-base">
-              Select the plan that fits your Bac journey. You must choose one to proceed.
+              Pick how you want to continue. You can start your free trial now or go premium when you are ready.
             </p>
             <span className="mt-5 block h-[2px] w-40 bg-gradient-to-r from-purple-500 to-blue-500" />
           </div>
@@ -75,12 +118,12 @@ const ChoosePlan = () => {
               <button
                 type="button"
                 onClick={handleFreeTrial}
-                disabled={loadingPlan === 'free' || !canStartTrial}
+                disabled={loadingPlan === 'free' || loadingPlan === 'skip' || !canSelectPlan}
                 className="mt-6 w-full rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loadingPlan === 'free'
                   ? 'Starting...'
-                  : !canStartTrial
+                  : !canSelectPlan
                     ? 'Setting up...'
                     : 'Start Free Trial'}
               </button>
@@ -113,7 +156,8 @@ const ChoosePlan = () => {
               <button
                 type="button"
                 onClick={() => navigate('/payment')}
-                className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)]"
+                disabled={!canSelectPlan}
+                className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Start with Premium
               </button>
@@ -125,6 +169,26 @@ const ChoosePlan = () => {
               {actionError}
             </div>
           )}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <button
+              type="button"
+              onClick={() => navigate('/login', { replace: true })}
+              className="inline-flex items-center gap-2 text-sm text-white/65 transition hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to login
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSkipForNow}
+              disabled={loadingPlan === 'free' || loadingPlan === 'skip' || !canSelectPlan}
+              className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-white/85 transition-all duration-300 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loadingPlan === 'skip' ? 'Continuing...' : 'Skip for now'}
+            </button>
+          </div>
         </motion.div>
       </div>
     </div>

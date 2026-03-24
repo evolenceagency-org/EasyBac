@@ -150,6 +150,84 @@ const getTaskFocusMinutes = (task) =>
 const getTaskSessionsCount = (task) =>
   Number(task?.sessions_count ?? task?.sessionsCount ?? 0) || 0
 
+const TIME_WINDOWS = [
+  { id: 'morning', label: '07:00–10:00', start: 7, end: 10 },
+  { id: 'midday', label: '10:00–14:00', start: 10, end: 14 },
+  { id: 'afternoon', label: '14:00–18:00', start: 14, end: 18 },
+  { id: 'evening', label: '18:00–21:00', start: 18, end: 21 },
+  { id: 'night', label: '21:00–23:00', start: 21, end: 23 }
+]
+
+const getSessionMinutes = (session) =>
+  Number(session?.duration_minutes ?? session?.durationMinutes ?? 0) || 0
+
+const getSessionTimestampMs = (session) => {
+  return (
+    toTimeMs(
+      session?.endedAt ||
+        session?.ended_at ||
+        session?.startedAt ||
+        session?.started_at ||
+        session?.created_at ||
+        session?.updated_at
+    ) ||
+    toTimeMs(session?.date)
+  )
+}
+
+const getSessionTimeAnchorMs = (session) =>
+  toTimeMs(
+    session?.endedAt ||
+      session?.ended_at ||
+      session?.startedAt ||
+      session?.started_at ||
+      session?.created_at ||
+      session?.updated_at
+  )
+
+const getWindowForHour = (hour) => {
+  const window = TIME_WINDOWS.find((item) => hour >= item.start && hour < item.end)
+  return window || TIME_WINDOWS[TIME_WINDOWS.length - 1]
+}
+
+const average = (values = []) => {
+  if (!values.length) return 0
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+const weightedAverage = (values = []) => {
+  if (!values.length) return 0
+  let numerator = 0
+  let denominator = 0
+  values.forEach((value, index) => {
+    const weight = values.length - index
+    numerator += value * weight
+    denominator += weight
+  })
+  return denominator > 0 ? numerator / denominator : 0
+}
+
+const getProfileBaseFocusMinutes = (profile) => {
+  let base =
+    profile.level === 'Good' ? 44 : profile.level === 'Struggling' ? 28 : 36
+
+  if (profile.studyHours === '4h+') base += 6
+  if (profile.studyHours === 'Less than 2h') base -= 5
+  if ((profile.focusIssues || []).length >= 2) base -= 4
+
+  return clamp(Math.round(base), 20, 60)
+}
+
+const getTaskSubjectKey = (task) => String(task?.subject || '').trim().toLowerCase()
+
+const getSubjectLabel = (subject) => {
+  if (!subject) return 'General'
+  return String(subject)
+    .split(/[_-]/g)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
 export const getBestTask = (tasks = [], user = null, now = new Date()) => {
   const profile = normalizeUserProfile(user)
   const weakSubjects = new Set(
@@ -256,9 +334,344 @@ const buildMetrics = (user, appData = {}, now = new Date()) => {
   }
 }
 
+const buildPerformanceModel = (context) => {
+  const tasksById = new Map(context.tasks.map((task) => [task.id, task]))
+  const sessions = context.studySessions
+    .map((session) => {
+      const minutes = getSessionMinutes(session)
+      const timestampMs = getSessionTimestampMs(session)
+      if (!minutes || !timestampMs) return null
+      return {
+        ...session,
+        minutes,
+        timestampMs,
+        timeAnchorMs: getSessionTimeAnchorMs(session),
+        hour: new Date(timestampMs).getHours(),
+        dayKey: new Date(timestampMs).toISOString().slice(0, 10)
+      }
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.timestampMs - a.timestampMs)
+
+  const recentDurations = sessions.slice(0, 12).map((session) => session.minutes)
+  const windowStats = Object.fromEntries(
+    TIME_WINDOWS.map((window) => [
+      window.id,
+      { ...window, sessions: 0, totalMinutes: 0, avgMinutes: 0, score: 0 }
+    ])
+  )
+  const subjectStats = {}
+  const breakSamples = []
+
+  const sortedAscending = [...sessions].sort((a, b) => a.timestampMs - b.timestampMs)
+  for (let index = 1; index < sortedAscending.length; index += 1) {
+    const prev = sortedAscending[index - 1]
+    const current = sortedAscending[index]
+    if (prev.dayKey !== current.dayKey) continue
+    const gapMinutes = Math.round((current.timestampMs - prev.timestampMs) / (60 * 1000)) - prev.minutes
+    if (gapMinutes >= 3 && gapMinutes <= 90) {
+      breakSamples.push(gapMinutes)
+    }
+  }
+
+  sessions.forEach((session) => {
+    if (!session.timeAnchorMs) return
+    const window = getWindowForHour(session.hour)
+    const bucket = windowStats[window.id]
+    bucket.sessions += 1
+    bucket.totalMinutes += session.minutes
+    bucket.avgMinutes = bucket.totalMinutes / bucket.sessions
+    bucket.score = bucket.totalMinutes + bucket.sessions * 8
+
+    const task = tasksById.get(session.taskId)
+    const subjectKey = getTaskSubjectKey(task)
+    if (!subjectKey) return
+
+    if (!subjectStats[subjectKey]) {
+      subjectStats[subjectKey] = {
+        subject: getSubjectLabel(task.subject),
+        totalMinutes: 0,
+        sessions: 0,
+        completedTasks: 0,
+        pendingTasks: 0,
+        overdueTasks: 0,
+        bestWindow: window.label,
+        bestWindowScore: 0
+      }
+    }
+
+    const stat = subjectStats[subjectKey]
+    stat.totalMinutes += session.minutes
+    stat.sessions += 1
+    if (bucket.score > stat.bestWindowScore) {
+      stat.bestWindow = window.label
+      stat.bestWindowScore = bucket.score
+    }
+  })
+
+  context.tasks.forEach((task) => {
+    const subjectKey = getTaskSubjectKey(task)
+    if (!subjectKey) return
+    if (!subjectStats[subjectKey]) {
+      subjectStats[subjectKey] = {
+        subject: getSubjectLabel(task.subject),
+        totalMinutes: 0,
+        sessions: 0,
+        completedTasks: 0,
+        pendingTasks: 0,
+        overdueTasks: 0,
+        bestWindow: null,
+        bestWindowScore: 0
+      }
+    }
+
+    const stat = subjectStats[subjectKey]
+    if (task.completed === true || task.status === 'completed') stat.completedTasks += 1
+    else stat.pendingTasks += 1
+
+    const dueMs = getTaskDueMs(task)
+    if (
+      dueMs !== null &&
+      dueMs < new Date(context.todayKey).getTime() &&
+      task.completed !== true &&
+      task.status !== 'completed' &&
+      task.status !== 'on_hold'
+    ) {
+      stat.overdueTasks += 1
+    }
+  })
+
+  const bestWindowCandidates = Object.values(windowStats).sort((a, b) => b.score - a.score)
+  const bestWindow =
+    bestWindowCandidates[0]?.score > 0 ? bestWindowCandidates[0] : TIME_WINDOWS[3]
+
+  return {
+    sessions,
+    recentDurations,
+    averageFocusMinutes: average(recentDurations),
+    weightedFocusMinutes: weightedAverage(recentDurations),
+    averageBreakMinutes: average(breakSamples),
+    bestWindow,
+    windowStats,
+    subjectStats: Object.values(subjectStats).sort(
+      (a, b) => b.totalMinutes + b.completedTasks * 20 - (a.totalMinutes + a.completedTasks * 20)
+    ),
+    sessionSuccessRate:
+      sessions.length > 0
+        ? sessions.filter((session) => session.minutes >= 25).length / sessions.length
+        : 0
+  }
+}
+
+export const predictFocusDuration = (user, appData = {}) => {
+  const context = buildMetrics(user, appData, appData.now || new Date())
+  const model = buildPerformanceModel(context)
+  const baseMinutes = getProfileBaseFocusMinutes(context.profile)
+  const predictedMinutes =
+    model.recentDurations.length >= 3
+      ? clamp(
+          Math.round(model.weightedFocusMinutes * 0.78 + baseMinutes * 0.22),
+          20,
+          75
+        )
+      : baseMinutes
+
+  return {
+    minutes: predictedMinutes,
+    label: `${predictedMinutes} min`,
+    confidence: model.recentDurations.length >= 6 ? 'high' : model.recentDurations.length >= 3 ? 'medium' : 'low'
+  }
+}
+
+export const predictDropPoint = (user, appData = {}) => {
+  const context = buildMetrics(user, appData, appData.now || new Date())
+  const model = buildPerformanceModel(context)
+  const baseMinutes = getProfileBaseFocusMinutes(context.profile) + 6
+  const dropPoint =
+    model.recentDurations.length >= 3
+      ? clamp(Math.round(model.weightedFocusMinutes), 24, 90)
+      : clamp(baseMinutes, 24, 70)
+
+  return {
+    minutes: dropPoint,
+    label: `${dropPoint} min`,
+    reason:
+      model.recentDurations.length >= 3
+        ? `User focus tends to slow after about ${dropPoint} minutes.`
+        : `No strong history yet. Using a conservative drop point of ${dropPoint} minutes.`
+  }
+}
+
+export const predictBestStudyTime = (user, appData = {}) => {
+  const context = buildMetrics(user, appData, appData.now || new Date())
+  const model = buildPerformanceModel(context)
+  const weakSubjectKey = String(context.profile.weakSubjects?.[0] || '').trim().toLowerCase()
+  const weakSubjectWindow = model.subjectStats.find(
+    (subject) => String(subject.subject).trim().toLowerCase() === weakSubjectKey
+  )?.bestWindow
+
+  const bestWindowLabel = weakSubjectWindow || model.bestWindow.label || '18:00–21:00'
+  return {
+    window: bestWindowLabel,
+    subjectHint: weakSubjectWindow ? getSubjectLabel(context.profile.weakSubjects[0]) : null,
+    reason:
+      weakSubjectWindow && context.profile.weakSubjects?.length
+        ? `${getSubjectLabel(context.profile.weakSubjects[0])} performs best around ${bestWindowLabel}.`
+        : `Best performance window is ${bestWindowLabel}.`
+  }
+}
+
+export const getOptimalSessionLength = (user, appData = {}) => {
+  const context = buildMetrics(user, appData, appData.now || new Date())
+  const dropPoint = predictDropPoint(user, appData).minutes
+  const model = buildPerformanceModel(context)
+
+  let buffer = context.profile.level === 'Struggling' ? 10 : context.profile.level === 'Good' ? 5 : 7
+  if (context.lastActivityDays > 2) buffer += 4
+  if (context.activeDays7 >= 5 && model.sessionSuccessRate >= 0.7) buffer -= 2
+  if ((context.profile.focusIssues || []).length >= 2) buffer += 2
+
+  const minutes = clamp(Math.round(dropPoint - buffer), 20, 60)
+  return {
+    minutes,
+    label: `${minutes} min`,
+    reason: `Recommended session length is ${minutes} minutes because focus typically drops after about ${dropPoint} minutes.`
+  }
+}
+
+const rankTasksForPlan = (tasks = [], profile, performanceModel, now = new Date()) => {
+  const weakSubjects = new Set((profile?.weakSubjects || []).map((item) => String(item).trim().toLowerCase()))
+  const todayMs = new Date(toDateKey(now)).getTime()
+
+  return [...tasks]
+    .filter(
+      (task) =>
+        !(
+          task?.completed === true ||
+          task?.status === 'completed' ||
+          task?.status === 'on_hold'
+        )
+    )
+    .sort((a, b) => {
+      const scoreTask = (task) => {
+        let score = 0
+        const dueMs = getTaskDueMs(task)
+        const subject = getTaskSubjectKey(task)
+        const focusMinutes = getTaskFocusMinutes(task)
+        const sessionsCount = getTaskSessionsCount(task)
+        const subjectStat = performanceModel.subjectStats.find(
+          (item) => String(item.subject).trim().toLowerCase() === subject
+        )
+
+        if (dueMs !== null) {
+          const daysUntilDue = Math.round((dueMs - todayMs) / DAY_MS)
+          if (daysUntilDue < 0) score += 600 + Math.abs(daysUntilDue) * 40
+          else if (daysUntilDue === 0) score += 320
+          else if (daysUntilDue <= 2) score += 240 - daysUntilDue * 30
+          else score += Math.max(0, 100 - daysUntilDue * 8)
+        }
+
+        if (weakSubjects.has(subject)) score += 110
+        if (focusMinutes === 0) score += 90
+        else score += Math.max(0, 70 - Math.min(focusMinutes, 70))
+        if (sessionsCount === 0) score += 26
+        if (subjectStat?.overdueTasks) score += subjectStat.overdueTasks * 12
+        if (subjectStat?.pendingTasks) score += Math.min(subjectStat.pendingTasks * 3, 12)
+
+        return score
+      }
+
+      const diff = scoreTask(b) - scoreTask(a)
+      if (diff !== 0) return diff
+      return String(a?.title || '').localeCompare(String(b?.title || ''))
+    })
+}
+
+export const generateDailyPlan = (user, tasks = [], appData = {}) => {
+  const context = buildMetrics(user, { ...appData, tasks }, appData.now || new Date())
+  const performanceModel = buildPerformanceModel(context)
+  const bestStudyTime = predictBestStudyTime(user, { ...appData, tasks })
+  const optimalSession = getOptimalSessionLength(user, { ...appData, tasks })
+  const rankedTasks = rankTasksForPlan(tasks, context.profile, performanceModel, context.now)
+
+  if (rankedTasks.length === 0) {
+    return {
+      bestStudyTime,
+      optimalSessionLength: optimalSession,
+      recommendedSession: {
+        type: 'study',
+        title: 'Free study block',
+        subject: context.profile.weakSubjects?.[0] || 'General review',
+        duration: optimalSession.minutes,
+        reason: 'No pending tasks detected. Use a free session to review your weakest subject.'
+      },
+      sessions: [
+        {
+          type: 'study',
+          title: 'Free study block',
+          subject: context.profile.weakSubjects?.[0] || 'General review',
+          duration: optimalSession.minutes,
+          reason: 'No pending tasks detected. Use a free session to review your weakest subject.'
+        }
+      ]
+    }
+  }
+
+  const recommendedCount =
+    context.activeDays7 >= 5 && performanceModel.sessionSuccessRate >= 0.7 ? 3 : 2
+  const uniqueTasks = rankedTasks.slice(0, recommendedCount)
+  const sessions = []
+
+  uniqueTasks.forEach((task, index) => {
+    const subject = getSubjectLabel(task.subject)
+    const baseDuration = optimalSession.minutes + (index === 0 ? 0 : index === 1 ? -5 : 5)
+    const duration = clamp(baseDuration, 20, 60)
+    const dueMs = getTaskDueMs(task)
+    const daysUntilDue =
+      dueMs !== null ? Math.round((dueMs - new Date(context.todayKey).getTime()) / DAY_MS) : null
+    const reason =
+      daysUntilDue !== null && daysUntilDue < 0
+        ? `${subject} is overdue and should be cleared first.`
+        : context.profile.weakSubjects.some(
+              (item) => String(item).trim().toLowerCase() === getTaskSubjectKey(task)
+            )
+          ? `${subject} is a weak subject and needs early attention while energy is high.`
+          : `${subject} has lower progress than your other pending work.`
+
+    sessions.push({
+      type: 'study',
+      taskId: task.id,
+      title: task.title || `${subject} task`,
+      subject,
+      duration,
+      reason
+    })
+
+    if (index < uniqueTasks.length - 1) {
+      sessions.push({
+        type: 'break',
+        title: 'Break',
+        duration: index === 0 ? 5 : 8,
+        reason: 'Short reset to protect focus quality.'
+      })
+    }
+  })
+
+  return {
+    bestStudyTime,
+    optimalSessionLength: optimalSession,
+    recommendedSession: sessions.find((item) => item.type === 'study') || null,
+    sessions
+  }
+}
+
 export const computeAIScore = (user, appData = {}) => {
   const context = buildMetrics(user, appData, appData.now || new Date())
   const score = clamp(context.scorePayload.score, 0, 100)
+  const focusPrediction = predictFocusDuration(user, appData)
+  const dropPoint = predictDropPoint(user, appData)
+  const bestStudyTime = predictBestStudyTime(user, appData)
+  const optimalSessionLength = getOptimalSessionLength(user, appData)
 
   return {
     score,
@@ -277,7 +690,13 @@ export const computeAIScore = (user, appData = {}) => {
       lastActivityDays: context.lastActivityDays,
       activeDays7: context.activeDays7
     },
-    profile: context.profile
+    profile: context.profile,
+    predictions: {
+      focusDuration: focusPrediction,
+      dropPoint,
+      bestStudyTime,
+      optimalSessionLength
+    }
   }
 }
 
@@ -336,19 +755,53 @@ export const generateDailyInsight = (user, appData = {}) => {
     now
   })
   const insightMessage = buildInsightMessage(context)
+  const focusDuration = predictFocusDuration(user, { ...appData, now })
+  const dropPoint = predictDropPoint(user, { ...appData, now })
+  const bestStudyTime = predictBestStudyTime(user, { ...appData, now })
+  const optimalSessionLength = getOptimalSessionLength(user, { ...appData, now })
+  const dailyPlan = generateDailyPlan(
+    user,
+    context.tasks,
+    { ...appData, studySessions: context.studySessions, now }
+  )
+  let studyStep = 0
+  const planStrings = (dailyPlan.sessions || []).map((item) => {
+    if (item.type === 'break') {
+      return `Break (${item.duration} min)`
+    }
+    studyStep += 1
+    return `Session ${studyStep}: ${item.subject || 'Study'} (${item.duration} min)`
+  })
+  const predictiveAnalysis = [
+    `Focus usually drops after ${dropPoint.minutes} minutes.`,
+    `Best study window: ${bestStudyTime.window}.`,
+    `Recommended block length: ${optimalSessionLength.minutes} minutes.`
+  ].join(' ')
 
   return {
     ...snapshot,
     headline: 'Daily AI update',
     message: insightMessage.short,
     fullMessage: insightMessage.full,
+    analysis: `${snapshot.analysis} ${predictiveAnalysis}`.trim(),
     score: snapshot.score,
     lastUpdated: context.todayKey,
+    plan: planStrings.length > 0 ? planStrings : snapshot.plan,
+    dailyPlan: dailyPlan.sessions,
+    recommendedSession: dailyPlan.recommendedSession,
+    predictions: {
+      focusDuration,
+      dropPoint,
+      bestStudyTime,
+      optimalSessionLength
+    },
     metadata: {
       streak: context.streak,
       lastActivityDays: context.lastActivityDays,
       weeklyTrend: context.weeklyTrend.percentageDelta,
-      weakSubjects: context.profile.weakSubjects
+      weakSubjects: context.profile.weakSubjects,
+      bestStudyTime: bestStudyTime.window,
+      optimalSessionLength: optimalSessionLength.minutes
     },
     source: 'ai-engine-v1'
   }
@@ -370,6 +823,19 @@ const buildCandidateStates = (context) => {
     studySessions: context.studySessions,
     now: context.now
   })
+  const predictivePlan = generateDailyPlan(profile, context.tasks, {
+    studySessions: context.studySessions,
+    now: context.now
+  })
+  const recommendedSession = predictivePlan.recommendedSession
+  const isBestWindowNow = (() => {
+    const currentHour = context.now.getHours()
+    const matchingWindow = TIME_WINDOWS.find(
+      (window) => window.label === predictivePlan.bestStudyTime?.window
+    )
+    if (!matchingWindow) return false
+    return currentHour >= matchingWindow.start && currentHour < matchingWindow.end
+  })()
 
   const states = [
     {
@@ -566,6 +1032,33 @@ const buildCandidateStates = (context) => {
     })
   }
 
+  if (recommendedSession) {
+    const sessionLabel = `${recommendedSession.subject || 'Study'} ${recommendedSession.duration}m`
+    states.push({
+      id: 'predictive_plan',
+      type: 'suggestion',
+      priority: isBestWindowNow ? 50 : 43,
+      message: getShortMessage(sessionLabel),
+      fullMessage: isBestWindowNow
+        ? `Your best study window is active now. Start ${recommendedSession.title} for ${recommendedSession.duration} minutes. ${recommendedSession.reason}`
+        : `Best study window is ${predictivePlan.bestStudyTime?.window}. Start ${recommendedSession.title} for ${recommendedSession.duration} minutes when that window opens. ${recommendedSession.reason}`,
+      action: 'start_session',
+      metadata: {
+        icon: 'sparkles',
+        tone: isBestWindowNow ? 'success' : 'info',
+        actionLabel: 'Start session',
+        actionPath: '/study',
+        recommendedSession,
+        actionState: {
+          taskId: recommendedSession.taskId || null,
+          mode: 'pomodoro',
+          duration: recommendedSession.duration,
+          action: 'start'
+        }
+      }
+    })
+  }
+
   if (taskSignals.pendingCount > 0 && taskSignals.upcomingCount === 0 && taskSignals.overdueCount === 0) {
     states.push({
       id: 'next_action',
@@ -692,6 +1185,16 @@ const eventToState = (event) => {
 export const generateAssistantState = (user, appData = {}) => {
   const now = appData.now || new Date()
   const context = buildMetrics(user, appData, now)
+  const predictivePlan = generateDailyPlan(user, context.tasks, {
+    studySessions: context.studySessions,
+    now
+  })
+  const predictions = {
+    focusDuration: predictFocusDuration(user, { ...appData, now }),
+    dropPoint: predictDropPoint(user, { ...appData, now }),
+    bestStudyTime: predictBestStudyTime(user, { ...appData, now }),
+    optimalSessionLength: getOptimalSessionLength(user, { ...appData, now })
+  }
   const candidates = buildCandidateStates(context).sort((a, b) => b.priority - a.priority)
   const baseState = candidates[0]
   const eventState = eventToState(context.transientEvent)
@@ -707,7 +1210,10 @@ export const generateAssistantState = (user, appData = {}) => {
       score: context.scorePayload.score,
       streak: context.streak,
       weeklyTrend: context.weeklyTrend.percentageDelta,
-      lastActivityDays: context.lastActivityDays
+      lastActivityDays: context.lastActivityDays,
+      predictions,
+      dailyPlan: predictivePlan.sessions,
+      recommendedSession: state.metadata?.recommendedSession || predictivePlan.recommendedSession
     }
   }
 }

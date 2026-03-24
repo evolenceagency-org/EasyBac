@@ -8,7 +8,7 @@ const Navbar = () => {
   const navigate = useNavigate()
   const rawPlan = profile?.subscription_status || profile?.plan || user?.plan || ''
   const plan = normalizeSubscriptionStatus(rawPlan)
-  const showPremiumCta = Boolean(user && rawPlan === 'free_trial' && plan !== 'premium')
+  const showPremiumCta = Boolean(user && plan === 'trial')
 
   return (
     <motion.header

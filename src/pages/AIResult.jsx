@@ -57,6 +57,7 @@ const AIResult = () => {
 
   const planItems = Array.isArray(ai.plan) && ai.plan.length > 0 ? ai.plan : []
   const metrics = ai.metrics || {}
+  const predictions = ai.predictions || {}
 
   return (
     <div className="relative min-h-[calc(100vh-2rem)] overflow-hidden bg-gradient-to-br from-black via-neutral-900 to-black">
@@ -118,6 +119,30 @@ const AIResult = () => {
             <p className="text-xs text-white/60">Overdue</p>
             <p className="mt-1 text-lg font-semibold text-white">
               {metrics.overdueTasks ?? 0}
+            </p>
+          </div>
+        </motion.section>
+
+        <motion.section
+          variants={sectionVariants}
+          className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:grid-cols-3"
+        >
+          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
+            <p className="text-xs text-white/60">Optimal Session</p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {predictions.optimalSessionLength?.minutes ?? '--'} min
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
+            <p className="text-xs text-white/60">Drop Point</p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {predictions.dropPoint?.minutes ?? '--'} min
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
+            <p className="text-xs text-white/60">Best Window</p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              {predictions.bestStudyTime?.window || '--'}
             </p>
           </div>
         </motion.section>

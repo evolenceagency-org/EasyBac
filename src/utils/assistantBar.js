@@ -26,6 +26,7 @@ export const getAssistantSnapshot = ({
   )
 
   const recommendedTask = getBestTask(tasks, personalization)
+  const recommendedSession = state.metadata?.recommendedSession || null
   const activeTask =
     tasks.find((task) => task.id === activeTaskId) ||
     (pathname === '/study' ? recommendedTask : null)
@@ -38,24 +39,38 @@ export const getAssistantSnapshot = ({
       .join(' ')
   }
 
-  const buildTaskRecommendation = (task, tone = 'info') => ({
+  const buildTaskRecommendation = (task, tone = 'info', session = null) => ({
     id: 'best-task',
     type: 'suggestion',
     priority: Math.max(state.priority, 58),
-    mobileText: getShortMessage(task.title || 'Best task', 22),
-    mobileExpandedText: getShortMessage(`Start ${task.title || 'task'}`, 24),
-    desktopTitle: `Best task: ${task.title || 'Untitled task'}`,
-    desktopDetail: `${toSubjectLabel(task.subject)} - ${formatFocusSummary(
-      task.totalFocusTime,
-      task.sessionsCount
-    )}`,
-    actionLabel: 'Start Focus',
+    mobileText: getShortMessage(
+      session ? `${toSubjectLabel(task.subject)} ${session.duration}m` : task.title || 'Best task',
+      22
+    ),
+    mobileExpandedText: getShortMessage(
+      session ? `Start ${toSubjectLabel(task.subject)} ${session.duration}m` : `Start ${task.title || 'task'}`,
+      24
+    ),
+    desktopTitle: session
+      ? `Best session: ${toSubjectLabel(task.subject)} ${session.duration}m`
+      : `Best task: ${task.title || 'Untitled task'}`,
+    desktopDetail: session
+      ? session.reason
+      : `${toSubjectLabel(task.subject)} - ${formatFocusSummary(
+          task.totalFocusTime,
+          task.sessionsCount
+        )}`,
+    actionLabel: 'Start Session',
     actionPath: '/study',
     icon: 'list',
     tone,
     metadata: {
       recommendedTaskId: task.id,
-      actionState: { taskId: task.id }
+      recommendedSession: session,
+      actionState: {
+        taskId: task.id,
+        ...(session ? { mode: 'pomodoro', duration: session.duration, action: 'start' } : {})
+      }
     }
   })
 
@@ -85,7 +100,8 @@ export const getAssistantSnapshot = ({
     if (pathname === '/tasks' && recommendedTask && state.type !== 'timer') {
       return buildTaskRecommendation(
         recommendedTask,
-        state.type === 'alert' ? 'warning' : 'info'
+        state.type === 'alert' ? 'warning' : 'info',
+        recommendedSession?.taskId === recommendedTask.id ? recommendedSession : null
       )
     }
 
@@ -120,12 +136,22 @@ export const getAssistantSnapshot = ({
 
     if (pathname === '/dashboard' && recommendedTask && state.type !== 'timer') {
       return {
-        ...buildTaskRecommendation(recommendedTask, 'neutral'),
+        ...buildTaskRecommendation(
+          recommendedTask,
+          'neutral',
+          recommendedSession?.taskId === recommendedTask.id ? recommendedSession : null
+        ),
         id: 'dashboard-next-focus',
-        desktopTitle: `Next focus: ${recommendedTask.title || 'Task'}`,
-        desktopDetail: `Best next action is ${toSubjectLabel(
-          recommendedTask.subject
-        )}. Start one focused block now.`
+        desktopTitle:
+          recommendedSession?.taskId === recommendedTask.id
+            ? `Next focus: ${toSubjectLabel(recommendedTask.subject)} ${recommendedSession.duration}m`
+            : `Next focus: ${recommendedTask.title || 'Task'}`,
+        desktopDetail:
+          recommendedSession?.taskId === recommendedTask.id
+            ? recommendedSession.reason
+            : `Best next action is ${toSubjectLabel(
+                recommendedTask.subject
+              )}. Start one focused block now.`
       }
     }
 
