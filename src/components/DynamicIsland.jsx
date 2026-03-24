@@ -22,8 +22,12 @@ import { getActiveFocusTaskId } from '../utils/focusTasks.js'
 import {
   buildAssistantPreview,
   createVoiceSession,
-  processVoiceCommand
-} from '../utils/assistantController.ts'
+  detectIntent,
+  executeIntent,
+  playAssistantSound,
+  startVoiceListening,
+  stopVoiceListening
+} from '../utils/voiceAssistantEngine.ts'
 
 const ACTIVE_SESSION_KEY = 'active_session'
 const HIDE_ROUTES = new Set([
@@ -38,6 +42,7 @@ const HIDE_ROUTES = new Set([
   '/welcome-ai'
 ])
 const DESKTOP_AUTO_COLLAPSE_MS = 4200
+const ASSISTANT_RESULT_AUTO_CLOSE_MS = 3600
 const PULSE_STATES = new Set(['timer_active', 'task_overdue', 'task_reminder'])
 const SOFT_SPRING = {
   type: 'spring',
@@ -233,6 +238,7 @@ const DesktopAssistant = ({
   Icon,
   onAction,
   onVoiceTap,
+  onVoiceStop,
   onTextTap,
   voiceSupported,
   assistantMode
@@ -313,6 +319,10 @@ const DesktopAssistant = ({
             <button
               type="button"
               onClick={() => {
+                if (assistantMode === 'listening') {
+                  onVoiceStop?.()
+                  return
+                }
                 if (voiceSupported) onVoiceTap?.()
                 else onTextTap?.()
               }}
@@ -379,21 +389,65 @@ const DesktopAssistant = ({
   )
 }
 
+const ListeningWaveform = () => (
+  <div className="flex items-end gap-1">
+    {[0, 1, 2, 3, 4].map((index) => (
+      <motion.span
+        // eslint-disable-next-line react/no-array-index-key
+        key={index}
+        className="block w-1 rounded-full bg-cyan-300/90"
+        animate={{
+          height: [8, 18 + (index % 2) * 6, 10 + (index % 3) * 4, 8],
+          opacity: [0.55, 1, 0.7, 0.55]
+        }}
+        transition={{
+          duration: 0.85,
+          repeat: Infinity,
+          repeatType: 'mirror',
+          delay: index * 0.08,
+          ease: 'easeInOut'
+        }}
+      />
+    ))}
+  </div>
+)
+
 const AssistantCommandPanel = ({
   open,
   mode,
   transcript,
   preview,
   result,
+  pendingConfirmation,
   textEntryOpen,
   textValue,
   setTextValue,
   onSubmitText,
+  onConfirmIntent,
+  onCancelConfirmation,
   onClose,
   onStopListening,
   voiceSupported
-}) => (
-  <AnimatePresence>
+}) => {
+  const panelLabel =
+    mode === 'listening'
+      ? 'Listening...'
+      : mode === 'processing'
+        ? 'Processing...'
+        : mode === 'executing'
+          ? 'Executing...'
+          : mode === 'success'
+            ? 'Done'
+            : mode === 'error'
+              ? 'Something went wrong'
+              : mode === 'confirm'
+                ? 'Confirm action'
+                : textEntryOpen
+                  ? 'Type a command'
+                  : 'Assistant update'
+
+  return (
+    <AnimatePresence>
     {open ? (
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.97 }}
@@ -408,15 +462,7 @@ const AssistantCommandPanel = ({
               <p className="text-[11px] uppercase tracking-[0.24em] text-white/40">
                 AI Assistant
               </p>
-              <p className="mt-1 text-sm font-semibold text-white">
-                {mode === 'listening'
-                  ? 'Listening...'
-                  : mode === 'processing'
-                    ? 'Processing...'
-                    : textEntryOpen
-                      ? 'Type a command'
-                      : 'Assistant update'}
-              </p>
+              <p className="mt-1 text-sm font-semibold text-white">{panelLabel}</p>
             </div>
             <div className="flex items-center gap-2">
               {mode === 'listening' ? (
@@ -439,10 +485,28 @@ const AssistantCommandPanel = ({
           </div>
 
           <div className="space-y-3 px-4 py-4">
-            {mode === 'processing' ? (
+            {mode === 'listening' ? (
+              <div className="flex items-center justify-between rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-3 text-sm text-cyan-50">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/60">
+                    Listening
+                  </p>
+                  <p className="mt-1 text-sm text-white/85">
+                    Speak naturally in English, French, Arabic, or mix them.
+                  </p>
+                </div>
+                <ListeningWaveform />
+              </div>
+            ) : null}
+
+            {mode === 'processing' || mode === 'executing' ? (
               <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white/80">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
-                <span>Understanding your command...</span>
+                <span>
+                  {mode === 'processing'
+                    ? 'Understanding your command...'
+                    : 'Executing your action...'}
+                </span>
               </div>
             ) : null}
 
@@ -451,7 +515,7 @@ const AssistantCommandPanel = ({
                 <p className="text-xs uppercase tracking-[0.2em] text-white/40">Live transcript</p>
                 <p className="mt-2 text-sm text-white/85">
                   {transcript ||
-                    'Say "create task math tomorrow", "cree tache philo demain", or "zid task math ghdda".'}
+                    'Try "start focus math", "bda session dial 45 minutes", or "supprime les taches en retard".'}
                 </p>
               </div>
             ) : null}
@@ -492,26 +556,61 @@ const AssistantCommandPanel = ({
             ) : null}
 
             {result ? (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <div
+                className={`rounded-2xl border px-3 py-3 ${
+                  result.status === 'error'
+                    ? 'border-rose-400/20 bg-rose-500/10'
+                    : result.status === 'confirmation'
+                      ? 'border-amber-400/20 bg-amber-500/10'
+                      : 'border-emerald-400/20 bg-emerald-500/10'
+                }`}
+              >
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  <CheckCircle2
+                    className={`h-4 w-4 ${
+                      result.status === 'error'
+                        ? 'text-rose-300'
+                        : result.status === 'confirmation'
+                          ? 'text-amber-300'
+                          : 'text-emerald-300'
+                    }`}
+                  />
                   <p className="text-sm font-semibold text-white">{result.message}</p>
                 </div>
                 <p className="mt-2 text-sm text-white/72">{result.fullMessage}</p>
+                {pendingConfirmation ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={onConfirmIntent}
+                      className="rounded-full border border-amber-400/25 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-50"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={onCancelConfirmation}
+                      className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold text-white/85"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
         </div>
       </motion.div>
     ) : null}
-  </AnimatePresence>
-)
+    </AnimatePresence>
+  )
+}
 
 const DynamicIsland = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { profile, user } = useAuth()
-  const { tasks, studySessions, addTask, updateTaskById, toggleTask } = useData()
+  const { tasks, studySessions, addTask, updateTaskById, toggleTask, removeTask } = useData()
   const [timerState, setTimerState] = useState(() => mapTimerState(readActiveSession()))
   const [activeTaskId, setActiveTaskId] = useState(() => getActiveFocusTaskId(user?.id))
   const [transientEvent, setTransientEvent] = useState(null)
@@ -522,6 +621,7 @@ const DynamicIsland = () => {
   const [assistantTranscript, setAssistantTranscript] = useState('')
   const [assistantPreview, setAssistantPreview] = useState(null)
   const [assistantResult, setAssistantResult] = useState(null)
+  const [pendingConfirmationIntent, setPendingConfirmationIntent] = useState(null)
   const [textEntryOpen, setTextEntryOpen] = useState(false)
   const [textCommand, setTextCommand] = useState('')
   const [voiceSupported, setVoiceSupported] = useState(false)
@@ -620,40 +720,61 @@ const DynamicIsland = () => {
     setAssistantTranscript('')
     setAssistantPreview(null)
     setAssistantResult(null)
+    setPendingConfirmationIntent(null)
     setTextEntryOpen(false)
     setTextCommand('')
-    voiceSessionRef.current?.stopListening?.()
+    stopVoiceListening(voiceSessionRef.current)
   }, [])
 
   const runAssistantCommand = useCallback(
-    async (transcript) => {
+    async (transcript, confirmedIntent = null) => {
       if (!transcript?.trim()) return
+      const spokenTranscript = confirmedIntent ? assistantTranscript || transcript.trim() : transcript.trim()
       setAssistantMode('processing')
-      setAssistantTranscript(transcript.trim())
-      setAssistantPreview(buildAssistantPreview(transcript))
+      setAssistantTranscript(spokenTranscript)
+      setAssistantPreview(buildAssistantPreview(spokenTranscript))
+      setPendingConfirmationIntent(null)
       setTextEntryOpen(false)
       setTextCommand('')
+      playAssistantSound('processing')
 
       try {
-        const { result } = await processVoiceCommand(transcript, {
+        const intent = confirmedIntent || detectIntent(transcript)
+        await new Promise((resolve) => window.setTimeout(resolve, 140))
+        setAssistantMode('executing')
+        playAssistantSound('executing')
+
+        const result = await executeIntent(intent, {
           user: assistantUser,
           tasks,
           addTask,
           updateTaskById,
           toggleTask,
+          removeTask,
           navigate
         })
+
+        setAssistantResult(result)
+        if (result.requiresConfirmation) {
+          setPendingConfirmationIntent(result.confirmIntent || intent)
+          setAssistantMode('confirm')
+          return
+        }
+
+        setAssistantMode(result.ok ? 'success' : 'error')
+        playAssistantSound(result.ok ? 'success' : 'error')
         setAssistantResult(result)
       } catch {
         setAssistantResult({
+          status: 'error',
           message: 'Command failed',
           fullMessage: 'I could not finish that action. Please try again.'
         })
-      } finally {
-        setAssistantMode('result')
+        setAssistantMode('error')
+        playAssistantSound('error')
       }
     },
-    [addTask, assistantUser, navigate, tasks, toggleTask, updateTaskById]
+    [addTask, assistantTranscript, assistantUser, navigate, removeTask, tasks, toggleTask, updateTaskById]
   )
 
   useEffect(() => {
@@ -669,16 +790,20 @@ const DynamicIsland = () => {
       onListeningChange: (isListening) => {
         setAssistantMode((prev) => {
           if (isListening) return 'listening'
-          return prev === 'processing' || prev === 'result' ? prev : 'idle'
+          return ['processing', 'executing', 'success', 'error', 'confirm'].includes(prev)
+            ? prev
+            : 'idle'
         })
       },
       onError: () => {
         setTextEntryOpen(true)
-        setAssistantMode('result')
+        setAssistantMode('error')
         setAssistantResult({
+          status: 'error',
           message: 'Voice unavailable',
           fullMessage: 'Use the text command input to control tasks and focus.'
         })
+        playAssistantSound('error')
       }
     })
     voiceSessionRef.current = nextVoiceSession
@@ -691,36 +816,44 @@ const DynamicIsland = () => {
 
   const startVoiceAssistant = useCallback(() => {
     setAssistantResult(null)
+    setPendingConfirmationIntent(null)
     setTextEntryOpen(false)
     if (!voiceSessionRef.current?.supported) {
-      setAssistantMode('result')
+      setAssistantMode('error')
       setAssistantResult({
+        status: 'error',
         message: 'Type instead',
         fullMessage: 'Voice is not supported here. Type a command instead.'
       })
       setTextEntryOpen(true)
+      playAssistantSound('error')
       return
     }
 
     setAssistantTranscript('')
     setAssistantPreview(null)
     setAssistantMode('listening')
-    voiceSessionRef.current.startListening()
+    playAssistantSound('listening')
+    startVoiceListening(voiceSessionRef.current, {
+      continuous: true,
+      silenceMs: 1900
+    })
   }, [])
 
   const stopVoiceAssistant = useCallback(() => {
-    voiceSessionRef.current?.stopListening?.()
-    setAssistantMode((prev) => (prev === 'processing' ? prev : 'idle'))
+    stopVoiceListening(voiceSessionRef.current)
+    setAssistantMode((prev) => (['processing', 'executing'].includes(prev) ? prev : 'idle'))
   }, [])
 
   useEffect(() => {
-    if (assistantMode !== 'result') return undefined
+    if (!['success', 'error'].includes(assistantMode)) return undefined
     const timer = window.setTimeout(() => {
       setAssistantMode('idle')
       setAssistantPreview(null)
       setAssistantTranscript('')
       setAssistantResult(null)
-    }, 3200)
+      setPendingConfirmationIntent(null)
+    }, ASSISTANT_RESULT_AUTO_CLOSE_MS)
     return () => window.clearTimeout(timer)
   }, [assistantMode])
 
@@ -771,7 +904,24 @@ const DynamicIsland = () => {
       }
     }
 
-    if (assistantMode === 'result' && assistantResult) {
+    if (assistantMode === 'executing') {
+      return {
+        ...snapshot,
+        id: 'assistant-executing',
+        mobileText: 'Working',
+        mobileExpandedText: 'Executing action',
+        desktopTitle: 'Executing...',
+        desktopDetail: 'Applying the command right now.',
+        actionLabel: 'Wait',
+        actionPath: snapshot.actionPath,
+        icon: 'brain',
+        tone: 'active'
+      }
+    }
+
+    if (['success', 'error', 'confirm'].includes(assistantMode) && assistantResult) {
+      const isError = assistantResult.status === 'error'
+      const isConfirm = assistantResult.status === 'confirmation'
       return {
         ...snapshot,
         id: 'assistant-result',
@@ -779,10 +929,10 @@ const DynamicIsland = () => {
         mobileExpandedText: getShortMessage(assistantResult.fullMessage, 24),
         desktopTitle: assistantResult.message,
         desktopDetail: assistantResult.fullMessage,
-        actionLabel: 'Done',
+        actionLabel: isConfirm ? 'Confirm' : 'Done',
         actionPath: snapshot.actionPath,
-        icon: assistantResult.message === 'Command failed' ? 'alert' : 'sparkles',
-        tone: assistantResult.message === 'Command failed' ? 'danger' : 'success'
+        icon: isError ? 'alert' : isConfirm ? 'list' : 'sparkles',
+        tone: isError ? 'danger' : isConfirm ? 'warning' : 'success'
       }
     }
 
@@ -793,8 +943,9 @@ const DynamicIsland = () => {
 
   useEffect(() => {
     if (!hidden) return
-    voiceSessionRef.current?.stopListening?.()
+    stopVoiceListening(voiceSessionRef.current)
     setAssistantMode('idle')
+    setPendingConfirmationIntent(null)
     setTextEntryOpen(false)
   }, [hidden])
 
@@ -804,6 +955,15 @@ const DynamicIsland = () => {
   const handleAction = () => {
     if (assistantMode === 'listening') {
       stopVoiceAssistant()
+      return
+    }
+
+    if (assistantMode === 'processing' || assistantMode === 'executing') {
+      return
+    }
+
+    if (assistantMode === 'confirm' && pendingConfirmationIntent) {
+      void runAssistantCommand(assistantTranscript || 'confirm', pendingConfirmationIntent)
       return
     }
 
@@ -864,11 +1024,13 @@ const DynamicIsland = () => {
             Icon={Icon}
             onAction={handleAction}
             onVoiceTap={startVoiceAssistant}
+            onVoiceStop={stopVoiceAssistant}
             onTextTap={() => {
               setAssistantMode('idle')
               setAssistantResult(null)
               setAssistantPreview(null)
               setAssistantTranscript('')
+              setPendingConfirmationIntent(null)
               setTextEntryOpen(true)
             }}
             voiceSupported={voiceSupported}
@@ -879,22 +1041,32 @@ const DynamicIsland = () => {
 
       {!hidden ? (
         <AssistantCommandPanel
-          open={assistantMode !== 'idle' || textEntryOpen}
-          mode={assistantMode}
-          transcript={assistantTranscript}
-          preview={assistantPreview}
-          result={assistantResult}
-          textEntryOpen={textEntryOpen}
-          textValue={textCommand}
-          setTextValue={setTextCommand}
-          onSubmitText={(event) => {
-            event.preventDefault()
-            void runAssistantCommand(textCommand)
-          }}
-          onClose={closeAssistantPanel}
-          onStopListening={stopVoiceAssistant}
-          voiceSupported={voiceSupported}
-        />
+        open={assistantMode !== 'idle' || textEntryOpen}
+        mode={assistantMode}
+        transcript={assistantTranscript}
+        preview={assistantPreview}
+        result={assistantResult}
+        pendingConfirmation={pendingConfirmationIntent}
+        textEntryOpen={textEntryOpen}
+        textValue={textCommand}
+        setTextValue={setTextCommand}
+        onSubmitText={(event) => {
+          event.preventDefault()
+          void runAssistantCommand(textCommand)
+        }}
+        onConfirmIntent={() => {
+          if (!pendingConfirmationIntent) return
+          void runAssistantCommand(assistantTranscript || 'confirm', pendingConfirmationIntent)
+        }}
+        onCancelConfirmation={() => {
+          setPendingConfirmationIntent(null)
+          setAssistantMode('idle')
+          setAssistantResult(null)
+        }}
+        onClose={closeAssistantPanel}
+        onStopListening={stopVoiceAssistant}
+        voiceSupported={voiceSupported}
+      />
       ) : null}
     </>
   )

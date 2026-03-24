@@ -32,6 +32,7 @@ const formatTwoDigits = (value) => String(value).padStart(2, '0')
 const Study = () => {
   const {
     mode,
+    setMode,
     pomodoroMinutes,
     setPomodoroMinutes,
     breakMinutes,
@@ -169,21 +170,6 @@ const Study = () => {
   }, [isRunning])
 
   useEffect(() => {
-    const handleAssistantControl = (event) => {
-      const action = event.detail?.action
-      if (action === 'pause' && isRunning) pause()
-      if ((action === 'resume' || action === 'start') && !isRunning) start()
-      if (action === 'reset') reset()
-      if (action === 'finish' && isActiveSession) finish()
-    }
-
-    window.addEventListener('assistant:study-control', handleAssistantControl)
-    return () => {
-      window.removeEventListener('assistant:study-control', handleAssistantControl)
-    }
-  }, [finish, isActiveSession, isRunning, pause, reset, start])
-
-  useEffect(() => {
     if (typeof window === 'undefined') return
     const raw = window.sessionStorage.getItem(PENDING_STUDY_ACTION_KEY)
     if (!raw) return
@@ -194,6 +180,17 @@ const Study = () => {
         setActiveTaskId(payload.taskId)
       }
 
+      if (payload?.mode === 'pomodoro') {
+        if (payload?.duration) {
+          setPomodoroMinutes(payload.duration)
+        }
+        setMode('pomodoro')
+      }
+
+      if (payload?.mode === 'free') {
+        setMode('free')
+      }
+
       if ((payload?.action === 'start' || payload?.action === 'resume') && !isRunning) {
         start()
       }
@@ -202,7 +199,7 @@ const Study = () => {
     } finally {
       window.sessionStorage.removeItem(PENDING_STUDY_ACTION_KEY)
     }
-  }, [isRunning, start])
+  }, [isRunning, setMode, setPomodoroMinutes, start])
 
   const buildLinkedSessionPayload = useCallback(
     (minutesToSave, sessionMode = mode) => {
@@ -243,6 +240,66 @@ const Study = () => {
     if (!checkTrialAndBlock(profile, navigate)) return
     start()
   }
+
+  useEffect(() => {
+    const handleAssistantControl = (event) => {
+      const action = event.detail?.action
+      const nextMode = event.detail?.mode
+      const nextDuration = Number(event.detail?.duration) || null
+      const nextTaskId = event.detail?.taskId || null
+
+      if (nextTaskId) {
+        setActiveTaskId(nextTaskId)
+      }
+
+      if (nextMode === 'pomodoro') {
+        if (nextDuration) {
+          setPomodoroMinutes(nextDuration)
+        }
+        if (mode !== 'pomodoro') {
+          if (isActiveSession) {
+            requestModeChange('pomodoro')
+          } else {
+            setMode('pomodoro')
+          }
+        }
+      }
+
+      if (nextMode === 'free' && mode !== 'free') {
+        if (isActiveSession) {
+          requestModeChange('free')
+        } else {
+          setMode('free')
+        }
+      }
+
+      if (action === 'pause' && isRunning) pause()
+      if ((action === 'resume' || action === 'start') && !isRunning) start()
+      if (action === 'reset') reset()
+      if (action === 'finish' && isActiveSession) finish()
+      if (action === 'save' && sessionMinutes > 0) {
+        void handleSaveSession()
+      }
+    }
+
+    window.addEventListener('assistant:study-control', handleAssistantControl)
+    return () => {
+      window.removeEventListener('assistant:study-control', handleAssistantControl)
+    }
+  }, [
+    finish,
+    handleSaveSession,
+    isActiveSession,
+    isRunning,
+    mode,
+    pause,
+    requestModeChange,
+    reset,
+    sessionMinutes,
+    setMode,
+    setPomodoroMinutes,
+    start
+  ])
 
   const handleFinish = () => {
     if (sessionMinutes === 0) return
