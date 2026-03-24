@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }) => {
   const fetchProfile = async (authUser) => {
     if (!authUser) {
       resetProfileState()
-      return
+      return null
     }
 
     setProfileError('')
@@ -91,7 +91,7 @@ export const AuthProvider = ({ children }) => {
       if (error) {
         setProfileError('Unable to verify subscription.')
         setProfile(null)
-        return
+        return null
       }
 
       if (!data) {
@@ -111,14 +111,15 @@ export const AuthProvider = ({ children }) => {
         if (createError) {
           setProfileError('Unable to verify subscription.')
           setProfile(null)
-          return
+          return null
         }
 
         setProfile(created)
-        return
+        return created
       }
 
       setProfile(data)
+      return data
     } finally {
       setProfileLoading(false)
       profileLoadedRef.current = true
@@ -247,7 +248,7 @@ export const AuthProvider = ({ children }) => {
 
   const refreshAuthState = async () => {
     if (supabaseConfigError || !supabase) {
-      return { session: null, user: null }
+      return { session: null, user: null, profile: null }
     }
 
     const { data, error } = await supabase.auth.getSession()
@@ -259,14 +260,19 @@ export const AuthProvider = ({ children }) => {
 
     if (nextSession?.user) {
       profileLoadedRef.current = false
-      await fetchProfile(nextSession.user)
+      const nextProfile = await fetchProfile(nextSession.user)
+      return {
+        session: nextSession,
+        user: nextSession?.user ?? null,
+        profile: nextProfile
+      }
     } else {
       resetProfileState()
-    }
-
-    return {
-      session: nextSession,
-      user: nextSession?.user ?? null
+      return {
+        session: null,
+        user: null,
+        profile: null
+      }
     }
   }
 

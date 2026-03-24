@@ -11,11 +11,12 @@ import {
 } from '../utils/authValidation.js'
 import {
   ensureValidRoute,
+  isEmailVerified,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
 
 const Login = () => {
-  const { signIn, user, profile, initialized } = useAuth()
+  const { signIn, signOut, user, profile, initialized, refreshAuthState } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -47,11 +48,18 @@ const Login = () => {
 
   useEffect(() => {
     if (!initialized || !user) return
+    const normalizedInput = email.trim().toLowerCase()
+    const authenticatedEmail = user.email?.trim().toLowerCase() || ''
+
+    if (normalizedInput && authenticatedEmail && normalizedInput !== authenticatedEmail) {
+      return
+    }
+
     const safeRoute = ensureValidRoute({ user, profile, currentPath: '/login' })
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
     }
-  }, [initialized, navigate, profile, user])
+  }, [email, initialized, navigate, profile, user])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -69,35 +77,68 @@ const Login = () => {
 
     try {
       setLoading(true)
-      const { error: signInError } = await signIn(email, password)
+      const normalizedEmail = email.trim().toLowerCase()
+
+      if (user?.email && user.email.toLowerCase() !== normalizedEmail) {
+        await signOut()
+      }
+
+      const { data, error: signInError } = await signIn(normalizedEmail, password)
       if (signInError) {
         throw signInError
       }
+
+      const authUser = data?.user || data?.session?.user || null
+      if (!authUser || authUser.email?.trim().toLowerCase() !== normalizedEmail) {
+        await signOut()
+        throw new Error('Invalid login credentials')
+      }
+
+      if (authUser && !isEmailVerified(authUser)) {
+        persistPendingVerificationEmail(normalizedEmail)
+        navigate('/verify-code', {
+          replace: true,
+          state: { email: normalizedEmail }
+        })
+        return
+      }
+
+      const refreshed = await refreshAuthState()
+      if (
+        !refreshed?.user ||
+        refreshed.user.email?.trim().toLowerCase() !== normalizedEmail
+      ) {
+        await signOut()
+        throw new Error('Invalid login credentials')
+      }
+
       setSuccess('Welcome back.')
+
+      const redirectTo =
+        ensureValidRoute({
+          user: refreshed?.user || authUser,
+          profile: refreshed?.profile || profile,
+          currentPath: location.state?.from?.pathname || '/login'
+        }) ||
+        location.state?.from?.pathname ||
+        '/dashboard'
+
+      navigate(redirectTo, { replace: true })
     } catch (authError) {
       const friendlyError = getAuthErrorMessage(authError)
       setError(friendlyError)
       if (friendlyError === 'Please verify your email before logging in') {
-        persistPendingVerificationEmail(email.trim().toLowerCase())
+        const normalizedEmail = email.trim().toLowerCase()
+        persistPendingVerificationEmail(normalizedEmail)
         navigate('/verify-code', {
           replace: true,
-          state: { email: email.trim().toLowerCase() }
+          state: { email: normalizedEmail }
         })
       }
       return
     } finally {
       setLoading(false)
     }
-
-    const redirectTo =
-      ensureValidRoute({
-        user,
-        profile,
-        currentPath: location.state?.from?.pathname || '/login'
-      }) ||
-      location.state?.from?.pathname ||
-      '/dashboard'
-    navigate(redirectTo, { replace: true })
   }
 
   return (
