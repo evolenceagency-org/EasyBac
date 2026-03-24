@@ -38,7 +38,8 @@ const TaskCard = ({
   onReschedule,
   onStartFocus,
   focusSummary,
-  isRecommended = false
+  isRecommended = false,
+  onToggleHold
 }) => {
   const x = useMotionValue(0)
   const rightReveal = useTransform(x, [0, 120], [0, 1])
@@ -56,6 +57,8 @@ const TaskCard = ({
   const menuRef = useRef(null)
   const menuButtonRef = useRef(null)
   const timersRef = useRef([])
+  const longPressTimerRef = useRef(null)
+  const longPressTriggeredRef = useRef(false)
 
   useEffect(() => {
     const handleResize = () => {
@@ -108,6 +111,7 @@ const TaskCard = ({
   useEffect(() => {
     return () => {
       timersRef.current.forEach((timer) => clearTimeout(timer))
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
     }
   }, [])
 
@@ -122,7 +126,12 @@ const TaskCard = ({
 
   const statusPills = useMemo(() => {
     const pills = []
-    if (isOverdue && !task.completed) {
+    if (task.status === 'on_hold') {
+      pills.push({
+        label: 'On Hold',
+        className: 'border-slate-400/25 bg-slate-400/10 text-slate-200'
+      })
+    } else if (isOverdue && !task.completed) {
       pills.push({
         label: 'Overdue',
         className: 'border-red-500/25 bg-red-500/10 text-red-300'
@@ -138,11 +147,35 @@ const TaskCard = ({
       label: task.completed ? 'Done' : 'Active',
       className: task.completed
         ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-        : 'border-white/15 bg-white/5 text-white/70'
+        : task.status === 'on_hold'
+          ? 'hidden'
+          : 'border-white/15 bg-white/5 text-white/70'
     })
 
-    return pills.slice(0, 2)
-  }, [isDueToday, isOverdue, task.completed])
+    return pills.filter((pill) => pill.className !== 'hidden').slice(0, 2)
+  }, [isDueToday, isOverdue, task.completed, task.status])
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const handlePointerDown = () => {
+    if (!isMobile) return
+    longPressTriggeredRef.current = false
+    clearLongPressTimer()
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true
+      setMenuOpen(true)
+      vibrate(18)
+    }, 420)
+  }
+
+  const handlePointerUp = () => {
+    clearLongPressTimer()
+  }
 
   const queueTimer = (callback, delay) => {
     const timer = setTimeout(callback, delay)
@@ -258,6 +291,10 @@ const TaskCard = ({
         initial={{ opacity: 0, y: 8 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
         transition={{ duration: 0.22, ease: 'easeOut' }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
         className={`w-full max-w-full box-border rounded-2xl border bg-white/5 px-4 py-4 backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] ${
           isRecommended
             ? 'border-cyan-400/35 shadow-[0_0_26px_rgba(34,211,238,0.14)]'
@@ -309,7 +346,7 @@ const TaskCard = ({
               <button
                 type="button"
                 onClick={() => onStartFocus?.(task)}
-                disabled={lockActions}
+                disabled={lockActions || task.status === 'on_hold'}
                 className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition hover:scale-[1.02] hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Play className="h-3 w-3" />
@@ -352,6 +389,19 @@ const TaskCard = ({
                   >
                     <Check className="h-3.5 w-3.5" />
                     Mark as done
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setShowReschedule(false)
+                      onToggleHold?.(task)
+                    }}
+                    disabled={lockActions || task.completed}
+                    className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-white/80 transition hover:bg-slate-500/10 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    {task.status === 'on_hold' ? 'Resume task' : 'Put on hold'}
                   </button>
                   <button
                     type="button"

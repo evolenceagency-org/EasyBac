@@ -103,7 +103,12 @@ const getTaskSignals = (tasks = [], now = new Date()) => {
   const tomorrowKey = toDateKey(tomorrow)
 
   const pending = tasks.filter(
-    (task) => !(task?.completed === true || task?.status === 'completed')
+    (task) =>
+      !(
+        task?.completed === true ||
+        task?.status === 'completed' ||
+        task?.status === 'on_hold'
+      )
   )
 
   const overdue = pending.filter((task) => task?.due_date && task.due_date < todayKey)
@@ -153,7 +158,12 @@ export const getBestTask = (tasks = [], user = null, now = new Date()) => {
   const todayMs = new Date(toDateKey(now)).getTime()
 
   const pendingTasks = tasks.filter(
-    (task) => !(task?.completed === true || task?.status === 'completed')
+    (task) =>
+      !(
+        task?.completed === true ||
+        task?.status === 'completed' ||
+        task?.status === 'on_hold'
+      )
   )
 
   if (pendingTasks.length === 0) return null

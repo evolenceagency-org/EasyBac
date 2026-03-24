@@ -1,17 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
+  AudioLines,
   BrainCircuit,
+  CheckCircle2,
   CircleAlert,
+  Keyboard,
   ListChecks,
+  LoaderCircle,
+  Mic,
   Sparkles,
-  Timer
+  Timer,
+  X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
 import { getIslandState } from '../utils/assistantBar.js'
+import { getShortMessage } from '../utils/aiEngine.ts'
 import { getActiveFocusTaskId } from '../utils/focusTasks.js'
+import {
+  buildAssistantPreview,
+  createVoiceSession,
+  processVoiceCommand
+} from '../utils/assistantController.ts'
 
 const ACTIVE_SESSION_KEY = 'active_session'
 const HIDE_ROUTES = new Set([
@@ -127,8 +139,34 @@ const mapTimerState = (session, now = Date.now()) => {
   }
 }
 
-const MobileIsland = ({ snapshot, tone, Icon, onTap }) => {
+const MobileIsland = ({ snapshot, tone, Icon, onTap, onVoiceStart }) => {
   const pulse = PULSE_STATES.has(snapshot.id)
+  const longPressTimerRef = useRef(null)
+  const longPressTriggeredRef = useRef(false)
+
+  const clearLongPress = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }
+
+  const handlePointerDown = () => {
+    longPressTriggeredRef.current = false
+    clearLongPress()
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTriggeredRef.current = true
+      onVoiceStart?.()
+    }, 420)
+  }
+
+  const handlePointerUp = () => {
+    clearLongPress()
+  }
+
+  useEffect(() => {
+    return () => clearLongPress()
+  }, [])
 
   return (
     <motion.div
@@ -155,7 +193,17 @@ const MobileIsland = ({ snapshot, tone, Icon, onTap }) => {
             ease: 'easeInOut'
           }
         }}
-        onClick={onTap}
+        onClick={() => {
+          if (longPressTriggeredRef.current) {
+            longPressTriggeredRef.current = false
+            return
+          }
+          onTap()
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerUp}
         className={`pointer-events-auto group relative flex h-[40px] min-w-[132px] max-w-[78vw] items-center overflow-hidden rounded-full border border-white/10 bg-black/72 px-4 shadow-[0_10px_28px_rgba(0,0,0,0.56)] backdrop-blur-2xl ${tone.ring}`}
       >
         <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r opacity-80 ${tone.surface}`} />
@@ -179,7 +227,16 @@ const MobileIsland = ({ snapshot, tone, Icon, onTap }) => {
   )
 }
 
-const DesktopAssistant = ({ snapshot, tone, Icon, onAction }) => {
+const DesktopAssistant = ({
+  snapshot,
+  tone,
+  Icon,
+  onAction,
+  onVoiceTap,
+  onTextTap,
+  voiceSupported,
+  assistantMode
+}) => {
   const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
@@ -223,39 +280,66 @@ const DesktopAssistant = ({ snapshot, tone, Icon, onAction }) => {
       >
         <div className={`pointer-events-none absolute inset-0 bg-gradient-to-r opacity-85 ${tone.surface}`} />
 
-        <button
-          type="button"
-          onClick={() => setExpanded((value) => !value)}
-          className="relative flex w-full items-center gap-3 px-5 py-3.5 text-left"
-        >
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ${tone.icon}`}>
-            <Icon className="h-4 w-4" />
-          </div>
-
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${snapshot.id}-${expanded ? 'open' : 'closed'}`}
-              initial={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -6, filter: 'blur(6px)' }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="min-w-0 flex-1"
+        <div className="relative flex w-full items-center gap-3 px-5 py-3.5">
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          >
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 ${tone.icon}`}
             >
-              <p className="truncate text-sm font-semibold text-white">{snapshot.desktopTitle}</p>
-              <p className="truncate text-xs text-white/62">
-                {snapshot.mobileExpandedText || snapshot.mobileText}
-              </p>
-            </motion.div>
-          </AnimatePresence>
+              <Icon className="h-4 w-4" />
+            </div>
+
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={`${snapshot.id}-${expanded ? 'open' : 'closed'}`}
+                initial={{ opacity: 0, y: 6, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -6, filter: 'blur(6px)' }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="min-w-0 flex-1"
+              >
+                <p className="truncate text-sm font-semibold text-white">{snapshot.desktopTitle}</p>
+                <p className="truncate text-xs text-white/62">
+                  {snapshot.mobileExpandedText || snapshot.mobileText}
+                </p>
+              </motion.div>
+            </AnimatePresence>
+          </button>
 
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (voiceSupported) onVoiceTap?.()
+                else onTextTap?.()
+              }}
+              className="rounded-full border border-white/10 bg-white/10 p-2 text-white/80 transition hover:bg-white/15"
+              aria-label={voiceSupported ? 'Start voice assistant' : 'Open assistant input'}
+            >
+              {assistantMode === 'listening' ? (
+                <AudioLines className="h-3.5 w-3.5" />
+              ) : (
+                <Mic className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={onTextTap}
+              className="rounded-full border border-white/10 bg-white/10 p-2 text-white/80 transition hover:bg-white/15"
+              aria-label="Open assistant text input"
+            >
+              <Keyboard className="h-3.5 w-3.5" />
+            </button>
             {snapshot.mobileText ? (
               <span className="rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-medium text-white/80">
                 {snapshot.mobileText}
               </span>
             ) : null}
           </div>
-        </button>
+        </div>
 
         <AnimatePresence initial={false}>
           {expanded ? (
@@ -269,13 +353,23 @@ const DesktopAssistant = ({ snapshot, tone, Icon, onAction }) => {
             >
               <div className="px-5 pb-4 pt-3">
                 <p className="text-sm leading-6 text-white/78">{snapshot.desktopDetail}</p>
-                <button
-                  type="button"
-                  onClick={onAction}
-                  className={`mt-3 inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold transition duration-200 hover:scale-[1.02] ${tone.button}`}
-                >
-                  {snapshot.actionLabel}
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onAction}
+                    className={`inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold transition duration-200 hover:scale-[1.02] ${tone.button}`}
+                  >
+                    {snapshot.actionLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={voiceSupported ? onVoiceTap : onTextTap}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white/85 transition hover:bg-white/15"
+                  >
+                    <Mic className="h-3.5 w-3.5" />
+                    {voiceSupported ? 'Voice' : 'Type'}
+                  </button>
+                </div>
               </div>
             </motion.div>
           ) : null}
@@ -285,20 +379,156 @@ const DesktopAssistant = ({ snapshot, tone, Icon, onAction }) => {
   )
 }
 
+const AssistantCommandPanel = ({
+  open,
+  mode,
+  transcript,
+  preview,
+  result,
+  textEntryOpen,
+  textValue,
+  setTextValue,
+  onSubmitText,
+  onClose,
+  onStopListening,
+  voiceSupported
+}) => (
+  <AnimatePresence>
+    {open ? (
+      <motion.div
+        initial={{ opacity: 0, y: 10, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 10, scale: 0.97 }}
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        className="pointer-events-auto fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] z-[60] px-4 md:inset-x-auto md:bottom-28 md:left-1/2 md:top-auto md:w-[28rem] md:-translate-x-1/2 md:px-0"
+      >
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/82 shadow-[0_18px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/40">
+                AI Assistant
+              </p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {mode === 'listening'
+                  ? 'Listening...'
+                  : mode === 'processing'
+                    ? 'Processing...'
+                    : textEntryOpen
+                      ? 'Type a command'
+                      : 'Assistant update'}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {mode === 'listening' ? (
+                <button
+                  type="button"
+                  onClick={onStopListening}
+                  className="rounded-full border border-white/10 bg-white/10 p-2 text-white/80"
+                >
+                  <AudioLines className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border border-white/10 bg-white/10 p-2 text-white/80"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-3 px-4 py-4">
+            {mode === 'processing' ? (
+              <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-3 text-sm text-white/80">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                <span>Understanding your command...</span>
+              </div>
+            ) : null}
+
+            {(mode === 'listening' || transcript) && !textEntryOpen ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-white/40">Live transcript</p>
+                <p className="mt-2 text-sm text-white/85">
+                  {transcript ||
+                    'Say "create task math tomorrow", "cree tache philo demain", or "zid task math ghdda".'}
+                </p>
+              </div>
+            ) : null}
+
+            {preview ? (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-3 py-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-100/70">Preview</p>
+                <p className="mt-2 text-sm font-semibold text-white">{preview.title}</p>
+                <p className="mt-1 text-xs text-white/65">
+                  {preview.subject} - {preview.dueDate}
+                </p>
+              </div>
+            ) : null}
+
+            {textEntryOpen ? (
+              <form
+                onSubmit={onSubmitText}
+                className="rounded-2xl border border-white/10 bg-white/5 p-3"
+              >
+                <input
+                  type="text"
+                  value={textValue}
+                  onChange={(event) => setTextValue(event.target.value)}
+                  placeholder={
+                    voiceSupported
+                      ? 'Type a command if voice misses it'
+                      : 'Voice unavailable. Type a command...'
+                  }
+                  className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white outline-none placeholder:text-white/45 focus:border-cyan-400/30"
+                />
+                <button
+                  type="submit"
+                  className="mt-3 inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-xs font-semibold text-cyan-100"
+                >
+                  Run command
+                </button>
+              </form>
+            ) : null}
+
+            {result ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                  <p className="text-sm font-semibold text-white">{result.message}</p>
+                </div>
+                <p className="mt-2 text-sm text-white/72">{result.fullMessage}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </motion.div>
+    ) : null}
+  </AnimatePresence>
+)
+
 const DynamicIsland = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const { profile, user } = useAuth()
-  const { tasks, studySessions } = useData()
+  const { tasks, studySessions, addTask, updateTaskById, toggleTask } = useData()
   const [timerState, setTimerState] = useState(() => mapTimerState(readActiveSession()))
   const [activeTaskId, setActiveTaskId] = useState(() => getActiveFocusTaskId(user?.id))
   const [transientEvent, setTransientEvent] = useState(null)
   const [focusModeActive, setFocusModeActive] = useState(
     () => typeof document !== 'undefined' && Boolean(document.fullscreenElement)
   )
+  const [assistantMode, setAssistantMode] = useState('idle')
+  const [assistantTranscript, setAssistantTranscript] = useState('')
+  const [assistantPreview, setAssistantPreview] = useState(null)
+  const [assistantResult, setAssistantResult] = useState(null)
+  const [textEntryOpen, setTextEntryOpen] = useState(false)
+  const [textCommand, setTextCommand] = useState('')
+  const [voiceSupported, setVoiceSupported] = useState(false)
   const previousCompletedRef = useRef(0)
   const previousRunningRef = useRef(false)
   const previousScoreDateRef = useRef('')
+  const voiceSessionRef = useRef(null)
 
   useEffect(() => {
     const syncTimer = () => {
@@ -377,6 +607,123 @@ const DynamicIsland = () => {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
   }, [])
 
+  const assistantUser = useMemo(
+    () => ({
+      id: user?.id,
+      personalization: profile?.personalization || profile || {}
+    }),
+    [profile, user?.id]
+  )
+
+  const closeAssistantPanel = useCallback(() => {
+    setAssistantMode('idle')
+    setAssistantTranscript('')
+    setAssistantPreview(null)
+    setAssistantResult(null)
+    setTextEntryOpen(false)
+    setTextCommand('')
+    voiceSessionRef.current?.stopListening?.()
+  }, [])
+
+  const runAssistantCommand = useCallback(
+    async (transcript) => {
+      if (!transcript?.trim()) return
+      setAssistantMode('processing')
+      setAssistantTranscript(transcript.trim())
+      setAssistantPreview(buildAssistantPreview(transcript))
+      setTextEntryOpen(false)
+      setTextCommand('')
+
+      try {
+        const { result } = await processVoiceCommand(transcript, {
+          user: assistantUser,
+          tasks,
+          addTask,
+          updateTaskById,
+          toggleTask,
+          navigate
+        })
+        setAssistantResult(result)
+      } catch {
+        setAssistantResult({
+          message: 'Command failed',
+          fullMessage: 'I could not finish that action. Please try again.'
+        })
+      } finally {
+        setAssistantMode('result')
+      }
+    },
+    [addTask, assistantUser, navigate, tasks, toggleTask, updateTaskById]
+  )
+
+  useEffect(() => {
+    const nextVoiceSession = createVoiceSession({
+      onTranscript: (transcript) => {
+        setAssistantMode('listening')
+        setAssistantTranscript(transcript)
+        setAssistantPreview(buildAssistantPreview(transcript))
+      },
+      onFinalTranscript: (transcript) => {
+        void runAssistantCommand(transcript)
+      },
+      onListeningChange: (isListening) => {
+        setAssistantMode((prev) => {
+          if (isListening) return 'listening'
+          return prev === 'processing' || prev === 'result' ? prev : 'idle'
+        })
+      },
+      onError: () => {
+        setTextEntryOpen(true)
+        setAssistantMode('result')
+        setAssistantResult({
+          message: 'Voice unavailable',
+          fullMessage: 'Use the text command input to control tasks and focus.'
+        })
+      }
+    })
+    voiceSessionRef.current = nextVoiceSession
+    setVoiceSupported(Boolean(nextVoiceSession.supported))
+
+    return () => {
+      voiceSessionRef.current?.stopListening?.()
+    }
+  }, [runAssistantCommand])
+
+  const startVoiceAssistant = useCallback(() => {
+    setAssistantResult(null)
+    setTextEntryOpen(false)
+    if (!voiceSessionRef.current?.supported) {
+      setAssistantMode('result')
+      setAssistantResult({
+        message: 'Type instead',
+        fullMessage: 'Voice is not supported here. Type a command instead.'
+      })
+      setTextEntryOpen(true)
+      return
+    }
+
+    setAssistantTranscript('')
+    setAssistantPreview(null)
+    setAssistantMode('listening')
+    voiceSessionRef.current.startListening()
+  }, [])
+
+  const stopVoiceAssistant = useCallback(() => {
+    voiceSessionRef.current?.stopListening?.()
+    setAssistantMode((prev) => (prev === 'processing' ? prev : 'idle'))
+  }, [])
+
+  useEffect(() => {
+    if (assistantMode !== 'result') return undefined
+    const timer = window.setTimeout(() => {
+      setAssistantMode('idle')
+      setAssistantPreview(null)
+      setAssistantTranscript('')
+      setAssistantResult(null)
+    }, 3200)
+    return () => window.clearTimeout(timer)
+  }, [assistantMode])
+
   const snapshot = useMemo(
     () =>
       getIslandState({
@@ -391,21 +738,89 @@ const DynamicIsland = () => {
     [profile, tasks, studySessions, timerState, transientEvent, location.pathname, activeTaskId]
   )
 
+  const displaySnapshot = useMemo(() => {
+    if (assistantMode === 'listening') {
+      return {
+        ...snapshot,
+        id: 'assistant-listening',
+        mobileText: getShortMessage(assistantTranscript || 'Listening', 20),
+        mobileExpandedText: getShortMessage(assistantTranscript || 'Listening...', 24),
+        desktopTitle: 'Listening...',
+        desktopDetail:
+          assistantTranscript ||
+          'Speak naturally. Example: create task math tomorrow, cree tache philo demain, or zid task math ghdda.',
+        actionLabel: 'Stop',
+        actionPath: snapshot.actionPath,
+        icon: 'brain',
+        tone: 'active'
+      }
+    }
+
+    if (assistantMode === 'processing') {
+      return {
+        ...snapshot,
+        id: 'assistant-processing',
+        mobileText: 'Processing',
+        mobileExpandedText: 'Processing command',
+        desktopTitle: 'Processing...',
+        desktopDetail: 'Understanding your command and executing the best action.',
+        actionLabel: 'Wait',
+        actionPath: snapshot.actionPath,
+        icon: 'brain',
+        tone: 'info'
+      }
+    }
+
+    if (assistantMode === 'result' && assistantResult) {
+      return {
+        ...snapshot,
+        id: 'assistant-result',
+        mobileText: getShortMessage(assistantResult.message, 20),
+        mobileExpandedText: getShortMessage(assistantResult.fullMessage, 24),
+        desktopTitle: assistantResult.message,
+        desktopDetail: assistantResult.fullMessage,
+        actionLabel: 'Done',
+        actionPath: snapshot.actionPath,
+        icon: assistantResult.message === 'Command failed' ? 'alert' : 'sparkles',
+        tone: assistantResult.message === 'Command failed' ? 'danger' : 'success'
+      }
+    }
+
+    return snapshot
+  }, [assistantMode, assistantResult, assistantTranscript, snapshot])
+
   const hidden = HIDE_ROUTES.has(location.pathname) || focusModeActive
 
-  const Icon = iconMap[snapshot.icon] || Sparkles
-  const tone = toneClasses[snapshot.tone] || toneClasses.neutral
+  useEffect(() => {
+    if (!hidden) return
+    voiceSessionRef.current?.stopListening?.()
+    setAssistantMode('idle')
+    setTextEntryOpen(false)
+  }, [hidden])
+
+  const Icon = iconMap[displaySnapshot.icon] || Sparkles
+  const tone = toneClasses[displaySnapshot.tone] || toneClasses.neutral
 
   const handleAction = () => {
-    if (snapshot.actionState) {
-      navigate(snapshot.actionPath, { state: snapshot.actionState })
+    if (assistantMode === 'listening') {
+      stopVoiceAssistant()
       return
     }
-    navigate(snapshot.actionPath)
+
+    if (displaySnapshot.actionState) {
+      navigate(displaySnapshot.actionPath, { state: displaySnapshot.actionState })
+      return
+    }
+    navigate(displaySnapshot.actionPath)
   }
 
   const handleMobileTap = () => {
-    switch (snapshot.type) {
+    if (assistantMode === 'listening') {
+      stopVoiceAssistant()
+      return
+    }
+
+    switch (displaySnapshot.type) {
       case 'alert':
         navigate('/tasks')
         break
@@ -416,11 +831,11 @@ const DynamicIsland = () => {
         navigate('/analytics')
         break
       default:
-        if (snapshot.actionState) {
-          navigate(snapshot.actionPath, { state: snapshot.actionState })
+        if (displaySnapshot.actionState) {
+          navigate(displaySnapshot.actionPath, { state: displaySnapshot.actionState })
           return
         }
-        navigate(snapshot.actionPath)
+        navigate(displaySnapshot.actionPath)
         break
     }
   }
@@ -430,11 +845,12 @@ const DynamicIsland = () => {
       <AnimatePresence>
         {!hidden ? (
           <MobileIsland
-            key={`mobile-island-${snapshot.id}`}
-            snapshot={snapshot}
+            key={`mobile-island-${displaySnapshot.id}`}
+            snapshot={displaySnapshot}
             tone={tone}
             Icon={Icon}
             onTap={handleMobileTap}
+            onVoiceStart={startVoiceAssistant}
           />
         ) : null}
       </AnimatePresence>
@@ -442,14 +858,44 @@ const DynamicIsland = () => {
       <AnimatePresence>
         {!hidden ? (
           <DesktopAssistant
-            key={`desktop-assistant-${snapshot.id}`}
-            snapshot={snapshot}
+            key={`desktop-assistant-${displaySnapshot.id}`}
+            snapshot={displaySnapshot}
             tone={tone}
             Icon={Icon}
             onAction={handleAction}
+            onVoiceTap={startVoiceAssistant}
+            onTextTap={() => {
+              setAssistantMode('idle')
+              setAssistantResult(null)
+              setAssistantPreview(null)
+              setAssistantTranscript('')
+              setTextEntryOpen(true)
+            }}
+            voiceSupported={voiceSupported}
+            assistantMode={assistantMode}
           />
         ) : null}
       </AnimatePresence>
+
+      {!hidden ? (
+        <AssistantCommandPanel
+          open={assistantMode !== 'idle' || textEntryOpen}
+          mode={assistantMode}
+          transcript={assistantTranscript}
+          preview={assistantPreview}
+          result={assistantResult}
+          textEntryOpen={textEntryOpen}
+          textValue={textCommand}
+          setTextValue={setTextCommand}
+          onSubmitText={(event) => {
+            event.preventDefault()
+            void runAssistantCommand(textCommand)
+          }}
+          onClose={closeAssistantPanel}
+          onStopListening={stopVoiceAssistant}
+          voiceSupported={voiceSupported}
+        />
+      ) : null}
     </>
   )
 }

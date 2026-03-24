@@ -134,7 +134,13 @@ export const computeStudyMetrics = ({
 
   const overdueTasks = tasks.filter((task) => {
     if (!task?.due_date) return false
-    if (task?.completed === true || task?.status === 'completed') return false
+    if (
+      task?.completed === true ||
+      task?.status === 'completed' ||
+      task?.status === 'on_hold'
+    ) {
+      return false
+    }
     return task.due_date < todayKey
   }).length
 

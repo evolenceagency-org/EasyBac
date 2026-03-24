@@ -50,6 +50,7 @@ const getTaskStatus = (task) => {
 const getTaskDotClass = (task) => {
   const overdue = isOverdueTask(task)
   if (task.completed) return 'bg-emerald-400'
+  if (task.status === 'on_hold') return 'bg-slate-300'
   if (overdue) return 'bg-rose-400'
   return 'bg-blue-400'
 }
@@ -249,6 +250,22 @@ const Tasks = () => {
       })
     },
     [navigate, profile]
+  )
+
+  const handleToggleHold = useCallback(
+    async (task) => {
+      if (!checkTrialAndBlock(profile, navigate)) return
+      setError('')
+      try {
+        await updateTaskById(task.id, {
+          status: task.status === 'on_hold' ? 'active' : 'on_hold',
+          completed: false
+        })
+      } catch (err) {
+        setError('Unable to update the task state.')
+      }
+    },
+    [navigate, profile, updateTaskById]
   )
 
   const resetFilters = useCallback(() => {
@@ -835,6 +852,7 @@ const Tasks = () => {
             disableSwipe
             onToggle={handleToggle}
             onDelete={handleDelete}
+            onToggleHold={handleToggleHold}
             onReschedule={handleReschedule}
             onStartFocus={handleStartFocus}
             focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
@@ -1127,6 +1145,7 @@ const Tasks = () => {
                     lockActions={lockActions}
                     onToggle={handleToggle}
                     onDelete={handleDelete}
+                    onToggleHold={handleToggleHold}
                     onReschedule={handleReschedule}
                     onStartFocus={handleStartFocus}
                     focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}

@@ -19,6 +19,7 @@ import {
   getSuggestedFocusTask,
   setActiveFocusTaskId
 } from '../utils/focusTasks.js'
+import { PENDING_STUDY_ACTION_KEY } from '../utils/assistantController.ts'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -166,6 +167,42 @@ const Study = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload)
     }
   }, [isRunning])
+
+  useEffect(() => {
+    const handleAssistantControl = (event) => {
+      const action = event.detail?.action
+      if (action === 'pause' && isRunning) pause()
+      if ((action === 'resume' || action === 'start') && !isRunning) start()
+      if (action === 'reset') reset()
+      if (action === 'finish' && isActiveSession) finish()
+    }
+
+    window.addEventListener('assistant:study-control', handleAssistantControl)
+    return () => {
+      window.removeEventListener('assistant:study-control', handleAssistantControl)
+    }
+  }, [finish, isActiveSession, isRunning, pause, reset, start])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = window.sessionStorage.getItem(PENDING_STUDY_ACTION_KEY)
+    if (!raw) return
+
+    try {
+      const payload = JSON.parse(raw)
+      if (payload?.taskId) {
+        setActiveTaskId(payload.taskId)
+      }
+
+      if ((payload?.action === 'start' || payload?.action === 'resume') && !isRunning) {
+        start()
+      }
+    } catch {
+      // Ignore malformed assistant handoff payloads.
+    } finally {
+      window.sessionStorage.removeItem(PENDING_STUDY_ACTION_KEY)
+    }
+  }, [isRunning, start])
 
   const buildLinkedSessionPayload = useCallback(
     (minutesToSave, sessionMode = mode) => {

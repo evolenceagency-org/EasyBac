@@ -142,7 +142,9 @@ export const trackTaskFocusSession = (
 }
 
 export const getSuggestedFocusTask = (tasks = [], profile = null) => {
-  const pendingTasks = tasks.filter((task) => !task.completed && task.status !== 'completed')
+  const pendingTasks = tasks.filter(
+    (task) => !task.completed && task.status !== 'completed' && task.status !== 'on_hold'
+  )
   if (pendingTasks.length === 0) return null
 
   const weakSubjects = (profile?.weakSubjects || profile?.personalization?.weakSubjects || []).map((item) =>
