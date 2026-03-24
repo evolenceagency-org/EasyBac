@@ -1,9 +1,11 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { useMemo } from 'react'
 import Sidebar from '../components/Sidebar.jsx'
 import MobileBottomNav from '../components/MobileBottomNav.jsx'
 import DynamicIsland from '../components/DynamicIsland.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { isPersonalized } from '../utils/personalization.js'
+import { readAiControlCenterSettings } from '../utils/aiControlCenter.js'
 
 const MainLayout = () => {
   const { user, session, loading, profile } = useAuth()
@@ -12,6 +14,10 @@ const MainLayout = () => {
   const hasSidebar = Boolean(loading || isAuthenticated)
   const onboardingPersonalization =
     location.pathname === '/personalization' && !isPersonalized(profile)
+  const controlCenterSettings = useMemo(
+    () => readAiControlCenterSettings(profile?.id || user?.id),
+    [profile?.id, user?.id]
+  )
   const shouldForceOnboarding =
     isAuthenticated &&
     profile &&
@@ -40,7 +46,10 @@ const MainLayout = () => {
   ])
   const showMobileBottomNav =
     hasSidebar && !onboardingPersonalization && mobileBottomNavRoutes.has(location.pathname)
-  const showDynamicIsland = isAuthenticated && !onboardingPersonalization
+  const showDynamicIsland =
+    isAuthenticated &&
+    !onboardingPersonalization &&
+    controlCenterSettings.assistant?.visible !== false
   const mobileBottomPadding = showMobileBottomNav
     ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'
     : 'pb-4'

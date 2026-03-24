@@ -7,6 +7,7 @@ import {
 } from './autopilotEngine.ts'
 import { buildExamSimulationPlan } from './examEngine.ts'
 import { readCognitiveTelemetry } from './cognitiveLoadEngine.ts'
+import { readAiControlCenterSettings } from './aiControlCenter.js'
 
 const toTone = (type, metadata = {}) => {
   if (metadata.tone) return metadata.tone
@@ -27,6 +28,10 @@ export const getAssistantSnapshot = ({
   activeTaskId = null
 }) => {
   const personalization = profile?.personalization || profile
+  const controlCenterSettings = readAiControlCenterSettings(profile?.id || profile?.userId)
+  if (controlCenterSettings.assistant?.visible === false) return null
+
+  const assistantMode = controlCenterSettings.assistant?.mode || 'smart'
   const autopilotState = readAutopilotState(profile?.id || profile?.userId)
   const cognitiveTelemetry = readCognitiveTelemetry(profile?.id || profile?.userId)
   const examPlan = buildExamSimulationPlan(personalization, tasks, {
@@ -186,6 +191,7 @@ export const getAssistantSnapshot = ({
     }
 
     if (!autopilotPlan) return null
+    if (assistantMode === 'suggest') return null
 
     const active = Boolean(autopilotState?.active)
     const actionState = createAutopilotLaunchPayload(autopilotPlan)

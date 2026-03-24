@@ -24,6 +24,7 @@ const Tasks = lazy(() => import('./pages/Tasks.jsx'))
 const Analytics = lazy(() => import('./pages/Analytics.jsx'))
 const Personalization = lazy(() => import('./pages/Personalization.jsx'))
 const AIResult = lazy(() => import('./pages/AIResult.jsx'))
+const AIControlCenter = lazy(() => import('./pages/AIControlCenter.jsx'))
 const ExamSimulation = lazy(() => import('./pages/ExamSimulation.jsx'))
 const ExamResult = lazy(() => import('./pages/ExamResult.jsx'))
 
@@ -117,6 +118,7 @@ function App() {
               <Route path="/analytics" element={<Analytics />} />
               <Route path="/personalization" element={<Personalization />} />
               <Route path="/ai-result" element={<AIResult />} />
+              <Route path="/ai-control-center" element={<AIControlCenter />} />
               <Route path="/welcome-ai" element={<Navigate to="/ai-result" replace />} />
             </Route>
           </Route>

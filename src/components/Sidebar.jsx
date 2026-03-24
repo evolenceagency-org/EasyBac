@@ -8,7 +8,8 @@ import {
   Heart,
   Mail,
   LogOut,
-  User
+  User,
+  SlidersHorizontal
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -28,6 +29,7 @@ const mainLinks = [
 
 const secondaryLinks = [
   { label: 'Personalization', path: '/personalization', icon: Brain },
+  { label: 'AI Control', path: '/ai-control-center', icon: SlidersHorizontal },
   { label: 'Pricing', path: '/pricing', icon: BadgeDollarSign },
   { label: 'Donate', path: '/donate', icon: Heart, variant: 'donate', badge: 'NEW' },
   { label: 'Contact', path: '/contact', icon: Mail }

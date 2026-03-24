@@ -6,6 +6,7 @@ import {
   BarChart3,
   Brain,
   Ellipsis,
+  SlidersHorizontal,
   Heart,
   LayoutDashboard,
   ListTodo,
@@ -24,6 +25,7 @@ const navItems = [
 ]
 
 const quickActions = [
+  { label: 'AI Control', path: '/ai-control-center', icon: SlidersHorizontal },
   { label: 'Pricing', path: '/pricing', icon: BadgeDollarSign },
   { label: 'Donate', path: '/donate', icon: Heart },
   { label: 'Contact', path: '/contact', icon: Mail }

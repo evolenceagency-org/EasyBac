@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CheckCircle2, GraduationCap } from 'lucide-react'
+import { CheckCircle2, GraduationCap, SlidersHorizontal } from 'lucide-react'
 import Countdown from '../components/Countdown.jsx'
 import DashboardCards from '../components/DashboardCards.jsx'
 import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
@@ -296,6 +296,32 @@ const Dashboard = () => {
           </div>
         </GlassCard>
       )}
+
+      <GlassCard className="p-4 md:p-6">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.24em] text-violet-200/75">
+              AI Control Center
+            </p>
+            <p className="mt-1 text-lg font-semibold text-white">
+              Tune voice, assistant, and autopilot behavior
+            </p>
+            <p className="mt-1 text-sm text-white/65">
+              Keep AI helpful without letting it take over.
+            </p>
+          </div>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => navigate('/ai-control-center')}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.14)]"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Open Control Center
+          </motion.button>
+        </div>
+      </GlassCard>
 
       {(errors.tasks || errors.sessions) && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]">

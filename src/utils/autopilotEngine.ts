@@ -1,4 +1,5 @@
 import { getBestTask, getOptimalSessionLength } from './aiEngine.ts'
+import { readAiControlCenterSettings } from './aiControlCenter.js'
 
 export const AUTOPILOT_STATE_KEY_PREFIX = 'easybac:autopilot-state'
 export const PENDING_STUDY_ACTION_KEY = 'assistant-pending-study-action'
@@ -90,6 +91,9 @@ const pickEasierTask = (tasks = [], currentTaskId = null) => {
 }
 
 export const buildAutopilotPlan = ({ user, tasks = [], studySessions = [], now = new Date() }) => {
+  const settings = readAiControlCenterSettings(user?.id || user?.userId)
+  if (settings.autopilot?.enabled === false) return null
+
   const bestTask = getBestTask(tasks, user?.personalization || user)
   const optimal = getOptimalSessionLength(user, { tasks, studySessions, now })
   const fallbackTitle = bestTask?.title || 'Free focus session'
@@ -155,6 +159,9 @@ export const clearAutopilotState = (userId) => {
 }
 
 export const queueAutopilotLaunch = ({ userId, plan }) => {
+  const settings = readAiControlCenterSettings(userId)
+  if (settings.autopilot?.enabled === false) return null
+
   const payload = createAutopilotLaunchPayload(plan)
   queuePendingStudyAction(payload)
   if (userId) {

@@ -13,10 +13,12 @@ import {
   Mic,
   Sparkles,
   Timer,
+  Settings2,
   X
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useData } from '../context/DataContext.jsx'
+import { readAiControlCenterSettings } from '../utils/aiControlCenter.js'
 import { getIslandState } from '../utils/assistantBar.js'
 import { getShortMessage } from '../utils/aiEngine.ts'
 import { getActiveFocusTaskId } from '../utils/focusTasks.js'
@@ -43,7 +45,8 @@ const HIDE_ROUTES = new Set([
   '/ai-result',
   '/welcome-ai',
   '/exam-simulation',
-  '/exam-result'
+  '/exam-result',
+  '/ai-control-center'
 ])
 const DESKTOP_AUTO_COLLAPSE_MS = 4200
 const ASSISTANT_RESULT_AUTO_CLOSE_MS = 3600
@@ -260,8 +263,10 @@ const DesktopAssistant = ({
   onVoiceTap,
   onVoiceStop,
   onTextTap,
+  onControlCenterTap,
   voiceSupported,
-  assistantMode
+  assistantMode,
+  voiceEnabled
 }) => {
   const [expanded, setExpanded] = useState(false)
   const cognitiveState = snapshot.metadata?.cognitiveLoad?.state || null
@@ -361,16 +366,18 @@ const DesktopAssistant = ({
                   onVoiceStop?.()
                   return
                 }
-                if (voiceSupported) onVoiceTap?.()
+                if (voiceSupported && voiceEnabled) onVoiceTap?.()
                 else onTextTap?.()
               }}
               className="rounded-full border border-white/10 bg-white/10 p-2 text-white/80 transition hover:bg-white/15"
-              aria-label={voiceSupported ? 'Start voice assistant' : 'Open assistant input'}
+              aria-label={voiceSupported && voiceEnabled ? 'Start voice assistant' : 'Open assistant input'}
             >
               {assistantMode === 'listening' ? (
                 <AudioLines className="h-3.5 w-3.5" />
-              ) : (
+              ) : voiceEnabled ? (
                 <Mic className="h-3.5 w-3.5" />
+              ) : (
+                <MicOff className="h-3.5 w-3.5" />
               )}
             </button>
             <button
@@ -408,6 +415,14 @@ const DesktopAssistant = ({
                     className={`inline-flex items-center rounded-full border px-3.5 py-1.5 text-xs font-semibold transition duration-200 hover:scale-[1.02] ${tone.button}`}
                   >
                     {snapshot.actionLabel}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onControlCenterTap}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-white/85 transition hover:bg-white/15"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Control Center
                   </button>
                   {showExamAction ? (
                     <button
@@ -763,6 +778,13 @@ const DynamicIsland = () => {
     [profile, user?.id]
   )
 
+  const controlCenterSettings = useMemo(
+    () => readAiControlCenterSettings(assistantUser?.id || profile?.id || user?.id),
+    [assistantUser?.id, profile?.id, user?.id]
+  )
+  const assistantDisabled = controlCenterSettings.assistant?.visible === false
+  const voiceEnabled = controlCenterSettings.voice?.enabled !== false
+
   const closeAssistantPanel = useCallback(() => {
     setAssistantMode('idle')
     setAssistantTranscript('')
@@ -826,6 +848,11 @@ const DynamicIsland = () => {
   )
 
   useEffect(() => {
+    if (assistantDisabled) {
+      stopVoiceListening(voiceSessionRef.current)
+      return undefined
+    }
+
     const nextVoiceSession = createVoiceSession({
       onTranscript: (transcript) => {
         setAssistantMode('listening')
@@ -860,12 +887,25 @@ const DynamicIsland = () => {
     return () => {
       voiceSessionRef.current?.stopListening?.()
     }
-  }, [runAssistantCommand])
+  }, [assistantDisabled, runAssistantCommand])
 
   const startVoiceAssistant = useCallback(() => {
     setAssistantResult(null)
     setPendingConfirmationIntent(null)
     setTextEntryOpen(false)
+
+    if (!voiceEnabled) {
+      setAssistantMode('error')
+      setAssistantResult({
+        status: 'error',
+        message: 'Voice off',
+        fullMessage: 'Voice control is disabled in the AI Control Center.'
+      })
+      setTextEntryOpen(true)
+      playAssistantSound('error')
+      return
+    }
+
     if (!voiceSessionRef.current?.supported) {
       setAssistantMode('error')
       setAssistantResult({
@@ -883,10 +923,10 @@ const DynamicIsland = () => {
     setAssistantMode('listening')
     playAssistantSound('listening')
     startVoiceListening(voiceSessionRef.current, {
-      continuous: true,
-      silenceMs: 1900
+      continuous: controlCenterSettings.voice?.alwaysListening && !controlCenterSettings.voice?.pushToTalkOnly,
+      silenceMs: controlCenterSettings.voice?.pushToTalkOnly ? 1350 : 1900
     })
-  }, [])
+  }, [controlCenterSettings.voice?.alwaysListening, controlCenterSettings.voice?.pushToTalkOnly, voiceEnabled])
 
   const stopVoiceAssistant = useCallback(() => {
     stopVoiceListening(voiceSessionRef.current)
@@ -920,6 +960,8 @@ const DynamicIsland = () => {
   )
 
   const displaySnapshot = useMemo(() => {
+    if (!snapshot) return null
+
     if (assistantMode === 'listening') {
       return {
         ...snapshot,
@@ -987,7 +1029,7 @@ const DynamicIsland = () => {
     return snapshot
   }, [assistantMode, assistantResult, assistantTranscript, snapshot])
 
-  const hidden = HIDE_ROUTES.has(location.pathname) || focusModeActive
+  const hidden = HIDE_ROUTES.has(location.pathname) || focusModeActive || assistantDisabled
 
   useEffect(() => {
     if (!hidden) return
@@ -996,6 +1038,8 @@ const DynamicIsland = () => {
     setPendingConfirmationIntent(null)
     setTextEntryOpen(false)
   }, [hidden])
+
+  if (!displaySnapshot) return null
 
   const Icon = iconMap[displaySnapshot.icon] || Sparkles
   const tone = toneClasses[displaySnapshot.tone] || toneClasses.neutral
@@ -1111,8 +1155,10 @@ const DynamicIsland = () => {
               setPendingConfirmationIntent(null)
               setTextEntryOpen(true)
             }}
+            onControlCenterTap={() => navigate('/ai-control-center')}
             voiceSupported={voiceSupported}
             assistantMode={assistantMode}
+            voiceEnabled={voiceEnabled}
           />
         ) : null}
       </AnimatePresence>
