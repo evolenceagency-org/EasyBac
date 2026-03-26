@@ -295,12 +295,12 @@ const TaskCard = ({
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className={`w-full max-w-full box-border rounded-2xl border bg-white/4 px-4 py-4 backdrop-blur-lg transition-all duration-200 ease-out hover:border-white/12 hover:shadow-[0_12px_24px_rgba(0,0,0,0.12)] ${
+        className={`w-full max-w-full box-border rounded-2xl border border-white/[0.06] bg-[rgba(255,255,255,0.03)] px-4 py-4 backdrop-blur-[20px] transition-all duration-200 ease-out hover:border-white/[0.12] hover:bg-[rgba(255,255,255,0.04)] hover:shadow-[0_0_0_1px_rgba(139,92,246,0.2)] ${
           isRecommended
-            ? 'border-cyan-400/28 shadow-[0_10px_20px_rgba(34,211,238,0.1)]'
+            ? 'border-[#5B8CFF]/20'
             : isOverdue
-              ? 'border-red-500/35 bg-red-500/10'
-              : 'border-white/10'
+              ? 'border-red-500/20 bg-[rgba(255,255,255,0.03)]'
+              : 'border-white/[0.06]'
         }`}
       >
         <div className="flex items-start justify-between gap-3">
@@ -359,7 +359,7 @@ const TaskCard = ({
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             ref={menuButtonRef}
-            className="rounded-lg border border-white/8 bg-white/5 p-1.5 text-white/65 transition hover:border-white/12 hover:text-white"
+            className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-1.5 text-white/65 transition hover:bg-white/[0.05] hover:text-white"
           >
             <EllipsisVertical className="h-4 w-4" />
           </button>
@@ -376,7 +376,7 @@ const TaskCard = ({
                   exit={{ opacity: 0, scale: 0.96, y: -8 }}
                   transition={{ duration: 0.18, ease: 'easeOut' }}
                   style={menuStyle}
-                  className="fixed z-[999] rounded-xl border border-white/8 bg-neutral-950/96 p-2 shadow-[0_12px_24px_rgba(0,0,0,0.32)] backdrop-blur-xl"
+                  className="fixed z-[999] rounded-xl border border-white/[0.06] bg-[#0b0b0f]/96 p-2 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
                 >
                   <button
                     type="button"
@@ -440,25 +440,25 @@ const TaskCard = ({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/8 bg-black/25 p-2"
+              className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] p-2"
             >
               <input
                 type="date"
                 value={rescheduleDate}
                 onChange={(event) => setRescheduleDate(event.target.value)}
-                className="min-w-[140px] flex-1 rounded-lg border border-white/8 bg-white/4 px-3 py-2 text-xs text-white outline-none focus:border-purple-400/35"
+                className="min-w-[140px] flex-1 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-white outline-none focus:border-white/[0.12]"
               />
               <button
                 type="button"
                 onClick={handleRescheduleSave}
-                className="rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/15"
+                className="rounded-lg bg-white/[0.05] px-3 py-2 text-xs font-medium text-white transition hover:bg-white/[0.08]"
               >
                 Save
               </button>
               <button
                 type="button"
                 onClick={() => setShowReschedule(false)}
-                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 transition hover:bg-white/10"
+                className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-white/80 transition hover:bg-white/[0.05]"
               >
                 Cancel
               </button>

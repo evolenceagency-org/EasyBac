@@ -72,8 +72,8 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
         onClick={() => setOpen((prev) => !prev)}
         disabled={disabled}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/4 px-3.5 py-2.5 text-[13px] text-white/78 backdrop-blur-md transition-all duration-200 ease-out md:py-2',
-          'hover:border-white/12 hover:bg-white/6',
+          'flex w-full items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-2.5 text-[13px] text-white/78 backdrop-blur-[20px] transition-all duration-200 ease-out md:py-2',
+          'hover:bg-white/[0.05]',
           disabled && 'cursor-not-allowed opacity-60'
         )}
       >
@@ -95,7 +95,7 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
               exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
               style={menuStyle}
-              className="fixed z-[120] max-h-60 overflow-y-auto rounded-xl border border-white/8 bg-neutral-950/96 backdrop-blur-xl shadow-[0_12px_24px_rgba(0,0,0,0.32)]"
+              className="fixed z-[120] max-h-60 overflow-y-auto rounded-xl border border-white/[0.06] bg-[#0b0b0f]/96 backdrop-blur-[20px] shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
             >
               {options.map((option) => (
                 <button
@@ -106,12 +106,11 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
                     onChange(option.value)
                     setOpen(false)
                   }}
-                    className={cn(
-                      'w-full px-4 py-2 text-left text-[13px] text-white/78 transition hover:bg-white/8',
-                      value === option.value &&
-                        'bg-gradient-to-r from-purple-500/18 to-blue-500/18 text-white'
-                    )}
-                  >
+                  className={cn(
+                    'w-full px-4 py-2 text-left text-[13px] text-white/78 transition hover:bg-white/[0.05]',
+                    value === option.value && 'bg-[rgba(120,100,255,0.12)] text-white'
+                  )}
+                >
                   {option.label}
                 </button>
               ))}

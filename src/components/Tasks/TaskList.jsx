@@ -94,13 +94,13 @@ const TaskList = ({
       </AnimatePresence>
 
       {loading.tasks ? (
-        <div className="rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm text-[#C7D0DC]">
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-sm text-[#C7D0DC]">
           Loading tasks...
         </div>
       ) : null}
 
       {!loading.tasks && tasks.length === 0 ? (
-        <div className="rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm text-[#C7D0DC]">
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-sm text-[#C7D0DC]">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05]">
               <ListTodo className="h-4 w-4 text-[#8B96A8]" />
@@ -111,7 +111,7 @@ const TaskList = ({
       ) : null}
 
       {!loading.tasks && tasks.length > 0 && visibleTasks.length === 0 ? (
-        <div className="rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm text-[#C7D0DC]">
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-sm text-[#C7D0DC]">
           No tasks match the selected filters.
         </div>
       ) : null}

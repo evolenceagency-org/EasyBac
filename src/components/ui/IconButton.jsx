@@ -10,7 +10,7 @@ const IconButton = forwardRef(function IconButton({ className, children, ...prop
       whileTap={{ scale: 0.96 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
-        'inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.04] text-[#C7D0DC] transition hover:bg-white/[0.06] hover:text-[#F8FAFC]',
+        'surface-subtle inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.03] text-[#C7D0DC] transition hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.05] hover:text-[#F8FAFC]',
         className
       )}
       {...props}

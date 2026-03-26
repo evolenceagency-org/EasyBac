@@ -8,8 +8,8 @@ const base =
 const variants = {
   primary: 'bg-[#5B8CFF] text-white hover:bg-[#4E7EEA]',
   secondary:
-    'bg-white/[0.04] text-[#F8FAFC] ring-1 ring-white/[0.06] hover:bg-white/[0.06]',
-  ghost: 'bg-transparent text-[#C7D0DC] hover:bg-white/[0.04] hover:text-[#F8FAFC]'
+    'surface-subtle bg-white/[0.03] text-[#F8FAFC] ring-1 ring-white/[0.06] hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.05] hover:shadow-[0_0_0_1px_rgba(139,92,246,0.2)]',
+  ghost: 'bg-transparent text-[#C7D0DC] hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.04] hover:text-[#F8FAFC]'
 }
 
 const makeButton = (variant) =>
@@ -33,4 +33,3 @@ export const SecondaryButton = makeButton('secondary')
 export const GhostButton = makeButton('ghost')
 
 export default PrimaryButton
-

@@ -3,9 +3,9 @@ import GlassCard from './GlassCard.jsx'
 
 const RecentSessions = ({ sessions = [], loading }) => {
   const getIndicator = (minutes) => {
-    if (minutes >= 60) return 'bg-emerald-400 shadow-[0_0_10px_rgba(34,197,94,0.6)]'
-    if (minutes >= 30) return 'bg-yellow-300 shadow-[0_0_10px_rgba(234,179,8,0.5)]'
-    return 'bg-rose-400 shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+    if (minutes >= 60) return 'bg-emerald-300'
+    if (minutes >= 30) return 'bg-amber-300'
+    return 'bg-rose-300'
   }
   return (
     <GlassCard className="p-4 md:p-6">
@@ -26,7 +26,7 @@ const RecentSessions = ({ sessions = [], loading }) => {
         )}
 
         {!loading && sessions.length === 0 && (
-          <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 text-sm text-white/70">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white/70">
             No sessions yet. Start your first focus block.
           </div>
         )}
@@ -35,7 +35,7 @@ const RecentSessions = ({ sessions = [], loading }) => {
           sessions.map((session) => (
             <div
               key={session.id}
-              className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/10 px-4 py-3 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 transition-all duration-200 ease-out hover:bg-white/[0.05] sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
                 <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ const RecentSessions = ({ sessions = [], loading }) => {
                   {session.mode === 'pomodoro' ? 'Pomodoro' : 'Free Study'}
                 </p>
               </div>
-              <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs text-white/70">
+              <span className="rounded-full border border-white/[0.06] bg-white/[0.03] px-4 py-2 text-xs text-white/70">
                 {session.duration_minutes} min
               </span>
             </div>

@@ -2,7 +2,8 @@ import { animate, useMotionValue } from "framer-motion"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { gestureMotion, quickSpring } from "../utils/motion.js"
 
-const HOLD_MS = 320
+const HOLD_MS = 270
+const TAP_MOVE_THRESHOLD = 8
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -23,6 +24,7 @@ const clearIntervalRef = (intervalRef) => {
 const useAssistantIslandGestures = ({
   enabled = true,
   onHold,
+  onTap,
   onSwipeLeft,
   onSwipeRight,
   onSwipeUp,
@@ -151,7 +153,7 @@ const useAssistantIslandGestures = ({
       const absX = Math.abs(deltaX)
       const absY = Math.abs(deltaY)
 
-      if (absX > 8 || absY > 8) {
+      if (absX > TAP_MOVE_THRESHOLD || absY > TAP_MOVE_THRESHOLD) {
         clearHoldState()
         setIsHolding(false)
       }
@@ -212,6 +214,13 @@ const useAssistantIslandGestures = ({
         return
       }
 
+      if (absX < TAP_MOVE_THRESHOLD && absY < TAP_MOVE_THRESHOLD && elapsed <= HOLD_MS + 40) {
+        onTap?.()
+        resetMotion(true)
+        setGestureDirection(null)
+        return
+      }
+
       resetMotion()
       setGestureDirection(null)
     },
@@ -222,19 +231,19 @@ const useAssistantIslandGestures = ({
       event.preventDefault()
     },
     style: {
-      x: offsetX,
-      y: offsetY,
       touchAction: 'none',
       userSelect: 'none',
       WebkitUserSelect: 'none',
       WebkitTouchCallout: 'none'
     }
-  }), [beginHold, cancelInteraction, clearHoldState, commitSwipe, enabled, offsetX, offsetY, resetMotion])
+  }), [beginHold, cancelInteraction, clearHoldState, commitSwipe, enabled, onTap, resetMotion])
 
   useEffect(() => () => cancelInteraction(), [cancelInteraction])
 
   return {
     gestureProps,
+    dragX: offsetX,
+    dragY: offsetY,
     holdProgress,
     isHolding,
     gestureDirection,

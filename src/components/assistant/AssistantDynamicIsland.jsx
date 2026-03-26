@@ -1,14 +1,13 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, useTransform } from 'framer-motion'
 import {
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   CircleAlert,
   LoaderCircle,
   Mic,
   Sparkles
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { gestureMotion } from '../../utils/motion.js'
 
 const NO_SELECT_STYLE = {
   userSelect: 'none',
@@ -18,6 +17,8 @@ const NO_SELECT_STYLE = {
 }
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
 const useViewportWidth = () => {
   const [width, setWidth] = useState(() => {
@@ -39,57 +40,96 @@ const useViewportWidth = () => {
 
 const shellToneClasses = {
   neutral:
-    'border-white/[0.08] bg-[#070b12]/94 shadow-[0_18px_44px_rgba(0,0,0,0.32)]',
+    'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]',
   suggestion:
-    'border-[#5B8CFF]/18 bg-[#070b12]/95 shadow-[0_18px_46px_rgba(91,140,255,0.12)]',
+    'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]',
   active:
-    'border-cyan-400/18 bg-[#070b12]/95 shadow-[0_18px_46px_rgba(34,211,238,0.12)]',
+    'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]',
   warning:
-    'border-amber-300/18 bg-[#070b12]/95 shadow-[0_18px_46px_rgba(251,191,36,0.12)]',
+    'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]',
   success:
-    'border-emerald-400/18 bg-[#070b12]/95 shadow-[0_18px_46px_rgba(16,185,129,0.12)]'
+    'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]'
 }
 
 const iconBubbleToneClasses = {
-  neutral: 'bg-white/[0.05] text-white ring-white/[0.06]',
-  suggestion: 'bg-[#5B8CFF]/14 text-[#D9E6FF] ring-[#5B8CFF]/18',
-  active: 'bg-cyan-400/14 text-cyan-50 ring-cyan-400/18',
-  warning: 'bg-amber-300/14 text-amber-50 ring-amber-300/18',
-  success: 'bg-emerald-400/14 text-emerald-50 ring-emerald-400/18'
+  neutral: 'bg-[rgba(91,92,246,0.08)] text-white ring-[rgba(139,92,246,0.18)]',
+  suggestion: 'bg-[#7c5cff]/12 text-[#E9E4FF] ring-[#7c5cff]/20',
+  active: 'bg-[#7c5cff]/14 text-[#F3EEFF] ring-[#7c5cff]/20',
+  warning: 'bg-white/[0.05] text-white ring-white/[0.08]',
+  success: 'bg-white/[0.05] text-white ring-white/[0.08]'
 }
 
 const chipToneClasses = {
   neutral: 'bg-white/[0.05] text-[#D7DCE6]',
-  suggestion: 'bg-[#5B8CFF]/10 text-[#D9E6FF]',
-  active: 'bg-cyan-400/10 text-cyan-50',
-  warning: 'bg-amber-300/10 text-amber-50',
-  success: 'bg-emerald-400/10 text-emerald-50',
-  error: 'bg-rose-400/10 text-rose-50'
+  suggestion: 'bg-[#7c5cff]/10 text-[#E9E4FF]',
+  active: 'bg-[#7c5cff]/12 text-[#F3EEFF]',
+  warning: 'bg-white/[0.06] text-[#E7E9EF]',
+  success: 'bg-white/[0.06] text-[#E7E9EF]',
+  error: 'bg-white/[0.06] text-[#E7E9EF]'
 }
 
-const gestureToneClasses = {
-  left: 'bg-rose-500/15 text-rose-100 ring-rose-400/20',
-  right: 'bg-emerald-500/15 text-emerald-100 ring-emerald-400/20',
-  up: 'bg-white/10 text-white ring-white/10',
-  down: 'bg-white/10 text-white ring-white/10'
-}
+const StatusGlyph = ({ mode, label, compact = false }) => {
+  if (compact) {
+    if (mode === 'listening') {
+      return (
+        <span className="inline-flex items-end gap-0.5" aria-hidden="true">
+          {[0, 1, 2].map((index) => (
+            <motion.span
+              key={index}
+              className="block w-1 rounded-full bg-current"
+              animate={{ height: [4, 8 + index, 5] }}
+              transition={{
+                duration: 0.8,
+                repeat: Infinity,
+                repeatType: 'mirror',
+                ease: 'easeInOut',
+                delay: index * 0.08
+              }}
+            />
+          ))}
+        </span>
+      )
+    }
 
-const pageMotionVariants = {
-  initial: (direction) => ({
-    opacity: 0,
-    y: direction > 0 ? 6 : -6
-  }),
-  animate: {
-    opacity: 1,
-    y: 0
-  },
-  exit: (direction) => ({
-    opacity: 0,
-    y: direction > 0 ? -4 : 4
-  })
-}
+    if (mode === 'processing') {
+      return (
+        <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+          <motion.span
+            className="h-1.5 w-1.5 rounded-full bg-current"
+            animate={{ opacity: [0.35, 1, 0.35], scale: [0.9, 1, 0.9] }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <motion.span
+            className="h-1.5 w-1.5 rounded-full bg-current"
+            animate={{ opacity: [1, 0.35, 1], scale: [1, 0.9, 1] }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: 0.12 }}
+          />
+          <motion.span
+            className="h-1.5 w-1.5 rounded-full bg-current"
+            animate={{ opacity: [0.35, 1, 0.35], scale: [0.9, 1, 0.9] }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: 0.24 }}
+          />
+        </span>
+      )
+    }
 
-const StatusGlyph = ({ mode, label }) => {
+    if (mode === 'success') {
+      return <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+    }
+
+    if (mode === 'error') {
+      return <CircleAlert className="h-3.5 w-3.5" aria-hidden="true" />
+    }
+
+    return (
+      <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-45" />
+        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-30" />
+      </span>
+    )
+  }
+
   if (mode === 'listening') {
     return (
       <span className="inline-flex items-center gap-1.5">
@@ -169,14 +209,20 @@ const AssistantDynamicIsland = ({
   pageDirection = 1,
   statusMode = 'idle',
   statusLabel = 'Ready',
+  isExpanded = false,
   holdProgress = 0,
   isHolding = false,
   gestureDirection = null,
+  dragX,
+  dragY,
   gestureProps = {},
+  containerRef,
   className
 }) => {
   const width = useViewportWidth()
   const isMobile = width < 768
+  const [isEngaged, setIsEngaged] = useState(false)
+
   const positionClass = isMobile
     ? 'top-[calc(env(safe-area-inset-top)+0.75rem)]'
     : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom))]'
@@ -184,77 +230,154 @@ const AssistantDynamicIsland = ({
   const tone = page?.tone || 'neutral'
   const Icon = page?.icon || Sparkles
   const text = page?.message || 'Ready'
-  const chipLabel = statusMode === 'idle' ? (statusLabel || page?.status || 'Ready') : (statusLabel || 'Ready')
+  const openState = isExpanded || isHolding || statusMode !== 'idle'
 
   const shellToneClass = shellToneClasses[tone] || shellToneClasses.neutral
-
+  const shellGlowClass = isEngaged || isHolding || statusMode === 'listening'
+    ? 'shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_0_20px_rgba(139,92,246,0.25),0_8px_25px_rgba(0,0,0,0.35)]'
+    : 'shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]'
   const { style: gestureStyle, ...gestureHandlers } = gestureProps
 
-  const swipeBadge = useMemo(() => {
-    if (!gestureDirection) return null
+  const contentResistanceX = useTransform(dragX || 0, (value) => clamp(value * 0.06, -5, 5))
+  const contentResistanceY = useTransform(dragY || 0, (value) => clamp(value * 0.05, -4, 4))
+  const swipeRightStrength = useTransform(dragX || 0, (value) =>
+    value > 0 ? clamp(value / gestureMotion.swipeMax, 0, 1) : 0
+  )
+  const swipeLeftStrength = useTransform(dragX || 0, (value) =>
+    value < 0 ? clamp(Math.abs(value) / gestureMotion.swipeMax, 0, 1) : 0
+  )
+  const swipeRightOffset = useTransform(dragX || 0, (value) => (value > 0 ? clamp(value * 0.08, 0, 8) : 0))
+  const swipeLeftOffset = useTransform(dragX || 0, (value) => (value < 0 ? clamp(value * 0.08, -8, 0) : 0))
 
-    if (gestureDirection === 'left') return { icon: CircleAlert, className: gestureToneClasses.left, anchor: 'left' }
-    if (gestureDirection === 'right') return { icon: CheckCircle2, className: gestureToneClasses.right, anchor: 'right' }
-    if (gestureDirection === 'up') return { icon: ChevronUp, className: gestureToneClasses.up, anchor: 'top' }
-    return { icon: ChevronDown, className: gestureToneClasses.down, anchor: 'bottom' }
-  }, [gestureDirection])
+  const compactWidth = isMobile ? Math.min(176, Math.max(140, Math.round(width * 0.36))) : 156
+  const expandedWidth = isMobile ? Math.min(width - 16, 420) : Math.min(Math.max(420, Math.round(width * 0.32)), 520)
+  const compactHeight = 44
+  const expandedHeight = 60
+  const overlayVariant =
+    isHolding || statusMode === 'listening'
+      ? 'listening'
+      : statusMode === 'processing'
+        ? 'processing'
+        : statusMode === 'success'
+          ? 'success'
+          : 'idle'
 
-  const SwipeIcon = swipeBadge?.icon || null
-
-  const shellWidth = isMobile ? 'min(92vw, 420px)' : 'min(420px, 30vw)'
-  const shellHeight = 60
+  const containerMotion = {
+    width: openState ? expandedWidth : compactWidth,
+    height: openState ? expandedHeight : compactHeight,
+    borderRadius: openState ? 28 : 999,
+    scale: isEngaged || isHolding ? 1.02 : 1
+  }
 
   return (
     <div
-      className={cn('fixed left-1/2 -translate-x-1/2 z-50 pointer-events-none', positionClass, className)}
+      ref={containerRef}
+      className={cn('fixed left-1/2 -translate-x-1/2 z-[80] pointer-events-none', positionClass, className)}
       style={NO_SELECT_STYLE}
       onContextMenu={(event) => event.preventDefault()}
     >
-      <AnimatePresence initial={false}>
-        {swipeBadge ? (
-          <motion.div
-            key={`swipe-${gestureDirection}`}
-            initial={{ opacity: 0, scale: 0.84 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.84 }}
-            transition={{ duration: 0.16, ease: 'easeOut' }}
-            className={cn(
-              'pointer-events-none absolute flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-md',
-              swipeBadge.className,
-              swipeBadge.anchor === 'left' && '-left-10 top-1/2 -translate-y-1/2',
-              swipeBadge.anchor === 'right' && '-right-10 top-1/2 -translate-y-1/2',
-              swipeBadge.anchor === 'top' && 'left-1/2 -top-10 -translate-x-1/2',
-              swipeBadge.anchor === 'bottom' && 'left-1/2 -bottom-10 -translate-x-1/2'
-            )}
-          >
-            {SwipeIcon ? <SwipeIcon className="h-4 w-4" aria-hidden="true" /> : null}
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
       <motion.div
         initial={false}
-        animate={{
-          scale: isHolding || statusMode === 'listening' ? 1.03 : 1
+        animate={containerMotion}
+        transition={{
+          width: { type: 'spring', stiffness: 280, damping: 32 },
+          height: { type: 'spring', stiffness: 280, damping: 32 },
+          borderRadius: { type: 'spring', stiffness: 260, damping: 34 },
+          scale: { type: 'spring', stiffness: 280, damping: 28 }
         }}
-        transition={{ type: 'spring', stiffness: 260, damping: 28, mass: 0.82 }}
+        onPointerEnter={() => setIsEngaged(true)}
+        onPointerLeave={() => setIsEngaged(false)}
+        onPointerDown={() => setIsEngaged(true)}
+        onPointerUp={() => setIsEngaged(false)}
+        onPointerCancel={() => setIsEngaged(false)}
         className={cn(
-          'relative pointer-events-auto overflow-hidden rounded-full border backdrop-blur-2xl',
-          'shadow-[0_18px_44px_rgba(0,0,0,0.32)]',
+          'relative pointer-events-auto overflow-hidden border backdrop-blur-2xl will-change-[transform,width,height,opacity]',
           shellToneClass,
-          statusMode === 'listening' && 'shadow-[0_18px_52px_rgba(91,140,255,0.18)]',
-          statusMode === 'success' && 'shadow-[0_18px_52px_rgba(16,185,129,0.16)]',
-          statusMode === 'error' && 'shadow-[0_18px_52px_rgba(244,63,94,0.16)]'
+          shellGlowClass,
+          statusMode === 'success' ? 'ring-1 ring-emerald-400/20' : '',
+          statusMode === 'error' ? 'ring-1 ring-rose-400/20' : ''
         )}
         style={{
           ...gestureStyle,
-          width: shellWidth,
-          height: shellHeight,
-          willChange: 'transform',
           cursor: 'grab'
         }}
         {...gestureHandlers}
       >
+        <div className="absolute inset-0 pointer-events-none">
+          <AnimatePresence initial={false}>
+            {isHolding || statusMode === 'listening' ? (
+              <motion.div
+                key="hold-glow"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute inset-0"
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(106,92,255,0.42), rgba(139,92,246,0.28), rgba(167,139,250,0.2), rgba(79,70,229,0.22))',
+                  boxShadow: '0 0 30px rgba(139,92,246,0.35)'
+                }}
+              />
+            ) : null}
+          </AnimatePresence>
+
+          {(isHolding || statusMode === 'listening' || statusMode === 'processing' || statusMode === 'success') ? (
+            <motion.div
+              key={overlayVariant}
+              className="absolute inset-0"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{
+                opacity:
+                  overlayVariant === 'listening'
+                    ? 1
+                    : overlayVariant === 'processing'
+                      ? 0.82
+                      : overlayVariant === 'success'
+                        ? 0.55
+                        : 0.65,
+                scale: 1
+              }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{
+                duration: overlayVariant === 'processing' ? 0.28 : 0.18,
+                ease: 'easeOut'
+              }}
+              style={{
+                background:
+                  overlayVariant === 'listening'
+                    ? 'linear-gradient(135deg, rgba(106,92,255,0.34), rgba(139,92,246,0.24), rgba(167,139,250,0.18))'
+                    : overlayVariant === 'processing'
+                      ? 'linear-gradient(135deg, rgba(106,92,255,0.26), rgba(139,92,246,0.18), rgba(167,139,250,0.12))'
+                      : overlayVariant === 'success'
+                        ? 'radial-gradient(circle at 50% 40%, rgba(255,255,255,0.16), transparent 50%), linear-gradient(135deg, rgba(255,255,255,0.06), rgba(124,92,255,0.08))'
+                        : 'radial-gradient(circle at 50% 40%, rgba(124,92,255,0.16), transparent 48%)'
+              }}
+            />
+          ) : null}
+
+          <AnimatePresence initial={false}>
+            <motion.div
+              key="swipe-right-feedback"
+              className="absolute inset-0"
+              style={{
+                opacity: swipeRightStrength,
+                x: swipeRightOffset,
+                background: 'linear-gradient(to left, transparent, rgba(34,197,94,0.15))'
+              }}
+            />
+            <motion.div
+              key="swipe-left-feedback"
+              className="absolute inset-0"
+              style={{
+                opacity: swipeLeftStrength,
+                x: swipeLeftOffset,
+                background: 'linear-gradient(to right, rgba(239,68,68,0.15), transparent)'
+              }}
+            />
+          </AnimatePresence>
+        </div>
+
         <AnimatePresence initial={false}>
           {holdProgress > 0 ? (
             <motion.div
@@ -288,8 +411,8 @@ const AssistantDynamicIsland = ({
                 />
                 <defs>
                   <linearGradient id="assistant-island-ring" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#667eea" />
-                    <stop offset="50%" stopColor="#8b5cf6" />
+                    <stop offset="0%" stopColor="#8b5cf6" />
+                    <stop offset="50%" stopColor="#a855f7" />
                     <stop offset="100%" stopColor="#38bdf8" />
                   </linearGradient>
                 </defs>
@@ -298,10 +421,17 @@ const AssistantDynamicIsland = ({
           ) : null}
         </AnimatePresence>
 
-        <div className="absolute inset-0 pointer-events-none rounded-full bg-gradient-to-b from-white/[0.04] to-transparent opacity-90" />
-        <div className="absolute inset-0 pointer-events-none rounded-full bg-[radial-gradient(circle_at_18%_20%,rgba(91,140,255,0.12),transparent_38%),radial-gradient(circle_at_80%_50%,rgba(255,255,255,0.04),transparent_40%)]" />
-
-        <div className="relative flex h-full w-full items-center gap-3 overflow-hidden rounded-full px-3.5">
+        <motion.div
+          className="relative flex h-full w-full items-center gap-3 overflow-hidden px-3.5"
+          style={{
+            x: contentResistanceX,
+            y: contentResistanceY
+          }}
+          animate={{
+            opacity: openState ? 1 : 0.96
+          }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+        >
           <span
             className={cn(
               'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1',
@@ -312,33 +442,72 @@ const AssistantDynamicIsland = ({
           </span>
 
           <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={`${page?.key || 'page'}-${page?.message || 'ready'}`}
-              custom={pageDirection}
-              variants={pageMotionVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="min-w-0 flex-1"
-              style={NO_SELECT_STYLE}
-            >
-              <p className="truncate text-[13px] font-medium leading-none text-white md:text-sm">
-                {text}
-              </p>
-            </motion.div>
+            {openState ? (
+              <motion.div
+                key={`${page?.key || 'page'}-${page?.message || 'ready'}`}
+                initial={{ opacity: 0, y: pageDirection > 0 ? 4 : -4, filter: 'blur(2px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: pageDirection > 0 ? -3 : 3, filter: 'blur(2px)' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="min-w-0 flex-1"
+                style={NO_SELECT_STYLE}
+              >
+                <p className="truncate text-[13px] font-medium leading-none text-white md:text-sm">
+                  {text}
+                </p>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="compact-dots"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className="min-w-0 flex-1"
+              >
+                <div className="flex items-center justify-end gap-1.5 pr-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/55" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/35" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
 
-          <span
-            className={cn(
-              'inline-flex h-7 shrink-0 items-center rounded-full px-2.5 text-[10px] font-medium',
-              chipToneClasses[statusMode] || chipToneClasses.neutral
+          <AnimatePresence mode="wait" initial={false}>
+            {openState ? (
+              <motion.span
+                key={`${statusMode}-${statusLabel}`}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className={cn(
+                  'inline-flex h-7 shrink-0 items-center rounded-full px-2.5 text-[10px] font-medium',
+                  chipToneClasses[statusMode] || chipToneClasses.neutral
+                )}
+                style={NO_SELECT_STYLE}
+              >
+                <StatusGlyph mode={statusMode} label={statusLabel || 'Ready'} />
+              </motion.span>
+            ) : (
+              <motion.span
+                key="compact-chip"
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                className={cn(
+                  'inline-flex h-7 shrink-0 items-center rounded-full px-2.5 text-[10px] font-medium',
+                  chipToneClasses.neutral
+                )}
+                style={NO_SELECT_STYLE}
+              >
+                <StatusGlyph mode={statusMode} label={statusLabel || 'Ready'} compact />
+              </motion.span>
             )}
-            style={NO_SELECT_STYLE}
-          >
-            <StatusGlyph mode={statusMode} label={chipLabel} />
-          </span>
-        </div>
+          </AnimatePresence>
+        </motion.div>
       </motion.div>
     </div>
   )

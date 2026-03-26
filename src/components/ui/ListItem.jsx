@@ -20,7 +20,7 @@ const ListItem = ({
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.16, ease: 'easeOut' }}
-      className={cn('rounded-xl px-3 py-3 transition-colors hover:bg-white/[0.03]', className)}
+      className={cn('surface-subtle rounded-xl px-0 py-3 transition-colors hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.025]', className)}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">

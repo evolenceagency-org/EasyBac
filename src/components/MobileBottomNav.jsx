@@ -68,10 +68,10 @@ const MobileBottomNav = () => {
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.15, ease: 'easeOut' }}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-neutral-950/94 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-[rgba(5,5,7,0.92)] px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-[20px] md:hidden"
         aria-label="Mobile navigation"
       >
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-1 rounded-t-2xl border border-white/8 bg-white/4 px-2 py-1.5 shadow-[0_10px_20px_rgba(0,0,0,0.14)]">
+        <div className="surface-subtle mx-auto flex max-w-xl items-center justify-between gap-1 rounded-t-2xl border border-white/[0.06] bg-[rgba(255,255,255,0.03)] px-2 py-1.5">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -81,14 +81,14 @@ const MobileBottomNav = () => {
                 className={({ isActive }) =>
                   `flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[9px] font-medium transition-all duration-150 ${
                     isActive
-                      ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white shadow-[0_8px_16px_rgba(139,92,246,0.18)]'
-                      : 'text-white/65 hover:bg-white/10 hover:text-white'
+                      ? 'bg-[rgba(139,92,246,0.12)] text-white'
+                      : 'text-white/65 hover:bg-white/[0.04] hover:text-white'
                   }`
                 }
               >
                 {({ isActive }) => (
                   <>
-                    <Icon className={`h-4 w-4 ${isActive ? 'text-cyan-200' : 'text-white/70'}`} />
+                    <Icon className={`h-4 w-4 ${isActive ? 'text-[#D7E3FF]' : 'text-white/70'}`} />
                     <span className="mt-1 leading-none">{item.label}</span>
                   </>
                 )}
@@ -102,12 +102,12 @@ const MobileBottomNav = () => {
             onClick={() => setMoreOpen((prev) => !prev)}
             className={`flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[9px] font-medium transition-all duration-150 ${
               moreOpen
-                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white shadow-[0_8px_16px_rgba(139,92,246,0.18)]'
-                : 'text-white/65 hover:bg-white/10 hover:text-white'
+                ? 'bg-[rgba(139,92,246,0.12)] text-white'
+                : 'text-white/65 hover:bg-white/[0.04] hover:text-white'
             }`}
           >
             <motion.div animate={{ rotate: moreOpen ? 90 : 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}>
-              <Ellipsis className={`h-4 w-4 ${moreOpen ? 'text-cyan-200' : 'text-white/70'}`} />
+              <Ellipsis className={`h-4 w-4 ${moreOpen ? 'text-[#D7E3FF]' : 'text-white/70'}`} />
             </motion.div>
             <span className="mt-1 leading-none">More</span>
           </motion.button>
@@ -117,11 +117,11 @@ const MobileBottomNav = () => {
       <AnimatePresence>
         {moreOpen && (
           <>
-            <motion.button
+              <motion.button
               type="button"
               aria-label="Close menu"
               onClick={() => setMoreOpen(false)}
-              className="fixed inset-0 z-40 bg-black/55 backdrop-blur-[2px] md:hidden"
+              className="fixed inset-0 z-40 bg-black/55 md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -141,9 +141,9 @@ const MobileBottomNav = () => {
                 }
               }}
               onClick={(event) => event.stopPropagation()}
-              className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-white/10 bg-neutral-900/95 p-5 pb-[calc(1.1rem+env(safe-area-inset-bottom))] shadow-xl backdrop-blur-2xl md:hidden"
+              className="surface-elevated fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-white/[0.12] bg-[#0b0b0f]/96 p-5 pb-[calc(1.1rem+env(safe-area-inset-bottom))] shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-[20px] md:hidden"
             >
-              <div className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-white/20" />
+              <div className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-white/15" />
               <div className="mb-5">
                 <p className="text-xs uppercase tracking-[0.25em] text-white/50">Quick Actions</p>
                 <h3 className="mt-2 text-lg font-semibold text-white">{activeLabel}</h3>
@@ -165,9 +165,9 @@ const MobileBottomNav = () => {
                       exit={{ opacity: 0, y: 8 }}
                       transition={{ delay: index * 0.05, duration: 0.15, ease: 'easeOut' }}
                       whileTap={{ scale: 0.97 }}
-                      className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-neutral-800/85 px-4 py-3 text-left text-sm text-white/90 transition hover:border-purple-400/35 hover:bg-neutral-800"
+                      className="surface-subtle flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-left text-sm text-white/90 transition hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.05]"
                     >
-                      <Icon className="h-4 w-4 text-cyan-200" />
+                      <Icon className="h-4 w-4 text-[#D7E3FF]" />
                       <span>{action.label}</span>
                     </motion.button>
                   )
@@ -181,7 +181,7 @@ const MobileBottomNav = () => {
                   exit={{ opacity: 0, y: 8 }}
                   transition={{ delay: 0.18, duration: 0.15, ease: 'easeOut' }}
                   whileTap={{ scale: 0.97 }}
-                  className="flex w-full items-center gap-3 rounded-xl border border-red-500/25 bg-red-900/35 px-4 py-3 text-left text-sm text-red-200 transition hover:bg-red-900/45"
+                  className="flex w-full items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.08] px-4 py-3 text-left text-sm text-red-100 transition hover:bg-red-500/[0.12]"
                 >
                   <LogOut className="h-4 w-4" />
                   <span>Logout</span>

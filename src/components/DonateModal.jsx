@@ -58,7 +58,7 @@ const DonateModal = ({ open, onClose, rib }) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
-            className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[rgba(20,20,30,0.92)] p-6 shadow-[0_10px_50px_rgba(0,0,0,0.65)] backdrop-blur-xl"
+            className="relative w-full max-w-md rounded-2xl border border-white/[0.12] bg-[#0b0b0f]/96 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
           >
             <AnimatePresence>
               {copied && (
@@ -66,9 +66,9 @@ const DonateModal = ({ open, onClose, rib }) => {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                  className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.3)]"
-                >
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-lg border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-200"
+              >
                   RIB copied
                 </motion.div>
               )}
@@ -77,14 +77,14 @@ const DonateModal = ({ open, onClose, rib }) => {
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-4 top-4 rounded-lg border border-white/10 bg-white/5 p-1.5 text-white/70 transition-all duration-200 hover:bg-white/10 hover:text-white"
+              className="absolute right-4 top-4 rounded-lg border border-white/[0.06] bg-white/[0.03] p-1.5 text-white/70 transition-all duration-200 hover:bg-white/[0.05] hover:text-white"
               aria-label="Close modal"
             >
               <X className="h-4 w-4" />
             </button>
 
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400/25 bg-gradient-to-br from-emerald-400/25 to-green-500/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-400/15 bg-emerald-500/[0.08]">
                 <HeartHandshake className="h-5 w-5 text-emerald-300" />
               </div>
               <div>
@@ -95,7 +95,7 @@ const DonateModal = ({ open, onClose, rib }) => {
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+            <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
               <p className="mb-2 text-xs uppercase tracking-[0.14em] text-white/55">RIB</p>
               <p className="break-all text-sm font-medium text-white">{rib || 'RIB not configured yet.'}</p>
             </div>
@@ -104,7 +104,7 @@ const DonateModal = ({ open, onClose, rib }) => {
               type="button"
               onClick={handleCopy}
               disabled={!rib}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}
               {copied ? 'RIB copied' : 'Copy RIB'}

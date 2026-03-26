@@ -166,11 +166,14 @@ const AssistantBar = () => {
   const [statusMode, setStatusMode] = useState('idle')
   const [statusLabel, setStatusLabel] = useState('')
   const [dismissedSuggestionId, setDismissedSuggestionId] = useState(null)
+  const [isIslandExpanded, setIsIslandExpanded] = useState(false)
 
   const statusTimerRef = useRef(null)
   const voiceSessionRef = useRef(null)
   const voiceDepsRef = useRef({})
   const interactionModeRef = useRef('idle')
+  const islandRef = useRef(null)
+  const expansionTimeoutRef = useRef(null)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -261,6 +264,42 @@ const AssistantBar = () => {
   }, [assistantSnapshot?.id, assistantSnapshot?.assistantState, location.pathname])
 
   useEffect(() => {
+    if (!isIslandExpanded) return undefined
+
+    const handlePointerDown = (event) => {
+      const target = event.target
+      if (!islandRef.current || islandRef.current.contains(target)) return
+      stopVoiceListening(voiceSessionRef.current)
+      setStatusMode('idle')
+      setStatusLabel('')
+      interactionModeRef.current = 'idle'
+      setIsIslandExpanded(false)
+    }
+
+    if (expansionTimeoutRef.current) {
+      window.clearTimeout(expansionTimeoutRef.current)
+    }
+    expansionTimeoutRef.current = window.setTimeout(() => {
+      stopVoiceListening(voiceSessionRef.current)
+      setStatusMode('idle')
+      setStatusLabel('')
+      interactionModeRef.current = 'idle'
+      setIsIslandExpanded(false)
+      expansionTimeoutRef.current = null
+    }, 9500)
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+
+    return () => {
+      if (expansionTimeoutRef.current) {
+        window.clearTimeout(expansionTimeoutRef.current)
+        expansionTimeoutRef.current = null
+      }
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+    }
+  }, [isIslandExpanded, statusMode])
+
+  useEffect(() => {
     interactionModeRef.current = statusMode
   }, [statusMode])
 
@@ -288,6 +327,26 @@ const AssistantBar = () => {
         setStatusLabel('')
         statusTimerRef.current = null
       }, duration)
+    }
+  }, [])
+
+  const openIsland = useCallback(() => {
+    setIsIslandExpanded(true)
+    if (expansionTimeoutRef.current) {
+      window.clearTimeout(expansionTimeoutRef.current)
+      expansionTimeoutRef.current = null
+    }
+  }, [])
+
+  const collapseIsland = useCallback(() => {
+    stopVoiceListening(voiceSessionRef.current)
+    interactionModeRef.current = 'idle'
+    setStatusMode('idle')
+    setStatusLabel('')
+    setIsIslandExpanded(false)
+    if (expansionTimeoutRef.current) {
+      window.clearTimeout(expansionTimeoutRef.current)
+      expansionTimeoutRef.current = null
     }
   }, [])
 
@@ -431,6 +490,7 @@ const AssistantBar = () => {
   const displayStatusLabel = statusLabel || currentPage?.status || 'Ready'
 
   const handleAcceptSuggestion = useCallback(async () => {
+    openIsland()
     const action = assistantSnapshot?.quickActions?.[0]
     if (!action) return false
 
@@ -449,9 +509,10 @@ const AssistantBar = () => {
       setInteractionStatus('error', 'Error', 1100)
       return false
     }
-  }, [assistantSnapshot, runAssistantAction, setInteractionStatus])
+  }, [assistantSnapshot, openIsland, runAssistantAction, setInteractionStatus])
 
   const handleRejectSuggestion = useCallback(() => {
+    openIsland()
     stopVoiceListening(voiceSessionRef.current)
     if (assistantSnapshot?.id) {
       setDismissedSuggestionId(assistantSnapshot.id)
@@ -460,22 +521,35 @@ const AssistantBar = () => {
     setPageDirection(-1)
     playAssistantSound('error')
     setInteractionStatus('error', 'Dismissed', 900)
-  }, [assistantSnapshot?.id, setInteractionStatus])
+  }, [assistantSnapshot?.id, openIsland, setInteractionStatus])
 
   const handleNextState = useCallback(() => {
+    openIsland()
     stopVoiceListening(voiceSessionRef.current)
     setPageDirection(1)
     setViewIndex((prev) => (prev + 1) % VIEW_ORDER.length)
-  }, [])
+  }, [openIsland])
 
   const handlePreviousState = useCallback(() => {
+    openIsland()
     stopVoiceListening(voiceSessionRef.current)
     setPageDirection(-1)
     setViewIndex((prev) => (prev - 1 + VIEW_ORDER.length) % VIEW_ORDER.length)
-  }, [])
+  }, [openIsland])
 
   const gesture = useAssistantIslandGestures({
-    onHold: triggerAI,
+    onHold: () => {
+      openIsland()
+      triggerAI()
+    },
+    onTap: () => {
+      if (isIslandExpanded) {
+        collapseIsland()
+        return
+      }
+
+      openIsland()
+    },
     onSwipeLeft: handleRejectSuggestion,
     onSwipeRight: handleAcceptSuggestion,
     onSwipeUp: handleNextState,
@@ -490,10 +564,14 @@ const AssistantBar = () => {
       pageDirection={pageDirection}
       statusMode={displayStatusMode}
       statusLabel={displayStatusLabel}
+      isExpanded={isIslandExpanded}
       holdProgress={gesture.holdProgress}
       isHolding={gesture.isHolding}
       gestureDirection={gesture.gestureDirection}
+      dragX={gesture.dragX}
+      dragY={gesture.dragY}
       gestureProps={gesture.gestureProps}
+      containerRef={islandRef}
     />
   )
 }

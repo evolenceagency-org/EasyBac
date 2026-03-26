@@ -57,17 +57,13 @@ const MainLayout = () => {
   const assistantTopPadding = showDynamicIsland ? 'pt-20' : 'pt-4'
 
   return (
-    <div className="relative flex min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
-      <div className="pointer-events-none absolute -top-32 right-0 hidden h-72 w-72 rounded-full bg-violet-500/10 blur-3xl md:block" />
-      <div className="pointer-events-none absolute left-1/2 top-1/3 hidden h-80 w-80 -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl md:block" />
-      <div className="pointer-events-none absolute bottom-0 left-0 hidden h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl md:block" />
-
+    <div className="relative flex min-h-screen w-full max-w-full overflow-x-hidden text-white">
       <div className="relative z-10 flex min-h-screen w-full max-w-full">
         {showSidebar && <Sidebar />}
 
         <main
           className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden px-4 ${assistantTopPadding} space-y-4 md:space-y-6 md:p-6 ${mobileBottomPadding} ${assistantBottomPadding} ${
-            showSidebar ? 'md:ml-56' : ''
+            showSidebar ? 'md:ml-[var(--sidebar-width)]' : ''
           }`}
         >
           <Outlet />

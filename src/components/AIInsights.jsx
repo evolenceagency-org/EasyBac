@@ -58,17 +58,17 @@ const InsightList = ({ icon: Icon, title, items }) => (
   <motion.div
     variants={cardVariants}
     whileHover={{ scale: 1.01 }}
-    className="rounded-xl border border-white/8 bg-white/4 p-4 backdrop-blur-md transition duration-200 hover:border-white/12 hover:shadow-[0_12px_24px_rgba(0,0,0,0.12)]"
+    className="surface-subtle rounded-xl border border-white/[0.06] bg-white/[0.03] p-4 backdrop-blur-[20px] transition duration-200 hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.04]"
   >
     <div className="mb-3 flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/8">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/[0.05]">
         <Icon className="h-4 w-4 text-white" />
       </div>
       <h3 className="text-[13px] font-semibold tracking-tight text-white">{title}</h3>
     </div>
     <ul className="space-y-2 text-[13px] leading-5 text-white/78">
       {items.map((item) => (
-        <li key={item} className="rounded-lg border border-white/5 bg-black/18 px-3 py-2">
+        <li key={item} className="surface-subtle rounded-lg border border-white/[0.04] bg-white/[0.025] px-3 py-2">
           {item}
         </li>
       ))}
@@ -180,22 +180,19 @@ const AIInsights = ({ studySessions = [], tasks = [], streak = { current: 0, lon
       variants={containerVariants}
       initial="hidden"
       animate="show"
-      className="relative w-full overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-purple-600/22 to-blue-900/22 p-4 shadow-[0_16px_32px_rgba(0,0,0,0.14)] backdrop-blur-lg md:p-6"
+      className="surface-elevated relative w-full overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0b0b0f] p-4 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-[20px] md:p-6"
     >
-      <div className="pointer-events-none absolute -top-20 left-8 hidden h-56 w-56 rounded-full bg-purple-500/20 blur-3xl md:block" />
-      <div className="pointer-events-none absolute bottom-10 right-12 hidden h-64 w-64 rounded-full bg-blue-500/20 blur-3xl md:block" />
-
       <div className="relative">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/8 bg-white/8 text-white">
+            <div className="surface-subtle flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.06] bg-white/[0.03] text-white">
               <Brain className="h-6 w-6" />
             </div>
             <div>
               <h2 className="text-lg font-semibold tracking-tight text-white md:text-2xl">
                 Daily AI Insight
               </h2>
-              <p className="mt-1 text-sm leading-6 text-white/68">
+              <p className="mt-1 text-sm leading-6 text-white/62">
                 Your daily AI insight is updated once per day based on your activity.
               </p>
             </div>
@@ -204,14 +201,14 @@ const AIInsights = ({ studySessions = [], tasks = [], streak = { current: 0, lon
           {!hasPersonalization && (
             <Link
               to="/personalization"
-              className="rounded-xl border border-cyan-400/35 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/20"
+              className="rounded-xl border border-[#5B8CFF]/20 bg-[#5B8CFF]/10 px-3 py-2 text-xs font-semibold text-[#D7E3FF] transition hover:bg-[#5B8CFF]/14"
             >
               Complete Personalization
             </Link>
           )}
         </div>
 
-        <div className="mt-4 rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-xs text-white/70">
+        <div className="surface-subtle mt-4 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-xs text-white/70">
           {loading
             ? 'Analyzing today\'s data...'
             : `Generated for ${activeInsight.generatedAt || getTodayDateKey()} | ${activeInsight.headline}`}

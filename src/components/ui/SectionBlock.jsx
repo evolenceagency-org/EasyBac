@@ -17,7 +17,11 @@ const SectionBlock = ({
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18, ease: 'easeOut' }}
-      className={cn('rounded-xl bg-white/[0.03]', compact ? 'p-3' : 'p-4 md:p-5', className)}
+      className={cn(
+        'surface-subtle rounded-2xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-[20px]',
+        compact ? 'p-3' : 'p-4 md:p-5',
+        className
+      )}
     >
       {(title || description || eyebrow || badge || actions) && (
         <div className="flex items-start justify-between gap-4">
@@ -42,4 +46,3 @@ const SectionBlock = ({
 }
 
 export default SectionBlock
-

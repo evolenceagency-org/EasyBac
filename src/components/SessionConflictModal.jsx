@@ -11,7 +11,7 @@ const SessionConflictModal = ({
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6"
+        className="w-full max-w-md rounded-3xl border border-white/[0.12] bg-[#0b0b0f] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
       >
         <h4 className="text-xl font-semibold">
           You already have an active study session
@@ -23,21 +23,21 @@ const SessionConflictModal = ({
           <button
             type="button"
             onClick={onContinue}
-            className="rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white"
+            className="rounded-full border border-white/[0.06] bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white"
           >
             Continue
           </button>
           <button
             type="button"
             onClick={onSaveAndSwitch}
-            className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-zinc-900"
+            className="rounded-full bg-[#5B8CFF] px-5 py-2.5 text-sm font-semibold text-white"
           >
             Save & Switch
           </button>
           <button
             type="button"
             onClick={onDiscardAndSwitch}
-            className="rounded-full border border-white/20 px-5 py-2.5 text-sm font-semibold text-white"
+            className="rounded-full border border-white/[0.06] bg-white/[0.03] px-5 py-2.5 text-sm font-semibold text-white"
           >
             Discard & Switch
           </button>

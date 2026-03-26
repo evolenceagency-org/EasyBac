@@ -30,7 +30,7 @@ const EditTaskModal = ({ task, subjects, onSave, onClose }) => {
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6"
+        className="w-full max-w-md rounded-3xl border border-white/[0.12] bg-[#0b0b0f] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
       >
         <h3 className="text-xl font-semibold">Edit Task</h3>
         <form onSubmit={handleSubmit} className="mt-5 grid gap-4">
@@ -38,12 +38,12 @@ const EditTaskModal = ({ task, subjects, onSave, onClose }) => {
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             placeholder="Task title"
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-zinc-400"
+            className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-white placeholder:text-zinc-400"
           />
           <select
             value={subject}
             onChange={(event) => setSubject(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200"
+            className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-zinc-200"
           >
             {subjects
               .filter((item) => item.value !== 'all')
@@ -57,20 +57,20 @@ const EditTaskModal = ({ task, subjects, onSave, onClose }) => {
             type="date"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-zinc-200"
+            className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-sm text-zinc-200"
           />
           <div className="flex flex-wrap gap-3">
             <button
               type="submit"
               disabled={!canSave}
-              className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full bg-[#5B8CFF] px-5 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               Save
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-white/20 px-5 py-2 text-sm font-semibold text-white"
+              className="rounded-full border border-white/[0.06] bg-white/[0.03] px-5 py-2 text-sm font-semibold text-white"
             >
               Cancel
             </button>

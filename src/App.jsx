@@ -29,7 +29,7 @@ const ExamSimulation = lazy(() => import('./pages/ExamSimulation.jsx'))
 const ExamResult = lazy(() => import('./pages/ExamResult.jsx'))
 
 const LoadingScreen = () => (
-  <div className="flex min-h-screen items-center justify-center bg-black text-white">
+  <div className="flex min-h-screen items-center justify-center bg-[#050507] text-white">
     <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-6">
       <div className="h-4 w-2/3 animate-pulse rounded bg-white/10" />
       <div className="mt-4 h-3 w-full animate-pulse rounded bg-white/10" />
@@ -63,7 +63,7 @@ function App() {
 
   if (supabaseConfigError) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#050507] px-6 text-white">
         <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
           <h1 className="text-2xl font-semibold">Environment setup required</h1>
           <p className="mt-3 text-sm text-white/70">
