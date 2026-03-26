@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+﻿import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
@@ -72,8 +72,8 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
         onClick={() => setOpen((prev) => !prev)}
         disabled={disabled}
         className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out md:py-2',
-          'hover:border-purple-400/40 hover:shadow-[0_0_10px_rgba(139,92,246,0.2)]',
+          'flex w-full items-center justify-between gap-2 rounded-lg border border-white/8 bg-white/4 px-3.5 py-2.5 text-[13px] text-white/78 backdrop-blur-md transition-all duration-200 ease-out md:py-2',
+          'hover:border-white/12 hover:bg-white/6',
           disabled && 'cursor-not-allowed opacity-60'
         )}
       >
@@ -93,9 +93,9 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               style={menuStyle}
-              className="fixed z-[120] max-h-60 overflow-y-auto rounded-xl border border-white/10 bg-neutral-900/95 backdrop-blur-xl shadow-xl"
+              className="fixed z-[120] max-h-60 overflow-y-auto rounded-xl border border-white/8 bg-neutral-950/96 backdrop-blur-xl shadow-[0_12px_24px_rgba(0,0,0,0.32)]"
             >
               {options.map((option) => (
                 <button
@@ -106,12 +106,12 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
                     onChange(option.value)
                     setOpen(false)
                   }}
-                  className={cn(
-                    'w-full px-4 py-2 text-left text-sm text-white/80 transition hover:bg-white/10',
-                    value === option.value &&
-                      'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
-                  )}
-                >
+                    className={cn(
+                      'w-full px-4 py-2 text-left text-[13px] text-white/78 transition hover:bg-white/8',
+                      value === option.value &&
+                        'bg-gradient-to-r from-purple-500/18 to-blue-500/18 text-white'
+                    )}
+                  >
                   {option.label}
                 </button>
               ))}
@@ -124,3 +124,4 @@ const GlassDropdown = ({ value, options, onChange, placeholder, disabled }) => {
 }
 
 export default GlassDropdown
+

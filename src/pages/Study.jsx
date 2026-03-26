@@ -90,6 +90,7 @@ const Study = () => {
   const [monitorTick, setMonitorTick] = useState(Date.now())
   const [tabSwitchCount, setTabSwitchCount] = useState(0)
   const autopilotLastActionRef = useRef('')
+  const autopilotNoticeKeyRef = useRef('')
   const autopilotRunningRef = useRef(isRunning)
   const cognitiveSignalRef = useRef(0)
   const cognitiveActivityRef = useRef(0)
@@ -582,15 +583,24 @@ const Study = () => {
     const actionKey = [
       autopilotEvaluation.action,
       autopilotEvaluation.taskId || '',
-      autopilotEvaluation.delta || '',
-      Math.floor(sessionMinutes / 5),
-      tabSwitchCount,
-      inactivitySeconds
+      autopilotEvaluation.delta || ''
     ].join(':')
 
     if (autopilotLastActionRef.current === actionKey) return
     autopilotLastActionRef.current = actionKey
-    setAutopilotNotice(autopilotEvaluation)
+
+    const noticeKey = [
+      autopilotEvaluation.action,
+      autopilotEvaluation.taskId || '',
+      autopilotEvaluation.delta || '',
+      autopilotEvaluation.message || '',
+      autopilotEvaluation.fullMessage || ''
+    ].join(':')
+
+    if (autopilotNoticeKeyRef.current !== noticeKey) {
+      autopilotNoticeKeyRef.current = noticeKey
+      setAutopilotNotice(autopilotEvaluation)
+    }
 
     const nextPlan = autopilotState?.plan || autopilotPlan
     const nextState = {
@@ -1175,7 +1185,7 @@ const Study = () => {
               fill="transparent"
               strokeDasharray={circumference}
               animate={{ strokeDashoffset: dashOffset }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.18 }}
               transform="rotate(-90 130 130)"
               style={{
                 filter: 'drop-shadow(0 0 10px rgba(139,92,246,0.6))'
@@ -1272,7 +1282,7 @@ const Study = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.18 }}
       className="flex max-w-full flex-col gap-4 md:gap-6"
     >
       {isFocusMode && (
@@ -1439,6 +1449,7 @@ const Study = () => {
 }
 
 export default Study
+
 
 
 

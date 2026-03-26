@@ -28,7 +28,7 @@ const containerVariants = {
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.42, ease: 'easeOut' } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const listVariants = {
@@ -44,7 +44,7 @@ const listItemVariants = {
   visible: { opacity: 1, x: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
-const statCard = 'rounded-2xl border border-white/10 bg-black/25 p-4 backdrop-blur-xl'
+const statCard = 'rounded-2xl border border-white/8 bg-black/18 p-4 backdrop-blur-lg'
 
 const ExamResult = () => {
   const { profile, user, profileLoading, updatePersonalization } = useAuth()
@@ -125,50 +125,50 @@ const ExamResult = () => {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="relative mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 py-10 md:gap-8 md:py-12"
+        className="relative mx-auto flex w-full max-w-4xl flex-col gap-5 px-4 py-8 md:gap-6 md:py-10"
       >
         <motion.header variants={sectionVariants} className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-cyan-200 backdrop-blur-xl">
+          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/8 bg-white/4 text-cyan-200 backdrop-blur-lg">
             <Trophy className="h-5 w-5" />
           </div>
-          <h1 className="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-3xl font-bold text-transparent md:text-5xl">
+          <h1 className="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-4xl">
             Exam Simulation Complete
           </h1>
-          <p className="mt-3 text-sm text-white/70 md:text-base">
+          <p className="mt-3 text-sm leading-6 text-white/65 md:text-[15px]">
             Strict evaluation of pacing, stability, and topic control.
           </p>
         </motion.header>
 
         <motion.section
           variants={sectionVariants}
-          className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur-2xl"
+          className="rounded-3xl border border-white/8 bg-white/4 p-5 text-center backdrop-blur-lg"
         >
-          <p className="text-xs uppercase tracking-[0.22em] text-white/55">Overall score</p>
-          <p className="mt-3 text-6xl font-bold text-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.6)] md:text-7xl">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Overall score</p>
+          <p className="mt-3 text-5xl font-bold tracking-tight text-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.28)] md:text-6xl">
             <motion.span>{roundedScore}</motion.span>
           </p>
-          <p className="mt-2 text-sm text-white/60">{result.subjectLabel} • {result.difficulty}</p>
+          <p className="mt-2 text-sm text-white/55">{result.subjectLabel} • {result.difficulty}</p>
         </motion.section>
 
         <motion.section
           variants={sectionVariants}
-          className="grid grid-cols-2 gap-3 rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-2xl md:grid-cols-4"
+          className="grid grid-cols-2 gap-3 rounded-3xl border border-white/8 bg-white/4 p-4 backdrop-blur-lg md:grid-cols-4"
         >
           <div className={statCard}>
-            <p className="text-xs text-white/55">Accuracy</p>
-            <p className="mt-1 text-2xl font-semibold text-white">{result.accuracyScore}%</p>
+            <p className="text-[11px] text-white/45">Accuracy</p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-white">{result.accuracyScore}%</p>
           </div>
           <div className={statCard}>
-            <p className="text-xs text-white/55">Time efficiency</p>
-            <p className="mt-1 text-2xl font-semibold text-white">{result.timeEfficiency}%</p>
+            <p className="text-[11px] text-white/45">Time efficiency</p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-white">{result.timeEfficiency}%</p>
           </div>
           <div className={statCard}>
-            <p className="text-xs text-white/55">Stability</p>
-            <p className="mt-1 text-2xl font-semibold text-white">{result.stabilityScore}%</p>
+            <p className="text-[11px] text-white/45">Stability</p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-white">{result.stabilityScore}%</p>
           </div>
           <div className={statCard}>
-            <p className="text-xs text-white/55">Completion</p>
-            <p className="mt-1 text-2xl font-semibold text-white">
+            <p className="text-[11px] text-white/45">Completion</p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-white">
               {Math.round((result.completionRate || 0) * 100)}%
             </p>
           </div>
@@ -362,3 +362,4 @@ const ExamResult = () => {
 }
 
 export default ExamResult
+

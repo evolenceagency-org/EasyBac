@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+﻿import { useEffect, useMemo } from 'react'
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { ChevronRight, Sparkles } from 'lucide-react'
@@ -14,7 +14,7 @@ const containerVariants = {
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.42, ease: 'easeOut' } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const listVariants = {
@@ -27,7 +27,7 @@ const listVariants = {
 
 const listItemVariants = {
   hidden: { opacity: 0, x: -10 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.24, ease: 'easeOut' } }
+  visible: { opacity: 1, x: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const WelcomeAI = () => {
@@ -89,7 +89,7 @@ const WelcomeAI = () => {
           variants={sectionVariants}
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.45, ease: 'easeOut' }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl"
         >
           <p className="text-xs uppercase tracking-[0.2em] text-white/60">Performance Score</p>
@@ -137,3 +137,4 @@ const WelcomeAI = () => {
 }
 
 export default WelcomeAI
+

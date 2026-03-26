@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   AnimatePresence,
@@ -193,7 +193,7 @@ const TaskCard = ({
     }
 
     vibrate([10, 20, 10])
-    animate(x, 110, { duration: 0.2, ease: 'easeOut' })
+    animate(x, 110, { duration: 0.18, ease: 'easeOut' })
     setActionState('complete')
     queueTimer(() => {
       onToggle(task.id, task.completed)
@@ -211,7 +211,7 @@ const TaskCard = ({
     }
 
     vibrate(24)
-    animate(x, -110, { duration: 0.2, ease: 'easeOut' })
+    animate(x, -110, { duration: 0.18, ease: 'easeOut' })
     setActionState('delete')
     queueTimer(() => {
       onDelete(task.id)
@@ -251,8 +251,8 @@ const TaskCard = ({
 
   const cardExit = {
     idle: { opacity: 1, scale: 1 },
-    complete: { opacity: 0, scale: 0.98, transition: { duration: 0.24, ease: 'easeOut' } },
-    delete: { opacity: 0, scale: 0.94, transition: { duration: 0.22, ease: 'easeOut' } }
+    complete: { opacity: 0, scale: 0.98, transition: { duration: 0.18, ease: 'easeOut' } },
+    delete: { opacity: 0, scale: 0.94, transition: { duration: 0.18, ease: 'easeOut' } }
   }
 
   return (
@@ -290,14 +290,14 @@ const TaskCard = ({
         whileTap={{ scale: 0.985 }}
         initial={{ opacity: 0, y: 8 }}
         exit={{ opacity: 0, y: -8, scale: 0.98 }}
-        transition={{ duration: 0.22, ease: 'easeOut' }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className={`w-full max-w-full box-border rounded-2xl border bg-white/5 px-4 py-4 backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.15)] ${
+        className={`w-full max-w-full box-border rounded-2xl border bg-white/4 px-4 py-4 backdrop-blur-lg transition-all duration-200 ease-out hover:border-white/12 hover:shadow-[0_12px_24px_rgba(0,0,0,0.12)] ${
           isRecommended
-            ? 'border-cyan-400/35 shadow-[0_0_26px_rgba(34,211,238,0.14)]'
+            ? 'border-cyan-400/28 shadow-[0_10px_20px_rgba(34,211,238,0.1)]'
             : isOverdue
               ? 'border-red-500/35 bg-red-500/10'
               : 'border-white/10'
@@ -315,7 +315,7 @@ const TaskCard = ({
 
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {isRecommended ? (
-                <span className="rounded-full border border-cyan-400/25 bg-cyan-500/10 px-2 py-1 text-[11px] font-semibold text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.16)]">
+                <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-1 text-[10px] font-semibold text-cyan-100">
                   Recommended
                 </span>
               ) : null}
@@ -347,7 +347,7 @@ const TaskCard = ({
                 type="button"
                 onClick={() => onStartFocus?.(task)}
                 disabled={lockActions || task.status === 'on_hold'}
-                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition hover:scale-[1.02] hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/18 bg-cyan-500/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 transition hover:scale-[1.01] hover:bg-cyan-500/18 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Play className="h-3 w-3" />
                 Start Focus
@@ -359,7 +359,7 @@ const TaskCard = ({
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             ref={menuButtonRef}
-            className="rounded-lg border border-white/10 bg-white/5 p-1.5 text-white/70 transition hover:border-white/20 hover:text-white"
+            className="rounded-lg border border-white/8 bg-white/5 p-1.5 text-white/65 transition hover:border-white/12 hover:text-white"
           >
             <EllipsisVertical className="h-4 w-4" />
           </button>
@@ -376,7 +376,7 @@ const TaskCard = ({
                   exit={{ opacity: 0, scale: 0.96, y: -8 }}
                   transition={{ duration: 0.18, ease: 'easeOut' }}
                   style={menuStyle}
-                  className="fixed z-[999] rounded-xl border border-white/10 bg-neutral-900/95 p-2 shadow-xl backdrop-blur-xl"
+                  className="fixed z-[999] rounded-xl border border-white/8 bg-neutral-950/96 p-2 shadow-[0_12px_24px_rgba(0,0,0,0.32)] backdrop-blur-xl"
                 >
                   <button
                     type="button"
@@ -439,14 +439,14 @@ const TaskCard = ({
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/10 bg-black/30 p-2"
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-white/8 bg-black/25 p-2"
             >
               <input
                 type="date"
                 value={rescheduleDate}
                 onChange={(event) => setRescheduleDate(event.target.value)}
-                className="min-w-[140px] flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none focus:border-purple-400/40"
+                className="min-w-[140px] flex-1 rounded-lg border border-white/8 bg-white/4 px-3 py-2 text-xs text-white outline-none focus:border-purple-400/35"
               />
               <button
                 type="button"
@@ -471,3 +471,4 @@ const TaskCard = ({
 }
 
 export default TaskCard
+

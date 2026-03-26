@@ -2,7 +2,7 @@
 
 const SubjectChart = ({ data }) => {
   return (
-    <div className="glass rounded-2xl p-6 transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)]">
+    <div className="glass rounded-2xl p-5 transition-all duration-200 ease-out hover:border-white/12 hover:shadow-[0_16px_32px_rgba(0,0,0,0.18)]">
       <div className="flex items-center justify-between">
         <div>
           <p className="mb-4 text-xs uppercase tracking-wide text-white/70">

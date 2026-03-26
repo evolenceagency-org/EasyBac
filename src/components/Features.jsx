@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+﻿import { motion } from 'framer-motion'
 
 const features = [
   {
@@ -47,7 +47,7 @@ const Features = () => {
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
             Features
           </p>
-          <h2 className="mt-4 text-3xl font-semibold sm:text-4xl">
+          <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">
             Everything you need to stay ahead
           </h2>
           <p className="mt-3 text-sm text-zinc-300 sm:text-base">
@@ -63,21 +63,21 @@ const Features = () => {
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.5, delay: index * 0.05 }}
-              whileHover={{ scale: 1.05, rotate: 0.6 }}
-              className="glass group relative rounded-2xl p-6 shadow-lg transition hover:shadow-[0_0_35px_rgba(124,58,237,0.35)]"
+              transition={{ duration: 0.18, delay: index * 0.05 }}
+              whileHover={{ scale: 1.02, rotate: 0.2 }}
+              className="glass group relative rounded-2xl p-5 shadow-[0_12px_24px_rgba(0,0,0,0.14)] transition hover:border-white/12 hover:shadow-[0_14px_28px_rgba(0,0,0,0.18)]"
             >
               <div
                 className={`mb-4 h-10 w-10 rounded-full bg-gradient-to-br ${feature.accent}`}
               />
-              <h3 className="text-lg font-semibold text-white">
+              <h3 className="text-base font-semibold tracking-tight text-white">
                 {feature.title}
               </h3>
-              <p className="mt-2 text-sm text-zinc-300">
+              <p className="mt-2 text-sm leading-6 text-zinc-300">
                 {feature.description}
               </p>
               <div className="pointer-events-none absolute inset-0 opacity-0 transition group-hover:opacity-100">
-                <div className="absolute inset-0 rounded-2xl shadow-[0_0_30px_rgba(74,225,118,0.25)]" />
+                <div className="absolute inset-0 rounded-2xl shadow-[0_0_20px_rgba(74,225,118,0.12)]" />
               </div>
             </motion.div>
           ))}
@@ -88,3 +88,4 @@ const Features = () => {
 }
 
 export default Features
+

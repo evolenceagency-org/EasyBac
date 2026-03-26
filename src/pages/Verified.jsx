@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+﻿import { useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { MailCheck } from 'lucide-react'
@@ -35,7 +35,7 @@ const Verified = () => {
       <motion.div
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
         className="relative w-full max-w-lg rounded-3xl border border-white/10 bg-white/5 p-6 text-center shadow-2xl backdrop-blur-xl md:p-8"
       >
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-purple-500/40 to-blue-500/40 shadow-[0_0_25px_rgba(139,92,246,0.35)]">
@@ -57,3 +57,4 @@ const Verified = () => {
 }
 
 export default Verified
+

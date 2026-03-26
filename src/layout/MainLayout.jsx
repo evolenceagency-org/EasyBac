@@ -51,10 +51,10 @@ const MainLayout = () => {
     !onboardingPersonalization &&
     controlCenterSettings.assistant?.visible !== false
   const mobileBottomPadding = showMobileBottomNav
-    ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))]'
+    ? 'pb-[calc(8.5rem+env(safe-area-inset-bottom))]'
     : 'pb-4'
-  const assistantBottomPadding = showDynamicIsland ? 'md:pb-28' : 'md:pb-6'
-  const mobileTopPadding = showDynamicIsland ? 'pt-20 md:pt-6' : 'pt-4 md:pt-6'
+  const assistantBottomPadding = showDynamicIsland ? 'md:pb-24' : 'md:pb-6'
+  const assistantTopPadding = showDynamicIsland ? 'pt-20' : 'pt-4'
 
   return (
     <div className="relative flex min-h-screen w-full max-w-full overflow-x-hidden bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
@@ -66,8 +66,8 @@ const MainLayout = () => {
         {showSidebar && <Sidebar />}
 
         <main
-          className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden px-4 space-y-4 md:space-y-6 md:p-6 ${mobileTopPadding} ${mobileBottomPadding} ${assistantBottomPadding} ${
-            showSidebar ? 'md:ml-60' : ''
+          className={`ml-0 flex-1 min-h-screen max-w-full overflow-y-auto overflow-x-hidden px-4 ${assistantTopPadding} space-y-4 md:space-y-6 md:p-6 ${mobileBottomPadding} ${assistantBottomPadding} ${
+            showSidebar ? 'md:ml-56' : ''
           }`}
         >
           <Outlet />

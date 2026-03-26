@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -67,11 +67,11 @@ const MobileBottomNav = () => {
       <motion.nav
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-neutral-900/95 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden"
+        transition={{ duration: 0.15, ease: 'easeOut' }}
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-neutral-950/94 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden"
         aria-label="Mobile navigation"
       >
-        <div className="mx-auto flex max-w-xl items-center justify-between gap-1 rounded-t-2xl border border-white/10 bg-white/5 px-2 py-1.5 shadow-[0_0_25px_rgba(139,92,246,0.16)]">
+        <div className="mx-auto flex max-w-xl items-center justify-between gap-1 rounded-t-2xl border border-white/8 bg-white/4 px-2 py-1.5 shadow-[0_10px_20px_rgba(0,0,0,0.14)]">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
@@ -79,9 +79,9 @@ const MobileBottomNav = () => {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[10px] font-medium transition-all duration-200 ${
+                  `flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[9px] font-medium transition-all duration-150 ${
                     isActive
-                      ? 'bg-gradient-to-r from-purple-500/25 to-blue-500/25 text-white shadow-[0_0_16px_rgba(139,92,246,0.3)]'
+                      ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white shadow-[0_8px_16px_rgba(139,92,246,0.18)]'
                       : 'text-white/65 hover:bg-white/10 hover:text-white'
                   }`
                 }
@@ -100,13 +100,13 @@ const MobileBottomNav = () => {
             type="button"
             whileTap={{ scale: 0.94 }}
             onClick={() => setMoreOpen((prev) => !prev)}
-            className={`flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[10px] font-medium transition-all duration-200 ${
+            className={`flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[9px] font-medium transition-all duration-150 ${
               moreOpen
-                ? 'bg-gradient-to-r from-purple-500/25 to-blue-500/25 text-white shadow-[0_0_16px_rgba(139,92,246,0.3)]'
+                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white shadow-[0_8px_16px_rgba(139,92,246,0.18)]'
                 : 'text-white/65 hover:bg-white/10 hover:text-white'
             }`}
           >
-            <motion.div animate={{ rotate: moreOpen ? 90 : 0 }} transition={{ duration: 0.2 }}>
+            <motion.div animate={{ rotate: moreOpen ? 90 : 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}>
               <Ellipsis className={`h-4 w-4 ${moreOpen ? 'text-cyan-200' : 'text-white/70'}`} />
             </motion.div>
             <span className="mt-1 leading-none">More</span>
@@ -131,7 +131,7 @@ const MobileBottomNav = () => {
               initial={{ y: '100%', opacity: 0.9 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0.9 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
               drag="y"
               dragConstraints={{ top: 0, bottom: 320 }}
               dragElastic={0.2}
@@ -163,7 +163,7 @@ const MobileBottomNav = () => {
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 8 }}
-                      transition={{ delay: index * 0.05, duration: 0.18, ease: 'easeOut' }}
+                      transition={{ delay: index * 0.05, duration: 0.15, ease: 'easeOut' }}
                       whileTap={{ scale: 0.97 }}
                       className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-neutral-800/85 px-4 py-3 text-left text-sm text-white/90 transition hover:border-purple-400/35 hover:bg-neutral-800"
                     >
@@ -179,7 +179,7 @@ const MobileBottomNav = () => {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 8 }}
-                  transition={{ delay: 0.18, duration: 0.18, ease: 'easeOut' }}
+                  transition={{ delay: 0.18, duration: 0.15, ease: 'easeOut' }}
                   whileTap={{ scale: 0.97 }}
                   className="flex w-full items-center gap-3 rounded-xl border border-red-500/25 bg-red-900/35 px-4 py-3 text-left text-sm text-red-200 transition hover:bg-red-900/45"
                 >

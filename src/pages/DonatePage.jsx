@@ -133,13 +133,13 @@ const DonatePage = () => {
           <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             className="mt-8 flex justify-center md:mt-10"
           >
             <motion.div
               whileHover={{ scale: 1.01 }}
               animate={pulse ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className={`relative w-full max-w-3xl rounded-2xl border bg-[rgba(20,20,30,0.6)] p-5 backdrop-blur-xl md:p-8 ${tier.border} ${tier.glow}`}
             >
               <div className="absolute -top-6 left-1/2 -translate-x-1/2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/60">
@@ -160,7 +160,7 @@ const DonatePage = () => {
                         key={amount}
                         initial={{ opacity: 0, y: 6 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25 }}
+                        transition={{ duration: 0.18 }}
                         className="text-xl font-semibold text-white md:text-2xl"
                       >
                         {amount} MAD
@@ -192,7 +192,7 @@ const DonatePage = () => {
                       <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${progress * 100}%` }}
-                        transition={{ duration: 0.5, ease: 'easeOut' }}
+                        transition={{ duration: 0.18, ease: 'easeOut' }}
                         className="h-full bg-gradient-to-r from-purple-400 to-blue-500"
                       />
                     </div>
@@ -284,4 +284,5 @@ const DonatePage = () => {
 }
 
 export default DonatePage
+
 

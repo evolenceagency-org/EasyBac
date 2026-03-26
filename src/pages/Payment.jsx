@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -50,7 +50,7 @@ const Payment = () => {
       <motion.div
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: 'easeOut' }}
+        transition={{ duration: 0.18, ease: 'easeOut' }}
         className="relative w-full max-w-[440px] rounded-2xl border border-white/10 bg-white/5 p-5 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl md:p-7"
       >
         <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/5" />
@@ -119,3 +119,4 @@ const Payment = () => {
 }
 
 export default Payment
+

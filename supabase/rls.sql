@@ -2,7 +2,7 @@
 -- Run in Supabase SQL editor as admin.
 
 -- 1) Helper function: single source of truth
-create or replace function public.is_subscription_active(user_id uuid)
+create or replace function public.is_subscription_active(uid uuid)
 returns boolean
 language sql
 stable
@@ -10,7 +10,7 @@ as $$
   select exists (
     select 1
     from public.profiles p
-    where p.id = user_id
+    where p.id = uid
       and (
         p.payment_verified = true
         or (
@@ -28,9 +28,19 @@ alter table public.tasks enable row level security;
 alter table public.study_sessions enable row level security;
 
 -- 3) Profiles policies (single policy per action)
-drop policy if exists "profiles_select_own" on public.profiles;
-drop policy if exists "profiles_insert_own" on public.profiles;
-drop policy if exists "profiles_update_own" on public.profiles;
+do $$
+declare
+  pol record;
+begin
+  for pol in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'profiles'
+  loop
+    execute format('drop policy if exists %I on public.profiles', pol.policyname);
+  end loop;
+end $$;
 
 create policy "profiles_select_own"
 on public.profiles
@@ -52,8 +62,8 @@ with check (
   and payment_verified = (select p.payment_verified from public.profiles p where p.id = auth.uid())
   and (
     (
-      trial_start = (select p.trial_start from public.profiles p where p.id = auth.uid())
-      and subscription_status = (select p.subscription_status from public.profiles p where p.id = auth.uid())
+      trial_start is not distinct from (select p.trial_start from public.profiles p where p.id = auth.uid())
+      and subscription_status is not distinct from (select p.subscription_status from public.profiles p where p.id = auth.uid())
     )
     or (
       (select p.trial_start is null from public.profiles p where p.id = auth.uid())

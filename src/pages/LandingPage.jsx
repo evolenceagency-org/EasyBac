@@ -71,7 +71,7 @@ const FeaturesSection = () => (
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.5, delay: index * 0.05 }}
+              transition={{ duration: 0.18, delay: index * 0.05 }}
               whileHover={{ scale: 1.04 }}
               className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_25px_rgba(124,58,237,0.18)] backdrop-blur-xl md:p-6"
             >
@@ -177,7 +177,7 @@ const ProductPreview = () => {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className="relative mx-auto grid max-w-3xl gap-4 md:gap-6"
             >
               <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:p-6">
@@ -233,7 +233,7 @@ const FAQSection = () => {
                 initial={{ opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
+                transition={{ duration: 0.18, delay: index * 0.05 }}
                 className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:p-5"
               >
                 <button
@@ -242,7 +242,7 @@ const FAQSection = () => {
                   className="flex w-full items-center justify-between text-left text-sm font-semibold text-white"
                 >
                   {item.q}
-                  <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                  <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.18 }}>
                     <ChevronDown className="h-4 w-4 text-white/60" />
                   </motion.span>
                 </button>
@@ -252,7 +252,7 @@ const FAQSection = () => {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
+                      transition={{ duration: 0.18 }}
                       className="mt-3 text-sm text-white/70"
                     >
                       {item.a}
@@ -323,3 +323,4 @@ const LandingPage = () => {
 }
 
 export default LandingPage
+

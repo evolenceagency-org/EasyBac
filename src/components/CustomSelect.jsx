@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 
@@ -92,7 +92,7 @@ const CustomSelect = ({
         onKeyDown={handleTriggerKeyDown}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white backdrop-blur-md transition-all duration-200 ease-out hover:border-white/20 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_12px_rgba(139,92,246,0.12)] focus:outline-none focus:ring-2 focus:ring-purple-500/40 md:py-2"
+        className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/8 bg-white/4 px-3.5 py-2.5 text-left text-[13px] text-white backdrop-blur-md transition-all duration-200 ease-out hover:border-white/12 hover:bg-white/6 focus:outline-none focus:ring-2 focus:ring-purple-500/35 md:py-2"
       >
         <span className={`${selectedOption ? 'text-white' : 'text-white/45'}`}>
           {selectedOption?.label || placeholder}
@@ -111,8 +111,8 @@ const CustomSelect = ({
             initial={{ opacity: 0, y: -8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="absolute left-0 top-full z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-white/10 bg-[rgba(20,20,30,0.95)] py-2 shadow-[0_10px_40px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="absolute left-0 top-full z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-white/8 bg-[rgba(10,12,20,0.96)] py-2 shadow-[0_12px_24px_rgba(0,0,0,0.32)] backdrop-blur-xl"
             role="listbox"
           >
             {options.map((option, index) => {
@@ -128,7 +128,7 @@ const CustomSelect = ({
                   aria-selected={isSelected}
                   onClick={() => selectValue(option.value)}
                   onKeyDown={(event) => handleOptionKeyDown(event, index)}
-                  className={`block w-full cursor-pointer px-4 py-2 text-left text-sm transition-all duration-150 ${
+                  className={`block w-full cursor-pointer px-4 py-2 text-left text-[13px] transition-all duration-150 ${
                     isSelected
                       ? 'bg-purple-500/20 text-purple-400'
                       : 'text-gray-300 hover:bg-gradient-to-r hover:from-purple-500/10 hover:to-indigo-500/10 hover:text-white'
@@ -148,3 +148,4 @@ const CustomSelect = ({
 }
 
 export default CustomSelect
+

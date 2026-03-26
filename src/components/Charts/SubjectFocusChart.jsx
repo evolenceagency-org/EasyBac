@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+﻿import { memo, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
 import { Doughnut } from 'react-chartjs-2'
@@ -91,10 +91,10 @@ const SubjectFocusChart = ({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: 0.1 }}
+      transition={{ duration: 0.18, delay: 0.1 }}
       className={
         containerClassName ||
-        'rounded-xl border border-white/10 bg-white/5 p-4 shadow-[0_0_30px_rgba(139,92,246,0.1)] backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] md:p-6'
+        'rounded-2xl border border-white/8 bg-white/4 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.14)] backdrop-blur-lg transition-all duration-200 ease-out hover:border-white/12 hover:shadow-[0_16px_32px_rgba(0,0,0,0.18)] md:p-5'
       }
     >
       <div className="flex items-center justify-between">
@@ -111,8 +111,8 @@ const SubjectFocusChart = ({
         </span>
       </div>
 
-      <div className="mt-5 flex flex-col gap-5 md:mt-6 md:gap-6 lg:flex-row lg:items-center">
-        <div className="h-48 w-full sm:h-56 lg:w-56">
+      <div className="mt-4 flex flex-col gap-4 md:mt-5 md:gap-5 lg:flex-row lg:items-center">
+        <div className="h-44 w-full sm:h-52 lg:w-52">
           <Doughnut data={chartData} options={options} />
         </div>
 
@@ -122,8 +122,7 @@ const SubjectFocusChart = ({
               {breakdown.map((subject) => (
                 <span
                   key={subject.label}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-white/80"
-                  style={{ boxShadow: '0 0 8px rgba(139,92,246,0.2)' }}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/8 px-3 py-1 text-xs text-white/78"
                 >
                   <span
                     className="h-2.5 w-2.5 rounded-full"
@@ -157,4 +156,5 @@ const SubjectFocusChart = ({
 }
 
 export default memo(SubjectFocusChart)
+
 

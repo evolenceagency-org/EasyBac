@@ -99,15 +99,25 @@ const toDateMs = (value) => {
   return Number.isNaN(ms) ? null : ms
 }
 
+const toDateObject = (value = new Date()) => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? new Date() : value
+  }
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
 export const computeStudyMetrics = ({
   tasks = [],
   studySessions = [],
   now = new Date()
 } = {}) => {
-  const nowMs = now.getTime()
+  const nowDate = toDateObject(now)
+  const nowMs = nowDate.getTime()
   const sevenDaysAgo = nowMs - 7 * DAY_MS
   const fourteenDaysAgo = nowMs - 14 * DAY_MS
-  const todayKey = getTodayDateKey(now)
+  const todayKey = getTodayDateKey(nowDate)
 
   const totalStudyMinutes = studySessions.reduce((sum, session) => {
     return sum + (Number(session?.duration_minutes) || 0)
@@ -164,7 +174,7 @@ export const generateScore = ({
   now = new Date()
 } = {}) => {
   const normalizedProfile = toCanonicalProfile(profile)
-  const metrics = computeStudyMetrics({ tasks, studySessions, now })
+  const metrics = computeStudyMetrics({ tasks, studySessions, now: toDateObject(now) })
 
   const weakSubjectPenalty =
     normalizedProfile.weakSubjects.length >= 4

@@ -4,6 +4,15 @@ const isBrowser = typeof window !== 'undefined'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
+const toDateObject = (value = new Date()) => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? new Date() : value
+  }
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
 const getKey = (userId) => `${STORAGE_PREFIX}:${userId || 'guest'}`
 
 const readJson = (key, fallback = null) => {
@@ -239,16 +248,17 @@ export const recordCognitiveSignal = (userId, signal = {}) => {
 }
 
 const getSessionDurationMinutes = (telemetry, now) => {
+  const nowDate = toDateObject(now)
   const startedAt = telemetry?.currentSession?.startedAt || telemetry?.lastSessionSummary?.startedAt
   if (!startedAt) return 0
-  return Math.max(0, Math.round((now.getTime() - Number(startedAt)) / 60000))
+  return Math.max(0, Math.round((nowDate.getTime() - Number(startedAt)) / 60000))
 }
 
 export const computeCognitiveLoad = (userState = {}, appData = {}) => {
   const profile = normalizeProfile(userState)
   const tasks = Array.isArray(appData.tasks) ? appData.tasks : []
   const studySessions = Array.isArray(appData.studySessions) ? appData.studySessions : []
-  const now = appData.now ? new Date(appData.now) : new Date()
+  const now = toDateObject(appData.now)
   const userId = appData.userId || userState?.id || userState?.userId || null
   const telemetry = appData.cognitiveTelemetry || (userId ? getTelemetry(userId) : null)
   const timerState = appData.timerState || null

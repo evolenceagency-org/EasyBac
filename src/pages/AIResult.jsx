@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+﻿import { useEffect, useMemo } from 'react'
 import { animate, motion, useMotionValue, useTransform } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { BrainCircuit, ChevronRight, Sparkles } from 'lucide-react'
@@ -14,7 +14,7 @@ const containerVariants = {
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 22 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.42, ease: 'easeOut' } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const listVariants = {
@@ -27,7 +27,7 @@ const listVariants = {
 
 const listItemVariants = {
   hidden: { opacity: 0, x: -10 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.22, ease: 'easeOut' } }
+  visible: { opacity: 1, x: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const AIResult = () => {
@@ -68,56 +68,56 @@ const AIResult = () => {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="relative mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10 md:gap-8 md:py-12"
+        className="relative mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8 md:gap-6 md:py-10"
       >
         <motion.header variants={sectionVariants} className="text-center">
-          <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-cyan-200 backdrop-blur-xl">
+          <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-white/8 bg-white/4 text-cyan-200 backdrop-blur-lg">
             <Sparkles className="h-5 w-5" />
           </div>
-          <h1 className="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-3xl font-bold text-transparent md:text-5xl">
+          <h1 className="bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 bg-clip-text text-2xl font-bold tracking-tight text-transparent md:text-4xl">
             Your AI Study Plan is Ready
           </h1>
-          <p className="mt-3 text-sm text-white/70 md:text-base">
+          <p className="mt-3 text-sm leading-6 text-white/65 md:text-[15px]">
             Profile-based score with live app data updates.
           </p>
         </motion.header>
 
         <motion.section
           variants={sectionVariants}
-          className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur-xl"
+          className="rounded-2xl border border-white/8 bg-white/4 p-5 text-center backdrop-blur-lg"
         >
-          <p className="text-xs uppercase tracking-[0.2em] text-white/60">Performance Score</p>
-          <p className="mt-3 text-6xl font-bold text-cyan-400 shadow-[0_0_40px_rgba(34,211,238,0.6)] md:text-7xl">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/50">Performance Score</p>
+          <p className="mt-3 text-5xl font-bold tracking-tight text-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.28)] md:text-6xl">
             <motion.span>{roundedScore}</motion.span>
           </p>
-          <p className="mt-2 text-xs text-white/60">Updated: {ai.lastUpdated || 'today'}</p>
+          <p className="mt-2 text-[11px] text-white/50">Updated: {ai.lastUpdated || 'today'}</p>
         </motion.section>
 
         <motion.section
           variants={sectionVariants}
-          className="grid grid-cols-2 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:grid-cols-4"
+          className="grid grid-cols-2 gap-3 rounded-2xl border border-white/8 bg-white/4 p-4 backdrop-blur-lg md:grid-cols-4"
         >
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Weekly Study</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Weekly Study</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {metrics.weeklyStudyHours ?? 0}h
             </p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Completion</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Completion</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {Math.round((metrics.completionRate || 0) * 100)}%
             </p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Active Days</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Active Days</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {metrics.activeDaysLast14 ?? 0}
             </p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Overdue</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Overdue</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {metrics.overdueTasks ?? 0}
             </p>
           </div>
@@ -125,23 +125,23 @@ const AIResult = () => {
 
         <motion.section
           variants={sectionVariants}
-          className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:grid-cols-3"
+          className="grid grid-cols-1 gap-3 rounded-2xl border border-white/8 bg-white/4 p-4 backdrop-blur-lg md:grid-cols-3"
         >
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Optimal Session</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Optimal Session</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {predictions.optimalSessionLength?.minutes ?? '--'} min
             </p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Drop Point</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Drop Point</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {predictions.dropPoint?.minutes ?? '--'} min
             </p>
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/25 p-3 text-center">
-            <p className="text-xs text-white/60">Best Window</p>
-            <p className="mt-1 text-lg font-semibold text-white">
+          <div className="rounded-xl border border-white/8 bg-black/18 p-3 text-center">
+            <p className="text-[11px] text-white/50">Best Window</p>
+            <p className="mt-1 text-base font-semibold tracking-tight text-white">
               {predictions.bestStudyTime?.window || '--'}
             </p>
           </div>
@@ -149,26 +149,26 @@ const AIResult = () => {
 
         <motion.section
           variants={sectionVariants}
-          className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl"
+          className="rounded-2xl border border-white/8 bg-white/4 p-5 backdrop-blur-lg"
         >
           <div className="flex items-center gap-2">
             <BrainCircuit className="h-4 w-4 text-cyan-300" />
-            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Analysis</p>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-white/50">Analysis</p>
           </div>
-          <p className="mt-3 text-sm leading-relaxed text-white/85 md:text-base">{ai.analysis}</p>
+          <p className="mt-3 text-sm leading-6 text-white/78 md:text-[15px]">{ai.analysis}</p>
         </motion.section>
 
         <motion.section
           variants={sectionVariants}
-          className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl"
+          className="rounded-2xl border border-white/8 bg-white/4 p-5 backdrop-blur-lg"
         >
-          <p className="text-xs uppercase tracking-[0.2em] text-white/60">Action Plan</p>
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/50">Action Plan</p>
           <motion.ul variants={listVariants} className="mt-3 space-y-2.5">
             {planItems.map((item) => (
               <motion.li
                 key={item}
                 variants={listItemVariants}
-                className="flex items-start gap-2 rounded-lg bg-white/5 px-3 py-2.5 text-sm text-white/85 md:text-base"
+                className="flex items-start gap-2 rounded-lg bg-white/5 px-3 py-2.5 text-sm leading-6 text-white/80 md:text-[15px]"
               >
                 <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
                 <span>{item}</span>
@@ -180,10 +180,10 @@ const AIResult = () => {
         <motion.button
           variants={sectionVariants}
           type="button"
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => navigate('/dashboard')}
-          className="w-full rounded-xl bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-400 px-8 py-4 text-sm font-semibold text-white shadow-[0_0_34px_rgba(139,92,246,0.6)] transition md:text-base"
+          className="w-full rounded-xl bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-400 px-8 py-3.5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(139,92,246,0.22)] transition md:text-base"
         >
           Go to Dashboard
         </motion.button>
@@ -193,3 +193,4 @@ const AIResult = () => {
 }
 
 export default AIResult
+

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+﻿import { motion } from 'framer-motion'
 
 const steps = [
   {
@@ -33,7 +33,7 @@ const HowItWorks = () => {
           <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
             How it works
           </p>
-          <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
             Build a routine in minutes
           </h2>
         </motion.div>
@@ -45,14 +45,14 @@ const HowItWorks = () => {
               initial={{ opacity: 0, y: 12 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.2 }}
-              transition={{ duration: 0.5, delay: index * 0.05 }}
-              className="glass rounded-2xl p-6"
+              transition={{ duration: 0.18, delay: index * 0.05 }}
+              className="glass rounded-2xl p-5"
             >
-              <p className="text-xs uppercase tracking-[0.3em] text-zinc-500">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-zinc-500">
                 Step {index + 1}
               </p>
-              <h3 className="mt-4 text-lg font-semibold">{step.title}</h3>
-              <p className="mt-2 text-sm text-zinc-300">{step.description}</p>
+              <h3 className="mt-4 text-base font-semibold tracking-tight">{step.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-zinc-300">{step.description}</p>
             </motion.div>
           ))}
         </div>
@@ -62,3 +62,4 @@ const HowItWorks = () => {
 }
 
 export default HowItWorks
+

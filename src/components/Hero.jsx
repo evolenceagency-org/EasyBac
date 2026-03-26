@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import Navbar from './Navbar.jsx'
@@ -16,7 +16,7 @@ const container = {
 
 const item = {
   hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: 'easeOut' } }
+  show: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const Hero = () => {
@@ -149,7 +149,7 @@ const Hero = () => {
             alt="BacTracker Dashboard Preview"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5, ease: 'easeOut' }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             className="mx-auto w-full max-w-sm rounded-2xl shadow-2xl"
           />
         </div>
@@ -159,3 +159,4 @@ const Hero = () => {
 }
 
 export default Hero
+

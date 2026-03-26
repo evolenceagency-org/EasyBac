@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+﻿import { NavLink } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 
 const cn = (...classes) => classes.filter(Boolean).join(' ')
@@ -12,20 +12,20 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onClick, variant, badge }) 
     >
       {({ isActive }) => (
         <motion.div
-          whileHover={{ scale: 1.03 }}
-          transition={{ duration: 0.3, ease: 'easeOut' }}
+          whileHover={{ scale: 1.01, x: 1 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           className={cn(
-            'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-300 ease-out',
+            'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-200 ease-out',
             variant === 'donate'
               ? cn(
-                  'bg-gradient-to-r from-emerald-400/20 to-green-500/20 text-white shadow-[0_0_20px_rgba(34,197,94,0.4)]',
-                  'transition-all duration-200 hover:shadow-[0_0_28px_rgba(34,197,94,0.5)]',
+                  'bg-gradient-to-r from-emerald-400/14 to-green-500/14 text-white shadow-[0_8px_18px_rgba(34,197,94,0.12)]',
+                  'transition-all duration-200 hover:shadow-[0_10px_20px_rgba(34,197,94,0.16)]',
                   isActive && 'from-emerald-500/35 to-green-600/35'
                 )
               : isActive
-                ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white shadow-[0_0_20px_rgba(139,92,246,0.25)] border border-white/10'
+                ? 'bg-gradient-to-r from-purple-500/18 to-blue-500/18 text-white shadow-[0_8px_18px_rgba(139,92,246,0.14)] border border-white/8'
                 : 'text-zinc-300 hover:bg-white/5 hover:text-white'
-          )}
+          )} 
         >
           <span
             className={cn(
@@ -41,11 +41,11 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onClick, variant, badge }) 
           />
           <span
             className={cn(
-              'flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white transition-all duration-300 ease-out group-hover:translate-x-1',
+              'flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-white transition-all duration-200 ease-out group-hover:translate-x-0.5',
               variant === 'donate'
-                ? 'bg-emerald-500/15 text-emerald-200 drop-shadow-[0_0_8px_rgba(34,197,94,0.6)]'
+                ? 'bg-emerald-500/12 text-emerald-200'
                 : isActive &&
-                  'text-purple-300 drop-shadow-[0_0_6px_rgba(139,92,246,0.6)]',
+                  'text-purple-300',
               collapsed && 'mx-auto'
             )}
           >
@@ -58,7 +58,7 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onClick, variant, badge }) 
                 initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -6 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.18 }}
                 className="whitespace-nowrap"
               >
                 {label}
@@ -67,7 +67,7 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onClick, variant, badge }) 
           </AnimatePresence>
 
           {!collapsed && badge && (
-            <span className="ml-auto rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/80">
+            <span className="ml-auto rounded-full bg-white/8 px-2 py-0.5 text-[10px] text-white/75">
               {badge}
             </span>
           )}
@@ -84,3 +84,4 @@ const NavItem = ({ to, icon: Icon, label, collapsed, onClick, variant, badge }) 
 }
 
 export default NavItem
+

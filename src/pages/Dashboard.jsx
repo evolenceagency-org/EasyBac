@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { CheckCircle2, GraduationCap, SlidersHorizontal } from 'lucide-react'
@@ -206,7 +206,7 @@ const Dashboard = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.18 }}
       className="relative flex max-w-full flex-col gap-4 md:gap-6"
     >
       <AnimatePresence>
@@ -279,7 +279,7 @@ const Dashboard = () => {
                 Exam Simulation
               </p>
               <p className="mt-1 text-lg font-semibold text-white">
-                {examPlan.subjectLabel} • {examPlan.durationMinutes} min
+                {examPlan.subjectLabel} â€¢ {examPlan.durationMinutes} min
               </p>
               <p className="mt-1 text-sm text-white/65">{examPlan.reason}</p>
             </div>
@@ -427,3 +427,4 @@ const Dashboard = () => {
 }
 
 export default Dashboard
+

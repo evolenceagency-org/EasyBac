@@ -38,19 +38,19 @@ const DashboardCards = ({
           key={card.label}
           className="p-4 md:p-5"
         >
-          <span className="absolute left-0 top-0 h-[2px] w-full bg-gradient-to-r from-purple-400 to-blue-400" />
+          <span className="absolute left-0 top-0 h-px w-full bg-gradient-to-r from-purple-400/70 to-blue-400/70" />
           <div className="flex items-center justify-between">
-            <p className="text-xs uppercase tracking-wide text-white/70 md:text-sm">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-white/55">
               {card.label}
             </p>
             <span
-              className={`h-2.5 w-2.5 rounded-full ${card.accent} shadow-[0_0_10px_currentColor]`}
+              className={`h-2 w-2 rounded-full ${card.accent}`}
             />
           </div>
-          <p className="mt-4 text-2xl font-semibold text-white">
+          <p className="mt-3 text-xl font-semibold tracking-tight text-white md:text-2xl">
             {card.value}
           </p>
-          <p className="mt-2 text-xs text-white/50">Updated moments ago</p>
+          <p className="mt-2 text-[11px] text-white/45">Updated moments ago</p>
         </GlassCard>
       ))}
     </div>

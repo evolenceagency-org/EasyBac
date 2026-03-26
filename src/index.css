@@ -28,7 +28,9 @@
   }
 
   body {
-    @apply min-h-screen bg-zinc-950 text-white antialiased;
+    @apply min-h-screen bg-[#05060a] text-white antialiased;
+    font-size: 15px;
+    line-height: 1.55;
     font-family: 'Sora', sans-serif;
     overflow-x: hidden;
   }
@@ -40,20 +42,23 @@
   h5,
   h6 {
     font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.08;
   }
 }
 
 @layer components {
   .card {
-    @apply bg-white/5 text-white rounded-2xl p-5 border border-white/10 backdrop-blur-xl shadow-[0_0_30px_rgba(139,92,246,0.1)];
+    @apply rounded-2xl border border-white/10 bg-white/5 p-4 text-white backdrop-blur-lg shadow-[0_12px_30px_rgba(0,0,0,0.18)];
   }
 
   .glass {
-    @apply bg-white/5 border border-white/10 backdrop-blur-xl shadow-[0_0_30px_rgba(139,92,246,0.1)];
+    @apply border border-white/10 bg-white/5 backdrop-blur-lg shadow-[0_12px_30px_rgba(0,0,0,0.16)];
   }
 
   .muted {
-    @apply text-zinc-300;
+    @apply text-zinc-400;
   }
 }
 

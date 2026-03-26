@@ -5,13 +5,13 @@ const SliderControl = ({ value, onChange, label = 'Autonomy Level', description 
   const percent = (safeValue / 2) * 100
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+    <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-white">{label}</p>
-          {description ? <p className="mt-1 text-xs leading-5 text-white/60">{description}</p> : null}
+          <p className="text-[13px] font-medium text-white">{label}</p>
+          {description ? <p className="mt-1 text-xs leading-5 text-white/54">{description}</p> : null}
         </div>
-        <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/75">
+        <div className="rounded-full border border-white/8 bg-white/4 px-3 py-1 text-xs text-white/68">
           {labels[safeValue]}
         </div>
       </div>
@@ -33,7 +33,7 @@ const SliderControl = ({ value, onChange, label = 'Autonomy Level', description 
             aria-label={label}
           />
         </div>
-        <div className="mt-3 flex items-center justify-between text-[11px] uppercase tracking-[0.2em] text-white/50">
+        <div className="mt-3 flex items-center justify-between text-[10px] uppercase tracking-[0.18em] text-white/45">
           {labels.map((item) => (
             <span key={item}>{item}</span>
           ))}

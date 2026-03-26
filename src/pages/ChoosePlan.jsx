@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, CheckCircle2 } from 'lucide-react'
@@ -86,7 +86,7 @@ const ChoosePlan = () => {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           className="mx-auto mt-14 flex w-full max-w-4xl flex-col gap-4 md:mt-20 md:gap-6"
         >
           <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl md:p-7">
@@ -102,7 +102,7 @@ const ChoosePlan = () => {
           <div className="grid gap-4 md:gap-6 md:grid-cols-2">
             <motion.div
               whileHover={{ scale: 1.03 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl md:p-6"
             >
               <p className="text-xs uppercase tracking-wide text-white/60">Start Free Trial</p>
@@ -131,7 +131,7 @@ const ChoosePlan = () => {
 
             <motion.div
               whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               className="relative rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-600/20 to-blue-600/20 p-5 shadow-[0_0_40px_rgba(139,92,246,0.25)] backdrop-blur-xl md:p-6"
             >
               <div className="absolute right-4 top-4 flex flex-wrap gap-2">
@@ -196,3 +196,4 @@ const ChoosePlan = () => {
 }
 
 export default ChoosePlan
+

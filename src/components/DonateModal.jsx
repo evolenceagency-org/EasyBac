@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Copy, Check, X, HeartHandshake } from 'lucide-react'
 
@@ -57,7 +57,7 @@ const DonateModal = ({ open, onClose, rib }) => {
             initial={{ opacity: 0, y: 14, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 10, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
             className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[rgba(20,20,30,0.92)] p-6 shadow-[0_10px_50px_rgba(0,0,0,0.65)] backdrop-blur-xl"
           >
             <AnimatePresence>
@@ -66,7 +66,7 @@ const DonateModal = ({ open, onClose, rib }) => {
                   initial={{ opacity: 0, y: -8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
                   className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-3 py-1 text-xs text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.3)]"
                 >
                   RIB copied
@@ -121,3 +121,4 @@ const DonateModal = ({ open, onClose, rib }) => {
 }
 
 export default DonateModal
+

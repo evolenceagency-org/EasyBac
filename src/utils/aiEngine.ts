@@ -28,6 +28,15 @@ export const getShortMessage = (message, limit = 25) => {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
+const toDateObject = (value = new Date()) => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? new Date() : value
+  }
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
 const toTimeMs = (value) => {
   if (!value) return null
   const ms = new Date(value).getTime()
@@ -41,7 +50,8 @@ const normalizeUserProfile = (user) => {
 }
 
 const getActiveDays = (studySessions = [], days = 7, now = new Date()) => {
-  const minTime = now.getTime() - days * DAY_MS
+  const nowDate = toDateObject(now)
+  const minTime = nowDate.getTime() - days * DAY_MS
   const daysSet = new Set()
 
   studySessions.forEach((session) => {
@@ -69,13 +79,15 @@ const getLastActivityMs = (studySessions = [], tasks = []) => {
 }
 
 const getDaysSince = (dateMs, now = new Date()) => {
+  const nowDate = toDateObject(now)
   if (!dateMs) return Number.POSITIVE_INFINITY
-  return Math.floor((now.getTime() - dateMs) / DAY_MS)
+  return Math.floor((nowDate.getTime() - dateMs) / DAY_MS)
 }
 
 const getWeeklyTrend = (studySessions = [], now = new Date()) => {
-  const currentWindowStart = now.getTime() - 7 * DAY_MS
-  const previousWindowStart = now.getTime() - 14 * DAY_MS
+  const nowDate = toDateObject(now)
+  const currentWindowStart = nowDate.getTime() - 7 * DAY_MS
+  const previousWindowStart = nowDate.getTime() - 14 * DAY_MS
   let currentMinutes = 0
   let previousMinutes = 0
 
@@ -106,8 +118,9 @@ const getWeeklyTrend = (studySessions = [], now = new Date()) => {
 }
 
 const getTaskSignals = (tasks = [], now = new Date()) => {
-  const todayKey = toDateKey(now)
-  const tomorrow = new Date(now)
+  const nowDate = toDateObject(now)
+  const todayKey = toDateKey(nowDate)
+  const tomorrow = new Date(nowDate)
   tomorrow.setDate(tomorrow.getDate() + 1)
   const tomorrowKey = toDateKey(tomorrow)
 
@@ -239,6 +252,7 @@ const getSubjectLabel = (subject) => {
 
 export const getBestTask = (tasks = [], user = null, now = new Date()) => {
   const profile = normalizeUserProfile(user)
+  const nowDate = toDateObject(now)
   const memoryGraph = buildMemoryGraphSnapshot({
     personalization: profile,
     tasks
@@ -246,7 +260,7 @@ export const getBestTask = (tasks = [], user = null, now = new Date()) => {
   const weakSubjects = new Set(
     (profile?.weakSubjects || []).map((item) => String(item).trim().toLowerCase())
   )
-  const todayMs = new Date(toDateKey(now)).getTime()
+  const todayMs = new Date(toDateKey(nowDate)).getTime()
 
   const pendingTasks = tasks.filter(
     (task) =>
@@ -308,6 +322,7 @@ export const getBestTask = (tasks = [], user = null, now = new Date()) => {
 }
 
 const buildMetrics = (user, appData = {}, now = new Date()) => {
+  const nowDate = toDateObject(now)
   const tasks = appData.tasks || []
   const studySessions = appData.studySessions || []
   const timerState = appData.timerState || null
@@ -320,22 +335,22 @@ const buildMetrics = (user, appData = {}, now = new Date()) => {
     profile,
     tasks,
     studySessions,
-    now
+    now: nowDate
   })
   const streak = calculateCurrentStreak(studySessions)
-  const weeklyTrend = getWeeklyTrend(studySessions, now)
-  const taskSignals = getTaskSignals(tasks, now)
+  const weeklyTrend = getWeeklyTrend(studySessions, nowDate)
+  const taskSignals = getTaskSignals(tasks, nowDate)
   const lastActivityMs = getLastActivityMs(studySessions, tasks)
-  const lastActivityDays = getDaysSince(lastActivityMs, now)
-  const activeDays7 = getActiveDays(studySessions, 7, now)
+  const lastActivityDays = getDaysSince(lastActivityMs, nowDate)
+  const activeDays7 = getActiveDays(studySessions, 7, nowDate)
   const personalized = isPersonalized({
     personalization: profile,
     isPersonalized: profile.isPersonalized
   })
 
   return {
-    now,
-    todayKey: getTodayDateKey(now),
+    now: nowDate,
+    todayKey: getTodayDateKey(nowDate),
     profile,
     tasks,
     studySessions,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 
 const tabs = [
@@ -45,7 +45,7 @@ const ProductPreview = () => {
             <p className="text-xs uppercase tracking-[0.3em] text-zinc-400">
               Product Preview
             </p>
-            <h2 className="mt-3 text-3xl font-semibold sm:text-4xl">
+            <h2 className="mt-3 text-2xl font-semibold tracking-tight sm:text-3xl">
               Experience the workflow
             </h2>
           </div>
@@ -73,12 +73,12 @@ const ProductPreview = () => {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-center"
           >
-            <div className="glass rounded-3xl p-6">
-              <h3 className="text-xl font-semibold">{activeTab.title}</h3>
-              <p className="mt-3 text-sm text-zinc-300">
+            <div className="glass rounded-3xl p-5">
+              <h3 className="text-lg font-semibold tracking-tight">{activeTab.title}</h3>
+              <p className="mt-3 text-sm leading-6 text-zinc-300">
                 {activeTab.description}
               </p>
             </div>
@@ -98,3 +98,4 @@ const ProductPreview = () => {
 }
 
 export default ProductPreview
+

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -296,29 +296,29 @@ const AIControlCenter = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.35, ease: 'easeOut' }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
       className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6 md:py-10"
     >
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="max-w-2xl">
-          <p className="text-xs uppercase tracking-[0.26em] text-white/50">AI Control Center</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">AI Control Center</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white md:text-4xl">
             You stay in control.
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-white/65 md:text-base">
+          <p className="mt-3 max-w-xl text-sm leading-6 text-white/60 md:text-[15px]">
             Tune Voice AI, Assistant Bar, and Autopilot behavior from one place. Everything is
             explainable, adjustable, and reversible.
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/75">
+          <div className="rounded-full border border-white/8 bg-white/4 px-3 py-1.5 text-[11px] text-white/70">
             Voice {controlStateLabel(voiceEnabled)}
           </div>
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/75">
+          <div className="rounded-full border border-white/8 bg-white/4 px-3 py-1.5 text-[11px] text-white/70">
             Assistant {assistantModeLabel}
           </div>
-          <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/75">
+          <div className="rounded-full border border-white/8 bg-white/4 px-3 py-1.5 text-[11px] text-white/70">
             Autonomy {autonomyLabel}
           </div>
         </div>
@@ -343,7 +343,7 @@ const AIControlCenter = () => {
 
               <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 md:grid-cols-[1fr_auto] md:items-center">
                 <div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-white">
+                  <div className="flex items-center gap-2 text-[13px] font-medium text-white">
                     <Mic className="h-4 w-4 text-cyan-300" />
                     Microphone status
                   </div>
@@ -540,7 +540,7 @@ const AIControlCenter = () => {
                     initial={{ opacity: 0, height: 0, y: 4 }}
                     animate={{ opacity: 1, height: 'auto', y: 0 }}
                     exit={{ opacity: 0, height: 0, y: 4 }}
-                    transition={{ duration: 0.28, ease: 'easeOut' }}
+                    transition={{ duration: 0.18, ease: 'easeOut' }}
                     className="space-y-4 overflow-hidden"
                   >
                     <SliderControl
@@ -700,3 +700,4 @@ const AIControlCenter = () => {
 }
 
 export default AIControlCenter
+

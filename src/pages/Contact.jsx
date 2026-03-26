@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { MessageSquareText, CheckCircle2 } from 'lucide-react'
 import CustomSelect from '../components/CustomSelect.jsx'
@@ -21,7 +21,7 @@ const SuccessState = () => {
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, ease: 'easeOut' }}
+      transition={{ duration: 0.18, ease: 'easeOut' }}
       className="flex flex-col items-center text-center"
     >
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10 shadow-[0_0_25px_rgba(16,185,129,0.2)]">
@@ -169,7 +169,7 @@ const SupportPage = () => {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           className="mx-auto w-full max-w-xl overflow-visible rounded-3xl border border-white/10 bg-white/5 p-5 shadow-[0_0_60px_rgba(139,92,246,0.15)] backdrop-blur-xl md:p-7"
         >
           <div className="mb-6 flex flex-col items-center text-center">
@@ -207,3 +207,4 @@ const SupportPage = () => {
 }
 
 export default SupportPage
+

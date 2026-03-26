@@ -35,15 +35,17 @@ const WeeklySummary = ({ sessions = [] }) => {
   }
 
   return (
-    <GlassCard className="p-4 md:p-6">
-      <p className="text-xs uppercase tracking-wide text-white/70">
+    <GlassCard className="p-4 md:p-5">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-white/55">
         Weekly Summary
       </p>
-      <h3 className="mt-2 text-lg font-semibold text-white">Your momentum</h3>
-      <p className="mt-4 text-sm text-white/80">
+      <h3 className="mt-2 text-base font-semibold tracking-tight text-white md:text-lg">
+        Your momentum
+      </h3>
+      <p className="mt-3 text-sm leading-6 text-white/72">
         This week you studied {formatMinutes(thisWeekMinutes)}.
       </p>
-      <p className="mt-2 text-sm text-white/60">{comparison}</p>
+      <p className="mt-2 text-sm leading-6 text-white/52">{comparison}</p>
     </GlassCard>
   )
 }

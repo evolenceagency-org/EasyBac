@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+﻿import { memo, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
   Chart as ChartJS,
@@ -124,10 +124,10 @@ const StudyTimeChart = ({
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
+      transition={{ duration: 0.18 }}
       className={
         containerClassName ||
-        'rounded-xl border border-white/10 bg-white/5 p-4 shadow-[0_0_30px_rgba(139,92,246,0.1)] backdrop-blur-xl transition-all duration-300 ease-out hover:border-purple-400/30 hover:shadow-[0_0_20px_rgba(139,92,246,0.2)] md:p-6'
+        'rounded-2xl border border-white/8 bg-white/4 p-4 shadow-[0_12px_28px_rgba(0,0,0,0.14)] backdrop-blur-lg transition-all duration-200 ease-out hover:border-white/12 hover:shadow-[0_16px_32px_rgba(0,0,0,0.18)] md:p-5'
       }
     >
       <div className="flex items-center justify-between">
@@ -145,7 +145,7 @@ const StudyTimeChart = ({
           </span>
         )}
       </div>
-      <div className="mt-5 h-52 sm:h-56 md:mt-6 md:h-64">
+      <div className="mt-4 h-48 sm:h-52 md:mt-5 md:h-60">
         <Line data={chartData} options={options} />
       </div>
     </motion.div>
@@ -153,4 +153,5 @@ const StudyTimeChart = ({
 }
 
 export default memo(StudyTimeChart)
+
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { Brain, Sparkles } from 'lucide-react'
@@ -76,8 +76,8 @@ const BRANCH_QUESTIONS = {
 
 const pageVariants = {
   hidden: { opacity: 0, y: 36 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.45, ease: 'easeOut' } },
-  exit: { opacity: 0, scale: 0.97, y: 16, transition: { duration: 0.24, ease: 'easeOut' } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } },
+  exit: { opacity: 0, scale: 0.97, y: 16, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const optionContainer = {
@@ -90,7 +90,7 @@ const optionContainer = {
 
 const optionItem = {
   hidden: { opacity: 0, y: 8 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } }
+  visible: { opacity: 1, y: 0, transition: { duration: 0.18, ease: 'easeOut' } }
 }
 
 const toGoalValue = (value) => {
@@ -479,7 +479,7 @@ const Personalization = () => {
               className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-cyan-400"
               initial={{ width: 0 }}
               animate={{ width: `${progressPercent}%` }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
             />
           </div>
         </div>
@@ -491,7 +491,7 @@ const Personalization = () => {
               initial={{ opacity: 0, x: 40 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
             >
               <h2 className="text-base font-medium text-white md:text-lg">
                 {currentQuestion.title}
@@ -595,3 +595,4 @@ const Personalization = () => {
 }
 
 export default Personalization
+

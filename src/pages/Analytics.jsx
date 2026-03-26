@@ -88,7 +88,7 @@ const Analytics = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.4 }}
+      transition={{ duration: 0.18 }}
       className="flex max-w-full flex-col gap-4 md:gap-6"
     >
       <div className="glass rounded-2xl p-4 md:p-6">
@@ -194,4 +194,5 @@ const Analytics = () => {
 }
 
 export default Analytics
+
 

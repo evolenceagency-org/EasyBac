@@ -1,15 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  GraduationCap,
-  ListTodo,
   Plus,
-  Search,
-  SlidersHorizontal
 } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -28,8 +23,11 @@ import {
   isOverdueTask
 } from '../utils/taskStats.js'
 import { formatFocusSummary } from '../utils/focusTasks.js'
-import TaskCard from '../components/Tasks/TaskCard.jsx'
+import Header from '../components/Tasks/Header.jsx'
+import RecommendationBlock from '../components/Tasks/RecommendationBlock.jsx'
+import TaskList from '../components/Tasks/TaskList.jsx'
 import GlassDropdown from '../components/Tasks/GlassDropdown.jsx'
+import { GhostButton, IconButton, PrimaryButton } from '../components/ui/index.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -105,6 +103,16 @@ const sortLabels = {
   subject: 'Subject A-Z'
 }
 
+const mergeTaskOrder = (taskIds, previousOrder = []) => {
+  const nextOrder = previousOrder.filter((id) => taskIds.includes(id))
+  taskIds.forEach((id) => {
+    if (!nextOrder.includes(id)) {
+      nextOrder.push(id)
+    }
+  })
+  return nextOrder
+}
+
 const Tasks = () => {
   const { profile } = useAuth()
   const {
@@ -146,6 +154,16 @@ const Tasks = () => {
   const [dragOverDayKey, setDragOverDayKey] = useState(null)
   const [showCalendarCreateSheet, setShowCalendarCreateSheet] = useState(false)
   const [activePressDayKey, setActivePressDayKey] = useState(null)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  const [taskOrder, setTaskOrder] = useState(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem('easybac-task-order') || '[]')
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [paletteQuery, setPaletteQuery] = useState('')
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
@@ -178,6 +196,30 @@ const Tasks = () => {
     const timer = setTimeout(() => setShowSwipeHint(false), 3000)
     return () => clearTimeout(timer)
   }, [showSwipeHint])
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    setTaskOrder((prev) => {
+      const next = mergeTaskOrder(
+        tasks.map((task) => task.id),
+        prev
+      )
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('easybac-task-order', JSON.stringify(next))
+      }
+
+      return next
+    })
+  }, [tasks])
 
   const handleCreate = useCallback(
     async (event) => {
@@ -270,9 +312,9 @@ const Tasks = () => {
   const handleStartAutopilot = useCallback(() => {
     if (!checkTrialAndBlock(profile, navigate)) return
 
-    const plan = autopilotPlan || buildAutopilotPlan({
+    const plan = buildAutopilotPlan({
       user: profile?.personalization || profile,
-      tasks: filteredTasks.length > 0 ? filteredTasks : tasks,
+      tasks,
       studySessions
     })
 
@@ -287,7 +329,7 @@ const Tasks = () => {
         autopilot: true
       }
     })
-  }, [autopilotPlan, filteredTasks, navigate, profile, studySessions, tasks])
+  }, [navigate, profile, studySessions, tasks])
 
   const handleToggleHold = useCallback(
     async (task) => {
@@ -304,92 +346,6 @@ const Tasks = () => {
     },
     [navigate, profile, updateTaskById]
   )
-
-  const resetFilters = useCallback(() => {
-    setSubjectFilter(FILTER_DEFAULTS.subject)
-    setStatusFilter(FILTER_DEFAULTS.status)
-    setDueFilter(FILTER_DEFAULTS.due)
-    setSortOption(FILTER_DEFAULTS.sort)
-    setSearchTerm(FILTER_DEFAULTS.search)
-  }, [])
-
-  const executeCommand = useCallback((command) => {
-    command.run()
-    setPaletteOpen(false)
-    setPaletteQuery('')
-    setSelectedCommandIndex(0)
-    setRecentCommands((prev) => {
-      const next = [command.title, ...prev.filter((item) => item !== command.title)].slice(0, 5)
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('tasks-recent-commands', JSON.stringify(next))
-      }
-      return next
-    })
-  }, [])
-
-  const commandItems = useMemo(
-    () => [
-      { id: 'filter-all', title: 'Filter: All subjects', group: 'Filters', run: () => setSubjectFilter('all') },
-      { id: 'filter-math', title: 'Filter: Math', group: 'Filters', run: () => setSubjectFilter('math') },
-      { id: 'filter-physics', title: 'Filter: Physics', group: 'Filters', run: () => setSubjectFilter('physics') },
-      { id: 'filter-svt', title: 'Filter: SVT', group: 'Filters', run: () => setSubjectFilter('svt') },
-      { id: 'filter-english', title: 'Filter: English', group: 'Filters', run: () => setSubjectFilter('english') },
-      { id: 'filter-status-all', title: 'Filter: All statuses', group: 'Filters', run: () => setStatusFilter('all') },
-      { id: 'filter-completed', title: 'Filter: Completed', group: 'Filters', run: () => setStatusFilter('completed') },
-      { id: 'filter-pending', title: 'Filter: Pending', group: 'Filters', run: () => setStatusFilter('pending') },
-      { id: 'filter-overdue', title: 'Filter: Overdue', group: 'Filters', run: () => setStatusFilter('overdue') },
-      { id: 'filter-due-all', title: 'Filter: Due all', group: 'Filters', run: () => setDueFilter('all') },
-      { id: 'filter-due-today', title: 'Filter: Due today', group: 'Filters', run: () => setDueFilter('today') },
-      { id: 'filter-due-overdue', title: 'Filter: Due overdue', group: 'Filters', run: () => setDueFilter('overdue') },
-      { id: 'filter-due-unscheduled', title: 'Filter: Unscheduled', group: 'Filters', run: () => setDueFilter('unscheduled') },
-      { id: 'sort-newest', title: 'Sort: Newest first', group: 'Filters', run: () => setSortOption('newest') },
-      { id: 'sort-oldest', title: 'Sort: Oldest first', group: 'Filters', run: () => setSortOption('oldest') },
-      { id: 'sort-due-nearest', title: 'Sort: Due nearest', group: 'Filters', run: () => setSortOption('due-nearest') },
-      { id: 'sort-due-latest', title: 'Sort: Due latest', group: 'Filters', run: () => setSortOption('due-latest') },
-      { id: 'sort-subject', title: 'Sort: Subject A-Z', group: 'Filters', run: () => setSortOption('subject') },
-      { id: 'filter-clear', title: 'Clear all filters', group: 'Filters', run: () => {
-        resetFilters()
-      } },
-      { id: 'view-list', title: 'View List', group: 'Actions', run: () => setViewMode('list') },
-      { id: 'view-calendar', title: 'View Calendar', group: 'Actions', run: () => setViewMode('calendar') },
-      { id: 'create-task', title: 'Create Task', group: 'Actions', run: () => setShowCreatePanel(true) },
-      { id: 'go-dashboard', title: 'Go to Dashboard', group: 'Navigation', run: () => navigate('/dashboard') },
-      { id: 'go-tasks', title: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') },
-      {
-        id: 'exam-simulation',
-        title: 'Start Exam Simulation',
-        group: 'Actions',
-        run: () =>
-          navigate('/exam-simulation', {
-            state: {
-              ...examPlan,
-              autoStart: true
-            }
-          })
-      }
-    ],
-    [examPlan, navigate, resetFilters]
-  )
-
-  const visibleCommands = useMemo(() => {
-    if (!paletteQuery.trim()) {
-      const recent = recentCommands
-        .map((title) => commandItems.find((command) => command.title === title))
-        .filter(Boolean)
-      const suggestions = commandItems.filter((command) => !recent.some((item) => item.id === command.id)).slice(0, 7)
-      return [...recent, ...suggestions]
-    }
-
-    const query = paletteQuery.toLowerCase()
-    const matching = commandItems.filter((command) => command.title.toLowerCase().includes(query))
-    const searchCommand = {
-      id: `search-${query}`,
-      title: `Search tasks: "${paletteQuery}"`,
-      group: 'Search',
-      run: () => setSearchTerm(paletteQuery.trim())
-    }
-    return [searchCommand, ...matching]
-  }, [commandItems, paletteQuery, recentCommands])
 
   const filteredTasks = useMemo(() => {
     const query = searchTerm.trim().toLowerCase()
@@ -460,6 +416,124 @@ const Tasks = () => {
     return result
   }, [tasks, subjectFilter, statusFilter, dueFilter, sortOption, todayKey, searchTerm])
 
+  const orderedTasks = useMemo(() => {
+    if (taskOrder.length === 0) return filteredTasks
+    const orderIndex = new Map(taskOrder.map((id, index) => [id, index]))
+    return [...filteredTasks].sort((a, b) => {
+      const aIndex = orderIndex.has(a.id) ? orderIndex.get(a.id) : Number.POSITIVE_INFINITY
+      const bIndex = orderIndex.has(b.id) ? orderIndex.get(b.id) : Number.POSITIVE_INFINITY
+      if (aIndex !== bIndex) return aIndex - bIndex
+      return 0
+    })
+  }, [filteredTasks, taskOrder])
+
+  const resetFilters = useCallback(() => {
+    setSubjectFilter(FILTER_DEFAULTS.subject)
+    setStatusFilter(FILTER_DEFAULTS.status)
+    setDueFilter(FILTER_DEFAULTS.due)
+    setSortOption(FILTER_DEFAULTS.sort)
+    setSearchTerm(FILTER_DEFAULTS.search)
+  }, [])
+
+  const handleReorderTasks = useCallback((nextTaskIds) => {
+    setTaskOrder((prev) => {
+      const next = mergeTaskOrder(
+        nextTaskIds,
+        prev.filter((id) => nextTaskIds.includes(id))
+      )
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('easybac-task-order', JSON.stringify(next))
+      }
+      return next
+    })
+  }, [])
+
+  const executeCommand = useCallback((command) => {
+    command.run()
+    setPaletteOpen(false)
+    setPaletteQuery('')
+    setSelectedCommandIndex(0)
+    setRecentCommands((prev) => {
+      const next = [command.title, ...prev.filter((item) => item !== command.title)].slice(0, 5)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('tasks-recent-commands', JSON.stringify(next))
+      }
+      return next
+    })
+  }, [])
+
+  const commandItems = useMemo(
+    () => [
+      { id: 'filter-all', title: 'Filter: All subjects', group: 'Filters', run: () => setSubjectFilter('all') },
+      { id: 'filter-math', title: 'Filter: Math', group: 'Filters', run: () => setSubjectFilter('math') },
+      { id: 'filter-physics', title: 'Filter: Physics', group: 'Filters', run: () => setSubjectFilter('physics') },
+      { id: 'filter-svt', title: 'Filter: SVT', group: 'Filters', run: () => setSubjectFilter('svt') },
+      { id: 'filter-english', title: 'Filter: English', group: 'Filters', run: () => setSubjectFilter('english') },
+      { id: 'filter-status-all', title: 'Filter: All statuses', group: 'Filters', run: () => setStatusFilter('all') },
+      { id: 'filter-completed', title: 'Filter: Completed', group: 'Filters', run: () => setStatusFilter('completed') },
+      { id: 'filter-pending', title: 'Filter: Pending', group: 'Filters', run: () => setStatusFilter('pending') },
+      { id: 'filter-overdue', title: 'Filter: Overdue', group: 'Filters', run: () => setStatusFilter('overdue') },
+      { id: 'filter-due-all', title: 'Filter: Due all', group: 'Filters', run: () => setDueFilter('all') },
+      { id: 'filter-due-today', title: 'Filter: Due today', group: 'Filters', run: () => setDueFilter('today') },
+      { id: 'filter-due-overdue', title: 'Filter: Due overdue', group: 'Filters', run: () => setDueFilter('overdue') },
+      { id: 'filter-due-unscheduled', title: 'Filter: Unscheduled', group: 'Filters', run: () => setDueFilter('unscheduled') },
+      { id: 'sort-newest', title: 'Sort: Newest first', group: 'Filters', run: () => setSortOption('newest') },
+      { id: 'sort-oldest', title: 'Sort: Oldest first', group: 'Filters', run: () => setSortOption('oldest') },
+      { id: 'sort-due-nearest', title: 'Sort: Due nearest', group: 'Filters', run: () => setSortOption('due-nearest') },
+      { id: 'sort-due-latest', title: 'Sort: Due latest', group: 'Filters', run: () => setSortOption('due-latest') },
+      { id: 'sort-subject', title: 'Sort: Subject A-Z', group: 'Filters', run: () => setSortOption('subject') },
+      { id: 'filter-clear', title: 'Clear all filters', group: 'Filters', run: () => {
+        resetFilters()
+      } },
+      { id: 'view-list', title: 'View List', group: 'Actions', run: () => setViewMode('list') },
+      { id: 'view-calendar', title: 'View Calendar', group: 'Actions', run: () => setViewMode('calendar') },
+      { id: 'create-task', title: 'Create Task', group: 'Actions', run: () => setShowCreatePanel(true) },
+      { id: 'go-dashboard', title: 'Go to Dashboard', group: 'Navigation', run: () => navigate('/dashboard') },
+      { id: 'go-tasks', title: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') },
+      {
+        id: 'exam-simulation',
+        title: 'Start Exam Simulation',
+        group: 'Actions',
+        run: () => {
+          const plan = buildExamSimulationPlan(profile?.personalization || profile, filteredTasks.length > 0 ? filteredTasks : tasks, {
+            studySessions,
+            subject: 'auto',
+            durationMinutes: null,
+            difficulty: 'auto'
+          })
+
+          navigate('/exam-simulation', {
+            state: {
+              ...plan,
+              autoStart: true
+            }
+          })
+        }
+      }
+    ],
+    [filteredTasks, navigate, profile, resetFilters, studySessions, tasks]
+  )
+
+  const visibleCommands = useMemo(() => {
+    if (!paletteQuery.trim()) {
+      const recent = recentCommands
+        .map((title) => commandItems.find((command) => command.title === title))
+        .filter(Boolean)
+      const suggestions = commandItems.filter((command) => !recent.some((item) => item.id === command.id)).slice(0, 7)
+      return [...recent, ...suggestions]
+    }
+
+    const query = paletteQuery.toLowerCase()
+    const matching = commandItems.filter((command) => command.title.toLowerCase().includes(query))
+    const searchCommand = {
+      id: `search-${query}`,
+      title: `Search tasks: "${paletteQuery}"`,
+      group: 'Search',
+      run: () => setSearchTerm(paletteQuery.trim())
+    }
+    return [searchCommand, ...matching]
+  }, [commandItems, paletteQuery, recentCommands])
+
   const recommendedTask = useMemo(() => {
     const taskPool = filteredTasks.length > 0 ? filteredTasks : tasks
     return getBestTask(taskPool, profile?.personalization || profile)
@@ -475,16 +549,32 @@ const Tasks = () => {
     [filteredTasks, profile, studySessions, tasks]
   )
 
-  const examPlan = useMemo(
-    () =>
-      buildExamSimulationPlan(profile?.personalization || profile, filteredTasks.length > 0 ? filteredTasks : tasks, {
-        studySessions,
-        subject: 'auto',
-        durationMinutes: null,
-        difficulty: 'auto'
-      }),
-    [filteredTasks, profile, studySessions, tasks]
-  )
+  const recommendation = useMemo(() => {
+    if (autopilotPlan?.active) {
+      return {
+        title: autopilotPlan.title || 'Autopilot ready',
+        reason: autopilotPlan.reason || 'AI chose the next step for you.',
+        buttonLabel: 'Start Autopilot',
+        onAction: handleStartAutopilot,
+        tone: 'purple'
+      }
+    }
+
+    if (recommendedTask) {
+      return {
+        title: recommendedTask.title,
+        reason: `${getSubjectLabel(recommendedTask.subject)} â€¢ ${formatFocusSummary(
+          recommendedTask.totalFocusTime,
+          recommendedTask.sessionsCount
+        )}`,
+        buttonLabel: 'Start Focus',
+        onAction: () => handleStartFocus(recommendedTask),
+        tone: 'cyan'
+      }
+    }
+
+    return null
+  }, [autopilotPlan, getSubjectLabel, handleStartAutopilot, handleStartFocus, recommendedTask])
 
   const recommendedTaskId = recommendedTask?.id || null
 
@@ -688,6 +778,10 @@ const Tasks = () => {
   const progressDone = tasksDueToday.filter((task) => task.completed).length
   const progressPercent =
     progressTotal === 0 ? 0 : Math.round((progressDone / progressTotal) * 100)
+  const subjectFilterLabel = subjectFilter !== 'all' ? getSubjectLabel(subjectFilter) : ''
+  const statusFilterLabel = statusFilter !== FILTER_DEFAULTS.status ? statusFilter : ''
+  const dueFilterLabel = dueFilter !== FILTER_DEFAULTS.due ? dueFilter : ''
+  const sortFilterLabel = sortOption !== FILTER_DEFAULTS.sort ? sortLabels[sortOption] || sortOption : ''
 
   const renderCreateTaskForm = ({ compact = false, onCreated } = {}) => (
     <form
@@ -695,10 +789,10 @@ const Tasks = () => {
         const created = await handleCreate(event)
         if (created && onCreated) onCreated()
       }}
-      className={`mt-4 grid gap-3 ${
+      className={`mt-3 grid gap-3 ${
         compact
           ? 'md:grid-cols-1'
-          : 'md:mt-6 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end md:gap-4'
+          : 'md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end md:gap-3'
       }`}
     >
       <input
@@ -707,7 +801,7 @@ const Tasks = () => {
         onChange={(event) => setTitle(event.target.value)}
         placeholder="Task title"
         disabled={lockActions}
-        className="w-full box-border rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/50 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full box-border rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/45 outline-none transition focus:border-white/12 disabled:cursor-not-allowed disabled:opacity-60"
       />
       <GlassDropdown
         value={subject}
@@ -720,51 +814,49 @@ const Tasks = () => {
         value={dueDate}
         onChange={(event) => setDueDate(event.target.value)}
         disabled={lockActions}
-        className="w-full box-border rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80 backdrop-blur-md transition-all duration-300 ease-out focus:border-purple-400/40 focus:shadow-[0_0_10px_rgba(139,92,246,0.2)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="w-full box-border rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/80 outline-none transition focus:border-white/12 disabled:cursor-not-allowed disabled:opacity-60"
       />
-      <motion.button
+      <PrimaryButton
         type="submit"
         disabled={saving || lockActions}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.97 }}
-        className="rounded-lg bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.4)] disabled:cursor-not-allowed disabled:opacity-60 md:justify-self-end"
+        className="px-4 py-2.5 text-sm md:justify-self-end"
       >
         {saving ? 'Saving...' : 'Add Task'}
-      </motion.button>
+      </PrimaryButton>
     </form>
   )
 
   const calendarView = (
-    <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
+    <div className="rounded-xl bg-white/[0.025] p-3 md:p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-wide text-white/60">Calendar</p>
-          <h3 className="mt-1 text-lg font-semibold text-white md:text-xl">{monthLabel}</h3>
+          <p className="text-[10px] uppercase tracking-[0.24em] text-[#8B96A8]">Calendar</p>
+          <h3 className="mt-1 text-[15px] font-semibold text-[#F8FAFC] md:text-[16px]">{monthLabel}</h3>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
+          <IconButton
             onClick={() =>
               setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
             }
-            className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+            aria-label="Previous month"
+            className="h-8 w-8"
           >
             <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
+          </IconButton>
+          <IconButton
             onClick={() =>
               setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
             }
-            className="rounded-lg border border-white/10 bg-white/5 p-2 text-white/70 transition hover:border-white/20 hover:text-white"
+            aria-label="Next month"
+            className="h-8 w-8"
           >
             <ChevronRight className="h-4 w-4" />
-          </button>
+          </IconButton>
         </div>
       </div>
 
-      <p className="mt-2 text-xs text-white/50">
-        Drag a task chip to another day. Long press any day to quick-create a task.
+      <p className="mt-2 text-xs text-[#8B96A8]">
+        Drag a task chip to another day. Long press a day to quick-create a task.
       </p>
 
       <div className="mt-4 grid grid-cols-7 gap-2 text-xs text-white/50">
@@ -781,7 +873,7 @@ const Tasks = () => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
           className="mt-2 grid grid-cols-7 gap-2"
         >
           {calendarDays.map((day) => {
@@ -809,22 +901,14 @@ const Tasks = () => {
                 onPointerUp={handleDayPointerUp}
                 onPointerCancel={handleDayPointerUp}
                 onPointerLeave={handleDayPointerUp}
-                className={`group relative flex min-h-[96px] w-full flex-col items-start justify-between rounded-xl border px-2 py-2 text-left transition ${
-                  day.inMonth ? 'bg-white/5 text-white/80' : 'bg-white/2 text-white/30'
-                } ${
-                  day.isToday
-                    ? 'border-cyan-400/40 shadow-[0_0_18px_rgba(34,211,238,0.25)]'
-                    : 'border-white/10'
-                } ${
-                  isSelected ? 'ring-1 ring-purple-400/40' : ''
-                } ${
-                  isDragTarget ? 'bg-white/10 ring-1 ring-cyan-400/60' : ''
-                }`}
+                className={`group relative flex min-h-[88px] w-full flex-col items-start justify-between rounded-xl bg-white/[0.02] px-2 py-2 text-left transition ${
+                  day.inMonth ? 'text-[#F8FAFC]' : 'text-[#8B96A8]/55'
+                } ${day.isToday ? 'bg-white/[0.04]' : ''} ${isSelected ? 'bg-white/[0.05]' : ''} ${isDragTarget ? 'bg-white/[0.06]' : ''}`}
               >
                 <motion.span
                   initial={false}
                   animate={{ scale: isPressing ? 0.94 : 1 }}
-                  className={`text-xs font-semibold ${day.inMonth ? 'text-white' : 'text-white/40'}`}
+                  className={`text-xs font-semibold ${day.inMonth ? 'text-[#F8FAFC]' : 'text-[#8B96A8]'}`}
                 >
                   {day.date.getDate()}
                 </motion.span>
@@ -832,25 +916,25 @@ const Tasks = () => {
                 <AnimatePresence>
                   {isPressing && (
                     <motion.span
-                      className="pointer-events-none absolute inset-0 rounded-xl bg-cyan-400/10"
+                      className="pointer-events-none absolute inset-0 rounded-xl bg-white/[0.03]"
                       initial={{ opacity: 0, scale: 0.94 }}
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 1.04 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      transition={{ duration: 0.18, ease: 'easeOut' }}
                     />
                   )}
                 </AnimatePresence>
 
-                <button
-                  type="button"
+                <IconButton
                   onClick={(event) => {
                     event.stopPropagation()
                     openCalendarCreate(day.key)
                   }}
-                  className="absolute right-1 top-1 rounded-md border border-white/10 bg-white/5 p-1 text-white/60 opacity-0 transition group-hover:opacity-100 md:opacity-0"
+                  aria-label="Create task for this day"
+                  className="absolute right-1 top-1 h-7 w-7 opacity-0 transition group-hover:opacity-100 md:opacity-0"
                 >
-                  <Plus className="h-3 w-3" />
-                </button>
+                  <Plus className="h-3.5 w-3.5" />
+                </IconButton>
 
                 <div className="mt-2 flex w-full flex-col gap-1">
                   <AnimatePresence>
@@ -872,7 +956,7 @@ const Tasks = () => {
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -4 }}
-                        className="flex items-center gap-1.5 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[10px] text-white/80"
+                        className="flex items-center gap-1.5 rounded-md bg-white/[0.04] px-2 py-1 text-[10px] text-white/70"
                       >
                         <span className={`h-1.5 w-1.5 rounded-full ${getTaskDotClass(task)}`} />
                         <span className="truncate">{task.title}</span>
@@ -891,43 +975,27 @@ const Tasks = () => {
     </div>
   )
 
+
   const selectedDayTaskList = (
     <div className="grid gap-3">
       {selectedTasks.map((task) => (
-        <motion.div
-          key={`${task.id}-daylist`}
-          drag
-          dragMomentum={false}
-          dragElastic={0.15}
-          dragTransition={{ bounceStiffness: 360, bounceDamping: 26 }}
-          whileDrag={{
-            scale: 1.03,
-            boxShadow: '0 16px 30px rgba(0,0,0,0.45)',
-            zIndex: 60
-          }}
-          onDragStart={() => handleCalendarTaskDragStart(task.id)}
-          onDrag={handleCalendarTaskDrag}
-          onDragEnd={(event, info) => handleCalendarTaskDragEnd(task, event, info)}
-          className="cursor-grab active:cursor-grabbing"
-        >
-          <TaskCard
-            task={task}
-            subjectColorMap={subjectColorMap}
-            getSubjectLabel={getSubjectLabel}
-            isOverdue={isOverdueTask(task)}
-            isDueToday={task.due_date === todayKey}
-            isRecommended={task.id === recommendedTaskId}
-            showSwipeNudge={false}
-            lockActions={lockActions}
-            disableSwipe
-            onToggle={handleToggle}
-            onDelete={handleDelete}
-            onToggleHold={handleToggleHold}
-            onReschedule={handleReschedule}
-            onStartFocus={handleStartFocus}
-            focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
-          />
-        </motion.div>
+        <TaskItem
+          key={task.id}
+          task={task}
+          getSubjectLabel={getSubjectLabel}
+          isOverdue={isOverdueTask(task)}
+          isDueToday={task.due_date === todayKey}
+          isRecommended={task.id === recommendedTaskId}
+          showSwipeNudge={false}
+          lockActions={lockActions}
+          disableSwipe
+          onToggle={handleToggle}
+          onDelete={handleDelete}
+          onToggleHold={handleToggleHold}
+          onReschedule={handleReschedule}
+          onStartFocus={handleStartFocus}
+          focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
+        />
       ))}
     </div>
   )
@@ -938,390 +1006,129 @@ const Tasks = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.4 }}
-      className="w-full max-w-full overflow-x-hidden box-border px-4 md:px-6"
+      transition={{ duration: 0.18 }}
+      className="w-full max-w-full overflow-x-hidden box-border px-4 py-4 md:px-6 md:py-6"
     >
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 md:gap-6">
-      <div className="glass overflow-visible rounded-2xl p-4 md:p-6">
-        <p className="text-xs uppercase tracking-wide text-white/70">
-          Task Productivity
-        </p>
-        <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Today's Task Progress</h3>
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-sm text-white/70">
+      <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5">
+        <Header
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenAiControl={() => navigate('/ai-control-center')}
+          onToggleCreate={() => setShowCreatePanel((prev) => !prev)}
+          createOpen={showCreatePanel}
+          searchTerm={searchTerm}
+          subjectFilterLabel={subjectFilterLabel}
+          statusFilterLabel={statusFilterLabel}
+          dueFilterLabel={dueFilterLabel}
+          sortLabel={sortFilterLabel}
+          onClearFilters={resetFilters}
+        />
+
+        <section className="rounded-xl bg-white/[0.03] px-4 py-3">
+          <div className="flex items-center justify-between gap-3 text-sm text-white/60">
             <span>
-              {progressDone} / {progressTotal} tasks completed
+              {progressDone} / {progressTotal} due today
             </span>
             <span>{progressPercent}%</span>
           </div>
-          <div className="mt-2 h-2 w-full rounded-full bg-white/10">
+          <div className="mt-2 h-1.5 w-full rounded-full bg-white/[0.06]">
             <div
-              className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-blue-500"
+              className="h-1.5 rounded-full bg-white/70 transition-all duration-300"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
           {progressTotal === 0 && (
-            <p className="mt-2 text-xs text-white/60">
-              No tasks due today. You're clear.
-            </p>
+            <p className="mt-2 text-xs text-white/45">No tasks due today.</p>
           )}
-        </div>
-      </div>
+        </section>
 
-      {showExpired && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
-          Trial expired. Upgrade to continue.
-        </div>
-      )}
+        {showExpired && (
+          <div className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-amber-200/85">
+            Trial expired. Upgrade to continue.
+          </div>
+        )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex items-center rounded-full border border-white/10 bg-white/5 p-1 text-xs text-white/70">
-          {[
-            { label: 'List', value: 'list', icon: ListTodo },
-            { label: 'Calendar', value: 'calendar', icon: CalendarDays }
-          ].map((tab) => {
-            const active = viewMode === tab.value
-            const Icon = tab.icon
-            return (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => setViewMode(tab.value)}
-                className="relative flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium"
-              >
-                {active && (
-                  <motion.span
-                    layoutId="tasksViewToggle"
-                    className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500/30 to-blue-500/30"
-                    transition={{ duration: 0.25, ease: 'easeOut' }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-2">
-                  <Icon className="h-3.5 w-3.5" />
-                  {tab.label}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+        <AnimatePresence>
+          {showCreatePanel && (
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="rounded-xl bg-white/[0.03] px-4 py-4"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-white/35">Create task</p>
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePanel(false)}
+                  className="rounded-full px-2 py-1 text-[11px] text-white/45 transition hover:bg-white/[0.05] hover:text-white/70"
+                >
+                  Close
+                </button>
+              </div>
+              {renderCreateTaskForm()}
+            </motion.section>
+          )}
+        </AnimatePresence>
+
+        {viewMode === 'list' && recommendation && !loading.tasks && (
+          <RecommendationBlock
+            title={recommendation.title}
+            reason={recommendation.reason}
+            buttonLabel={recommendation.buttonLabel}
+            onAction={recommendation.onAction}
+            tone={recommendation.tone}
+          />
+        )}
 
         {viewMode === 'calendar' && (
-          <p className="text-xs text-white/50">
-            Tap a day to view tasks and actions
-          </p>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-white/60">
-          {searchTerm ? (
-            <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3 py-1 text-cyan-200">
-              Search: {searchTerm}
-            </span>
-          ) : null}
-          {subjectFilter !== 'all' ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Subject: {getSubjectLabel(subjectFilter)}
-            </span>
-          ) : null}
-          {statusFilter !== FILTER_DEFAULTS.status ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Status: {statusFilter}
-            </span>
-          ) : null}
-          {dueFilter !== FILTER_DEFAULTS.due ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Due: {dueFilter}
-            </span>
-          ) : null}
-          {sortOption !== FILTER_DEFAULTS.sort ? (
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-              Sort: {sortLabels[sortOption] || sortOption}
-            </span>
-          ) : null}
-          {(searchTerm ||
-            subjectFilter !== FILTER_DEFAULTS.subject ||
-            statusFilter !== FILTER_DEFAULTS.status ||
-            dueFilter !== FILTER_DEFAULTS.due ||
-            sortOption !== FILTER_DEFAULTS.sort) && (
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-white/80 transition hover:border-cyan-300/50 hover:text-white"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-        <div className="hidden items-center gap-2 md:flex">
-          <button
-            type="button"
-            onClick={() => setPaletteOpen(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 transition hover:border-white/20 hover:bg-white/10"
-          >
-            <Search className="h-3.5 w-3.5" />
-            Command Palette
-            <span className="rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-white/60">
-              Ctrl/Cmd + K
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/ai-control-center')}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/80 transition hover:border-white/20 hover:bg-white/10"
-          >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            AI Control
-          </button>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:hidden">
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.97 }}
-          onClick={() => {
-            setShowCreatePanel((prev) => !prev)
-          }}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-white/85 backdrop-blur-xl"
-        >
-          <Plus className="h-4 w-4" />
-          Create Task
-        </motion.button>
-      </div>
-
-      <AnimatePresence>
-        {showCreatePanel && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 10 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            className="glass overflow-visible rounded-2xl p-4 md:hidden"
-          >
-            <div className="mx-auto w-full max-w-full">
-              <p className="text-xs uppercase tracking-wide text-white/70">
-                Create Task
-              </p>
-              {renderCreateTaskForm()}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <div className="hidden glass overflow-visible rounded-2xl p-4 md:block md:p-6">
-        <div className="mx-auto w-full max-w-4xl">
-          <p className="text-xs uppercase tracking-wide text-white/70">
-            Create Task
-          </p>
-          <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">Plan your next moves</h3>
-          {renderCreateTaskForm()}
-          {(error || errors.tasks) && (
-            <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-              {error || errors.tasks}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {(error || errors.tasks) && (
-        <p className="md:hidden rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
-          {error || errors.tasks}
-        </p>
-      )}
-
-      {viewMode === 'list' && recommendedTask && !loading.tasks && (
-        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(34,211,238,0.08)]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/75">
-                AI Recommendation
-              </p>
-              <p className="mt-1 truncate text-lg font-semibold text-white">
-                Start: {recommendedTask.title}
-              </p>
-              <p className="mt-1 text-sm text-white/65">
-                {getSubjectLabel(recommendedTask.subject)} - {formatFocusSummary(
-                  recommendedTask.totalFocusTime,
-                  recommendedTask.sessionsCount
-                )}
-              </p>
-            </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => handleStartFocus(recommendedTask)}
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
-            >
-              Start Focus
-            </motion.button>
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'list' && autopilotPlan && !loading.tasks && (
-        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-purple-400/20 bg-gradient-to-r from-purple-500/12 via-blue-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(139,92,246,0.08)]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-purple-200/75">
-                Focus Autopilot
-              </p>
-              <p className="mt-1 truncate text-lg font-semibold text-white">
-                {autopilotPlan.active
-                  ? `Start: ${autopilotPlan.title}`
-                  : 'Free focus session'}
-              </p>
-              <p className="mt-1 text-sm text-white/65">
-                {autopilotPlan.reason}
-              </p>
-            </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleStartAutopilot}
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.28)]"
-            >
-              Start Autopilot
-            </motion.button>
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'list' && examPlan && !loading.tasks && (
-        <div className="mx-auto w-full max-w-3xl rounded-2xl border border-cyan-400/20 bg-gradient-to-r from-cyan-500/12 via-blue-500/10 to-transparent p-4 shadow-[0_0_24px_rgba(34,211,238,0.08)]">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/75">
-                Exam Simulation
-              </p>
-              <p className="mt-1 truncate text-lg font-semibold text-white">
-                {examPlan.subjectLabel} ? {examPlan.durationMinutes} min
-              </p>
-              <p className="mt-1 text-sm text-white/65">{examPlan.reason}</p>
-            </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() =>
-                navigate('/exam-simulation', {
-                  state: {
-                    ...examPlan,
-                    autoStart: true
-                  }
-                })
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
-            >
-              <GraduationCap className="h-4 w-4" />
-              Start Exam Simulation
-            </motion.button>
-          </div>
-        </div>
-      )}
-
-      {viewMode === 'calendar' && calendarView}
-
-      {viewMode === 'list' && (
-        <div className="mx-auto grid w-full max-w-3xl gap-4 overflow-x-hidden box-border">
-        <AnimatePresence>
-          {showSwipeHint && (
-            <motion.p
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 0.65, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-              className="text-xs text-white/70 md:hidden"
-            >
-              Swipe right to complete | Swipe left to delete
-            </motion.p>
-          )}
-        </AnimatePresence>
-
-        {loading.tasks && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
-            Loading tasks...
-          </div>
+          <section className="rounded-xl bg-white/[0.025] p-3 md:p-4">{calendarView}</section>
         )}
 
-        {!loading.tasks && tasks.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-white/70">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-                <ListTodo className="h-5 w-5 text-white/70" />
-              </div>
-              <span>Start by adding your first task.</span>
-            </div>
-          </div>
+        {viewMode === 'list' && (
+          <TaskList
+            loading={loading}
+            tasks={tasks}
+            filteredTasks={orderedTasks}
+            orderedTaskIds={orderedTasks.map((task) => task.id)}
+            onReorder={handleReorderTasks}
+            todayKey={todayKey}
+            recommendedTaskId={recommendedTaskId}
+            shouldRunSwipeNudge={shouldRunSwipeNudge}
+            lockActions={lockActions}
+            onToggle={handleToggle}
+            onDelete={handleDelete}
+            onToggleHold={handleToggleHold}
+            onReschedule={handleReschedule}
+            onStartFocus={handleStartFocus}
+            getSubjectLabel={getSubjectLabel}
+            isOverdueTask={isOverdueTask}
+            taskCardRefs={taskCardRefs}
+            focusSummaryFor={(task) => formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
+            completedToday={completedToday}
+            isMobile={isMobile}
+          />
         )}
-
-        {!loading.tasks && tasks.length > 0 && filteredTasks.length === 0 && (
-          <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-sm text-zinc-300">
-            No tasks match the selected filters.
-          </div>
-        )}
-
-        <AnimatePresence>
-          {!loading.tasks &&
-            filteredTasks.map((task, index) => {
-              const overdue = isOverdueTask(task)
-              const dueToday = task.due_date === todayKey
-              return (
-                <div
-                  key={task.id}
-                  ref={(node) => {
-                    if (node) taskCardRefs.current[task.id] = node
-                    else delete taskCardRefs.current[task.id]
-                  }}
-                >
-                  <TaskCard
-                    task={task}
-                    subjectColorMap={subjectColorMap}
-                    getSubjectLabel={getSubjectLabel}
-                    isOverdue={overdue}
-                    isDueToday={dueToday}
-                    isRecommended={task.id === recommendedTaskId}
-                    showSwipeNudge={shouldRunSwipeNudge && index === 0}
-                    lockActions={lockActions}
-                    onToggle={handleToggle}
-                    onDelete={handleDelete}
-                    onToggleHold={handleToggleHold}
-                    onReschedule={handleReschedule}
-                    onStartFocus={handleStartFocus}
-                    focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
-                  />
-                </div>
-              )
-            })}
-        </AnimatePresence>
-        </div>
-      )}
-
-      {!loading.tasks && (
-        <p className="mx-auto w-full max-w-3xl text-xs text-white/50">
-          Completed today: {completedToday}
-        </p>
-      )}
       </div>
 
       <AnimatePresence>
         {selectedDate && (
           <>
             <motion.div
-              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              className="fixed inset-0 z-40 bg-black/55 md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedDate(null)}
             />
             <motion.div
-              className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-neutral-900/95 p-4 backdrop-blur-xl md:hidden"
+              className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl bg-neutral-950/96 p-4 backdrop-blur-xl md:hidden"
               initial={{ y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               drag="y"
               dragConstraints={{ top: 0, bottom: 320 }}
               dragElastic={0.18}
@@ -1343,16 +1150,12 @@ const Tasks = () => {
                     })}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedDate(null)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
-                >
+                <GhostButton onClick={() => setSelectedDate(null)} className="px-3 py-1 text-[11px]">
                   Close
-                </button>
+                </GhostButton>
               </div>
               {selectedTasks.length === 0 && (
-                <p className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                <p className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-[#C7D0DC]">
                   No tasks scheduled for this day.
                 </p>
               )}
@@ -1370,8 +1173,8 @@ const Tasks = () => {
                 initial={{ scale: 0.96, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="w-full max-w-xl rounded-2xl border border-white/10 bg-neutral-900/95 p-6 backdrop-blur-xl"
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+                className="w-full max-w-xl rounded-2xl bg-neutral-950/96 p-6 backdrop-blur-xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="mb-4 flex items-center justify-between">
@@ -1385,16 +1188,12 @@ const Tasks = () => {
                       })}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(null)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
-                  >
+                  <GhostButton onClick={() => setSelectedDate(null)} className="px-3 py-1 text-[11px]">
                     Close
-                  </button>
+                  </GhostButton>
                 </div>
                 {selectedTasks.length === 0 && (
-                  <p className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/60">
+                  <p className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-[#C7D0DC]">
                     No tasks scheduled for this day.
                   </p>
                 )}
@@ -1409,18 +1208,18 @@ const Tasks = () => {
         {showCalendarCreateSheet && (
           <>
             <motion.div
-              className="fixed inset-0 z-40 bg-black/60 md:hidden"
+              className="fixed inset-0 z-40 bg-black/55 md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowCalendarCreateSheet(false)}
             />
             <motion.div
-              className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl border border-white/10 bg-neutral-900/95 p-4 backdrop-blur-xl md:hidden"
+              className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-neutral-950/96 p-4 backdrop-blur-xl md:hidden"
               initial={{ y: '100%', opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: '100%', opacity: 0 }}
-              transition={{ duration: 0.28, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               drag="y"
               dragConstraints={{ top: 0, bottom: 320 }}
               dragElastic={0.2}
@@ -1438,13 +1237,9 @@ const Tasks = () => {
                     {dueDate || 'No date selected'}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCalendarCreateSheet(false)}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
-                >
+                <GhostButton onClick={() => setShowCalendarCreateSheet(false)} className="px-3 py-1 text-[11px]">
                   Close
-                </button>
+                </GhostButton>
               </div>
               {renderCreateTaskForm({
                 compact: true,
@@ -1460,11 +1255,11 @@ const Tasks = () => {
               onClick={() => setShowCalendarCreateSheet(false)}
             >
               <motion.div
-                className="w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900/95 p-6 backdrop-blur-xl"
+                className="w-full max-w-lg rounded-2xl bg-neutral-950/96 p-6 backdrop-blur-xl"
                 initial={{ scale: 0.96, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ duration: 0.22, ease: 'easeOut' }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="mb-3 flex items-center justify-between">
@@ -1474,13 +1269,9 @@ const Tasks = () => {
                       {dueDate || 'No date selected'}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCalendarCreateSheet(false)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70"
-                  >
+                  <GhostButton onClick={() => setShowCalendarCreateSheet(false)} className="px-3 py-1 text-[11px]">
                     Close
-                  </button>
+                  </GhostButton>
                 </div>
                 {renderCreateTaskForm({
                   compact: true,
@@ -1492,40 +1283,31 @@ const Tasks = () => {
         )}
       </AnimatePresence>
 
-      <motion.button
-        type="button"
-        onClick={() => setPaletteOpen(true)}
-        whileTap={{ scale: 0.95 }}
-        className="fixed bottom-24 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-cyan-400/30 bg-gradient-to-r from-cyan-500/30 to-blue-500/30 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.35)] backdrop-blur-xl md:hidden"
-      >
-        <Search className="h-5 w-5" />
-      </motion.button>
-
       <AnimatePresence>
         {paletteOpen && (
           <motion.div
-            className="fixed inset-0 z-[90] flex items-start justify-center bg-black/60 pt-24 backdrop-blur-sm"
+            className="fixed inset-0 z-[90] flex items-start justify-center bg-black/55 pt-20 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setPaletteOpen(false)}
           >
             <motion.div
-              className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/80 shadow-2xl backdrop-blur-xl"
+              className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-neutral-950/96 backdrop-blur-xl"
               initial={{ opacity: 0, scale: 0.95, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
               onClick={(event) => event.stopPropagation()}
             >
-              <div className="border-b border-white/10 p-3">
+              <div className="p-3">
                 <input
                   ref={paletteInputRef}
                   type="text"
                   value={paletteQuery}
                   onChange={(event) => setPaletteQuery(event.target.value)}
                   placeholder="Search tasks, filter, or run a command..."
-                  className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-base text-white outline-none placeholder:text-white/45 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
+                  className="w-full rounded-xl bg-white/[0.04] px-4 py-3 text-base text-[#F8FAFC] outline-none placeholder:text-[#8B96A8] focus:ring-2 focus:ring-[#5B8CFF]/20"
                 />
               </div>
               <motion.div
@@ -1574,3 +1356,4 @@ const Tasks = () => {
 }
 
 export default Tasks
+
