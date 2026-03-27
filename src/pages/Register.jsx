@@ -1,27 +1,38 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Loader2, Mail } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { EMAIL_OTP_LENGTH, ensureValidRoute } from '../utils/authFlow.js'
-import { getAuthErrorMessage, validateEmail } from '../utils/authValidation.js'
+import { EMAIL_OTP_LENGTH, ensureValidRoute, isEmailVerified } from '../utils/authFlow.js'
+import {
+  getAuthErrorMessage,
+  getPasswordStrength,
+  validateEmail,
+  validatePassword
+} from '../utils/authValidation.js'
 
 const Register = () => {
   const { signUp, user, profile, initialized } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [touched, setTouched] = useState(false)
+  const [touched, setTouched] = useState({ email: false, password: false })
 
   const emailError = useMemo(
-    () => (touched ? validateEmail(email) : ''),
-    [email, touched]
+    () => (touched.email ? validateEmail(email) : ''),
+    [email, touched.email]
   )
-
-  const canSubmit = Boolean(email.trim()) && !emailError && !loading
+  const passwordError = useMemo(
+    () => (touched.password ? validatePassword(password) : ''),
+    [password, touched.password]
+  )
+  const strength = useMemo(() => getPasswordStrength(password), [password])
+  const canSubmit = Boolean(email.trim() && password.trim()) && !emailError && !passwordError && !loading
 
   useEffect(() => {
     if (!initialized || !user) return
@@ -33,27 +44,36 @@ const Register = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    setTouched(true)
+    setTouched({ email: true, password: true })
     setError('')
     setSuccess('')
 
-    const nextEmail = email.trim().toLowerCase()
-    const nextEmailError = validateEmail(nextEmail)
-    if (nextEmailError) {
-      setError(nextEmailError)
+    const normalizedEmail = email.trim().toLowerCase()
+    const nextEmailError = validateEmail(normalizedEmail)
+    const nextPasswordError = validatePassword(password)
+    if (nextEmailError || nextPasswordError) {
+      setError(nextEmailError || nextPasswordError)
       return
     }
 
     try {
       setLoading(true)
-      const { error: otpError } = await signUp(nextEmail)
-      if (otpError) throw otpError
+      const { data, error: signUpError } = await signUp(normalizedEmail, password)
+      if (signUpError) throw signUpError
 
-      setSuccess(`We sent a ${EMAIL_OTP_LENGTH}-digit verification code to ${nextEmail}.`)
-      navigate('/verify-code', {
-        replace: true,
-        state: { email: nextEmail }
-      })
+      setSuccess(`We sent a ${EMAIL_OTP_LENGTH}-digit verification code to ${normalizedEmail}.`)
+
+      const signedUpUser = data?.user || data?.session?.user || null
+
+      if (!signedUpUser || !isEmailVerified(signedUpUser)) {
+        navigate('/verify', {
+          replace: true,
+          state: { email: normalizedEmail, flow: 'signup' }
+        })
+        return
+      }
+
+      navigate('/onboarding', { replace: true })
     } catch (authError) {
       setError(getAuthErrorMessage(authError))
     } finally {
@@ -64,15 +84,15 @@ const Register = () => {
   return (
     <AuthCard
       label="Create account"
-      title="Start with your email"
-      subtitle="We’ll send a one-time code instantly. No password, no magic link, no friction."
-      sideTitle="Onboarding in one fast step"
-      sideSubtitle="Request a secure code, verify it, and continue straight into your plan setup."
+      title="Create your EasyBac account"
+      subtitle="Start with your email and password, then confirm ownership with a one-time code."
+      sideTitle="A clean signup flow"
+      sideSubtitle="Create the account first, verify it with an OTP, and continue directly into onboarding and plan selection."
       footer={
         <p>
           Already have an account?{' '}
           <Link className="text-[#c084fc]" to="/login">
-            Log in with code
+            Log in
           </Link>
         </p>
       }
@@ -96,7 +116,7 @@ const Register = () => {
                 setError('')
                 setSuccess('')
               }}
-              onBlur={() => setTouched(true)}
+              onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
               placeholder="you@example.com"
               className={`w-full rounded-2xl border bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm text-white transition duration-200 outline-none ${
                 emailError
@@ -105,8 +125,47 @@ const Register = () => {
               }`}
             />
           </div>
-          <p className="text-xs text-white/42">We’ll create your account automatically if it doesn’t exist yet.</p>
           {emailError ? <p className="text-xs text-red-300">{emailError}</p> : null}
+        </div>
+
+        <div className="space-y-2">
+          <label htmlFor="register-password" className="block text-xs font-medium text-white/70">
+            Password
+          </label>
+          <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+              <Lock className="h-4 w-4" />
+            </span>
+            <input
+              id="register-password"
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value)
+                setError('')
+                setSuccess('')
+              }}
+              onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
+              placeholder="At least 6 characters"
+              className={`w-full rounded-2xl border bg-white/[0.03] py-3.5 pl-11 pr-12 text-sm text-white transition duration-200 outline-none ${
+                passwordError
+                  ? 'border-red-500/60 focus:border-red-500 focus:ring-2 focus:ring-red-500/30'
+                  : 'border-white/[0.08] focus:border-[#8b5cf6]/55 focus:ring-2 focus:ring-[#8b5cf6]/18'
+              }`}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/55 transition hover:text-white"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <div className="flex items-center justify-between gap-3 text-xs">
+            {passwordError ? <p className="text-red-300">{passwordError}</p> : <span className="text-white/42">Use a password you’ll remember.</span>}
+            <span className={strength.tone}>{strength.label}</span>
+          </div>
         </div>
 
         {error ? (
@@ -129,7 +188,7 @@ const Register = () => {
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition duration-200 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          {loading ? 'Sending code...' : 'Continue with email code'}
+          {loading ? 'Creating account...' : 'Create account'}
         </motion.button>
       </form>
     </AuthCard>
@@ -137,3 +196,4 @@ const Register = () => {
 }
 
 export default Register
+

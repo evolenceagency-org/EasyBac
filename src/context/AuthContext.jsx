@@ -86,6 +86,8 @@ export const AuthProvider = ({ children }) => {
           .insert({
             id: authUser.id,
             email: authUser.email,
+            onboarding_completed: false,
+            plan: null,
             subscription_status: 'free',
             trial_start: null,
             payment_verified: false,
@@ -198,20 +200,18 @@ export const AuthProvider = ({ children }) => {
     })
   }, [user])
 
-  const requestOtp = async (email) => {
+  const signUp = async (email, password) => {
     if (!supabase) throw new Error('Supabase is not configured.')
 
     setLoading(true)
     const normalizedEmail = email.trim().toLowerCase()
-    const { data, error } = await supabase.auth.signInWithOtp({
+    const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
-      options: {
-        shouldCreateUser: true
-      }
+      password
     })
 
     if (!error) {
-      persistPendingVerificationEmail(normalizedEmail)
+      persistPendingVerificationEmail(normalizedEmail, 'signup')
     } else {
       clearPendingVerificationEmail()
     }
@@ -220,12 +220,37 @@ export const AuthProvider = ({ children }) => {
     return { data, error }
   }
 
-  const signUp = async (email) => {
-    return requestOtp(email)
+  const signIn = async (email, password) => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    setLoading(true)
+    const normalizedEmail = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password
+    })
+    setLoading(false)
+    return { data, error }
   }
 
-  const signIn = async (email) => {
-    return requestOtp(email)
+  const requestLoginOtp = async (email) => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    setLoading(true)
+    const normalizedEmail = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: false
+      }
+    })
+
+    if (!error) {
+      persistPendingVerificationEmail(normalizedEmail, 'otp-login')
+    }
+
+    setLoading(false)
+    return { data, error }
   }
 
   const signOut = async () => {
@@ -269,19 +294,35 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const sendVerificationCode = async (email) => {
-    const { data, error } = await requestOtp(email)
+  const sendVerificationCode = async (email, flow = 'signup') => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (flow === 'otp-login') {
+      const { data, error } = await requestLoginOtp(normalizedEmail)
+      if (error) throw error
+      return data
+    }
+
+    const { data, error } = await supabase.auth.resend({
+      type: 'signup',
+      email: normalizedEmail
+    })
+
     if (error) throw error
+    persistPendingVerificationEmail(normalizedEmail, 'signup')
     return data
   }
 
-  const verifyCode = async (email, code) => {
+  const verifyCode = async (email, code, flow = 'signup') => {
     if (!supabase) throw new Error('Supabase is not configured.')
     const normalizedEmail = email.trim().toLowerCase()
+    const verificationType = flow === 'otp-login' ? 'email' : 'signup'
     const { data, error } = await supabase.auth.verifyOtp({
       email: normalizedEmail,
       token: code.trim(),
-      type: 'email'
+      type: verificationType
     })
 
     if (error) throw error
@@ -315,6 +356,8 @@ export const AuthProvider = ({ children }) => {
       const payload = {
         id: user.id,
         email: user.email,
+        onboarding_completed: true,
+        plan: 'trial',
         subscription_status: 'trial',
         trial_start: profile?.trial_start || new Date().toISOString(),
         payment_verified: false,
@@ -335,7 +378,28 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (plan === 'premium') {
-      return profile
+      const payload = {
+        id: user.id,
+        email: user.email,
+        onboarding_completed: true,
+        plan: 'premium',
+        subscription_status: profile?.subscription_status || 'free',
+        trial_start: profile?.trial_start || null,
+        payment_verified: profile?.payment_verified || false,
+        personalization: profile?.personalization ?? null,
+        daily_insight: profile?.daily_insight ?? null,
+        last_insight_date: profile?.last_insight_date ?? null
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert(payload, { onConflict: 'id' })
+        .select()
+        .single()
+
+      if (error) throw error
+      setProfile(data)
+      return data
     }
 
     throw new Error('Invalid plan')
@@ -352,6 +416,8 @@ export const AuthProvider = ({ children }) => {
         {
           id: user.id,
           email: user.email,
+          onboarding_completed: profile?.onboarding_completed || false,
+          plan: profile?.plan ?? null,
           subscription_status: profile?.subscription_status || 'free',
           trial_start: profile?.trial_start || null,
           payment_verified: profile?.payment_verified || false,
@@ -380,6 +446,8 @@ export const AuthProvider = ({ children }) => {
         {
           id: user.id,
           email: user.email,
+          onboarding_completed: profile?.onboarding_completed || false,
+          plan: profile?.plan ?? null,
           subscription_status: profile?.subscription_status || 'free',
           trial_start: profile?.trial_start || null,
           payment_verified: profile?.payment_verified || false,
@@ -420,7 +488,7 @@ export const AuthProvider = ({ children }) => {
       saveDailyInsight,
       sendVerificationCode,
       verifyCode,
-      requestOtp,
+      requestLoginOtp,
       refreshAuthState,
       signUp,
       signIn,

@@ -284,32 +284,6 @@ const Personalization = () => {
     })
   }
 
-  const handleSkip = async () => {
-    if (!onboardingLocked) return
-    setError('')
-    try {
-      setSaving(true)
-      const fallbackPayload = {
-        ...(profile?.personalization || {}),
-        ...toCanonicalProfile(profile?.personalization || {}),
-        isPersonalized: true
-      }
-      const fallbackGraph = buildMemoryGraphSnapshot({
-        personalization: fallbackPayload,
-        tasks
-      })
-      await updatePersonalization({
-        ...mergeMemoryGraphIntoPersonalization(fallbackPayload, fallbackGraph),
-        isPersonalized: true
-      })
-      withExitAndNavigate('/dashboard')
-    } catch {
-      setError('Unable to skip right now. Please try again.')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleContinue = async () => {
     if (!isAnswered(currentQuestion, answers)) {
       setError('Please choose an option to continue.')
@@ -327,7 +301,7 @@ const Personalization = () => {
       setSaving(true)
       await persistProfile({ consumeEdit: !onboardingLocked && isEditing })
       setIsEditing(false)
-      withExitAndNavigate('/ai-result')
+      withExitAndNavigate(onboardingLocked ? '/choose-plan' : '/ai-result')
     } catch {
       setError('Unable to save your profile right now. Please try again.')
       setSaving(false)
@@ -438,18 +412,6 @@ const Personalization = () => {
         animate={isExiting ? 'exit' : 'visible'}
         className="relative rounded-2xl border border-white/10 bg-white/5 p-5 shadow-[0_0_35px_rgba(139,92,246,0.18)] backdrop-blur-xl md:p-6"
       >
-        {onboardingLocked && (
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.96 }}
-            onClick={handleSkip}
-            disabled={saving}
-            className="absolute right-4 top-4 text-xs text-white/65 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Skip
-          </motion.button>
-        )}
-
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/10">
             <Brain className="h-4 w-4 text-cyan-200" />

@@ -6,7 +6,7 @@ import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
 import Payment from './pages/Payment.jsx'
 import Verify from './pages/Verify.jsx'
-import Verified from './pages/Verified.jsx'
+import Onboarding from './pages/Onboarding.jsx'
 import Landing from './pages/Landing.jsx'
 import Contact from './pages/Contact.jsx'
 import Pricing from './pages/Pricing.jsx'
@@ -96,11 +96,9 @@ function App() {
               </AuthRedirect>
             }
           />
-          <Route path="/verify" element={<Navigate to="/verify-code" replace />} />
-          <Route path="/verify-code" element={<Verify />} />
-          <Route path="/verified" element={<Verified />} />
-          <Route path="/choose-plan" element={<ChoosePlan />} />
-          <Route path="/payment" element={<Payment />} />
+          <Route path="/verify" element={<Verify />} />
+          <Route path="/verify-code" element={<Navigate to="/verify" replace />} />
+          <Route path="/verified" element={<Navigate to="/verify" replace />} />
 
           <Route element={<MainLayout />}>
             <Route path="/contact" element={<Contact />} />
@@ -109,6 +107,9 @@ function App() {
           </Route>
 
           <Route element={<ProtectedRoute />}>
+            <Route path="/onboarding" element={<Onboarding />} />
+            <Route path="/choose-plan" element={<ChoosePlan />} />
+            <Route path="/payment" element={<Payment />} />
             <Route path="/exam-simulation" element={<ExamSimulation />} />
             <Route path="/exam-result" element={<ExamResult />} />
             <Route element={<MainLayout />}>

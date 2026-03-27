@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { ensureValidRoute, isEmailVerified } from '../utils/authFlow.js'
-import { normalizeSubscriptionStatus } from '../utils/subscription.js'
+import { isPersonalized } from '../utils/personalization.js'
 
 const freeFeatures = ['Basic tracking', 'Limited sessions', 'Pomodoro timer']
 const premiumFeatures = [
@@ -16,16 +16,15 @@ const premiumFeatures = [
 ]
 
 const ChoosePlan = () => {
-  const { user, profile, initialized, loading, selectPlan } = useAuth()
+  const { user, profile, initialized, loading, profileLoading, selectPlan } = useAuth()
   const navigate = useNavigate()
   const [loadingPlan, setLoadingPlan] = useState('')
   const [actionError, setActionError] = useState('')
 
-  const planStatus = normalizeSubscriptionStatus(profile?.subscription_status)
-  const canSelectPlan = initialized && !loading && Boolean(user)
+  const canSelectPlan = initialized && !loading && !profileLoading && Boolean(user)
 
   useEffect(() => {
-    if (!initialized) return
+    if (!initialized || loading || profileLoading) return
 
     if (!user) {
       navigate('/login', { replace: true })
@@ -33,15 +32,20 @@ const ChoosePlan = () => {
     }
 
     if (!isEmailVerified(user)) {
-      navigate('/verify-code', { replace: true, state: { email: user.email } })
+      navigate('/verify', { replace: true, state: { email: user.email, flow: 'signup' } })
+      return
+    }
+
+    if (!isPersonalized(profile)) {
+      navigate('/personalization', { replace: true })
       return
     }
 
     const safeRoute = ensureValidRoute({ user, profile, currentPath: '/choose-plan' })
-    if (safeRoute && safeRoute !== '/choose-plan' && planStatus !== 'free') {
+    if (safeRoute && safeRoute !== '/choose-plan') {
       navigate(safeRoute, { replace: true })
     }
-  }, [initialized, navigate, planStatus, profile, user])
+  }, [initialized, loading, navigate, profile, profileLoading, user])
 
   const handleFreeTrial = async () => {
     setActionError('')
@@ -65,7 +69,25 @@ const ChoosePlan = () => {
       navigate(-1)
       return
     }
-    navigate('/login', { replace: true })
+    navigate('/onboarding', { replace: true })
+  }
+
+  const handlePremium = async () => {
+    setActionError('')
+    if (!canSelectPlan) {
+      setActionError('Please log in first.')
+      return
+    }
+
+    try {
+      setLoadingPlan('premium')
+      await selectPlan('premium')
+      navigate('/payment', { replace: true })
+    } catch {
+      setActionError('Unable to continue to premium right now. Please try again.')
+    } finally {
+      setLoadingPlan('')
+    }
   }
 
   return (
@@ -154,11 +176,11 @@ const ChoosePlan = () => {
 
               <button
                 type="button"
-                onClick={() => navigate('/payment')}
-                disabled={!canSelectPlan}
+                onClick={handlePremium}
+                disabled={loadingPlan === 'premium' || !canSelectPlan}
                 className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Start with Premium
+                {loadingPlan === 'premium' ? 'Preparing...' : 'Start with Premium'}
               </button>
             </motion.div>
           </div>

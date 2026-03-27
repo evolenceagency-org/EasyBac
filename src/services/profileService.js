@@ -27,6 +27,8 @@ export const createProfile = async (userId, email) => {
       {
         id: userId,
         email,
+        onboarding_completed: false,
+        plan: null,
         subscription_status: 'free',
         trial_start: null,
         payment_verified: false

@@ -13,6 +13,7 @@ import {
   clearPendingVerificationEmail,
   ensureValidRoute,
   getPendingVerificationEmail,
+  getPendingVerificationFlow,
   isEmailVerified,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
@@ -63,6 +64,7 @@ const Verify = () => {
   const { user, profile, initialized, sendVerificationCode, verifyCode } = useAuth()
 
   const [pendingEmail, setPendingEmail] = useState('')
+  const [pendingFlow, setPendingFlow] = useState('signup')
   const [code, setCode] = useState('')
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -83,15 +85,19 @@ const Verify = () => {
 
   useEffect(() => {
     const emailFromState = location.state?.email || ''
+    const flowFromState = location.state?.flow || ''
     const emailFromSession = getPendingVerificationEmail()
+    const flowFromSession = getPendingVerificationFlow()
     const nextEmail = (emailFromState || emailFromSession || user?.email || '').trim().toLowerCase()
+    const nextFlow = flowFromState || flowFromSession || 'signup'
 
     setPendingEmail(nextEmail)
+    setPendingFlow(nextFlow)
     if (nextEmail) {
-      persistPendingVerificationEmail(nextEmail)
+      persistPendingVerificationEmail(nextEmail, nextFlow)
       setAttemptState(readAttemptState(nextEmail))
     }
-  }, [location.state?.email, user?.email])
+  }, [location.state?.email, location.state?.flow, user?.email])
 
   useEffect(() => {
     if (cooldown <= 0) return undefined
@@ -116,7 +122,7 @@ const Verify = () => {
 
   useEffect(() => {
     if (!initialized || status !== 'idle' || !user || !isEmailVerified(user)) return
-    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/verify-code' })
+    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/verify' })
     if (safeRoute) {
       navigate(safeRoute || '/dashboard', { replace: true })
     }
@@ -163,7 +169,7 @@ const Verify = () => {
     setAttemptState(snapshot)
 
     try {
-      const verified = await verifyCode(normalizedEmail, fullCode)
+      const verified = await verifyCode(normalizedEmail, fullCode, pendingFlow)
       saveAttemptState(normalizedEmail, { attempts: 0, blockedUntil: 0, updatedAt: Date.now() })
       clearPendingVerificationEmail()
       setStatus('success')
@@ -171,7 +177,7 @@ const Verify = () => {
       const safeRoute = ensureValidRoute({
         user: verified?.user || user,
         profile: verified?.profile || profile,
-        currentPath: '/verify-code'
+        currentPath: '/verify'
       })
 
       window.setTimeout(() => {
@@ -220,7 +226,7 @@ const Verify = () => {
     submittedCodeRef.current = ''
 
     try {
-      await sendVerificationCode(pendingEmail)
+      await sendVerificationCode(pendingEmail, pendingFlow)
       setResendCount((value) => value + 1)
       setCooldown(OTP_COOLDOWN_SECONDS)
     } catch (resendError) {
@@ -231,7 +237,7 @@ const Verify = () => {
 
   const handleUseAnotherEmail = () => {
     clearPendingVerificationEmail()
-    navigate('/register', { replace: true })
+    navigate(pendingFlow === 'otp-login' ? '/login' : '/register', { replace: true })
   }
 
   if (!pendingEmail && !user?.email) {
@@ -239,21 +245,21 @@ const Verify = () => {
       <AuthCard
         label="Verification"
         title="We need your email first"
-        subtitle="Start by requesting a one-time code so we know which account to verify."
-        sideTitle="One-time code sign in"
-        sideSubtitle="EasyBac now uses email codes only. Request a fresh OTP and continue in one quick step."
+        subtitle="Start from login or register so we know which account to verify."
+        sideTitle="Code verification"
+        sideSubtitle="We keep the verification screen focused: find the email, enter six digits, and continue."
         footer={
           <p>
-            Ready to start?{' '}
+            Need a fresh start?{' '}
             <Link className="text-[#c084fc]" to="/register">
-              Request a code
+              Create an account
             </Link>
           </p>
         }
       >
         <div className="space-y-4">
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-white/72">
-            We couldn’t find a pending verification session. Start from login or register and we’ll send a new code instantly.
+            We could not find a pending verification session. Start from login or register and we will send a new code right away.
           </div>
           <div className="flex gap-3">
             <button
@@ -261,7 +267,7 @@ const Verify = () => {
               onClick={() => navigate('/register', { replace: true })}
               className="flex-1 rounded-xl bg-[#8b5cf6] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
             >
-              Request code
+              Create account
             </button>
             <button
               type="button"
@@ -278,11 +284,11 @@ const Verify = () => {
 
   return (
     <AuthCard
-      label="Email code"
+      label={pendingFlow === 'otp-login' ? 'Login code' : 'Email verification'}
       title="Enter your verification code"
-      subtitle="Fast, passwordless access. We’ll verify the code and continue automatically."
-      sideTitle="A cleaner OTP flow"
-      sideSubtitle="One secure code, one focused screen, and no extra steps. Built for quick verification on mobile and desktop."
+      subtitle="We will verify the code and continue automatically as soon as all six digits are in."
+      sideTitle="Quick, predictable verification"
+      sideSubtitle="The input auto-advances, supports paste, and verifies instantly so users never get stuck in a bulky form."
       footer={
         <div className="flex items-center justify-between gap-3">
           <button
@@ -292,7 +298,9 @@ const Verify = () => {
           >
             Use another email
           </button>
-          <span className="text-xs text-white/40">OTP only — no magic links</span>
+          <span className="text-xs text-white/40">
+            {pendingFlow === 'otp-login' ? 'OTP login' : 'Signup verification'}
+          </span>
         </div>
       }
     >
@@ -309,11 +317,7 @@ const Verify = () => {
 
         <motion.div
           key={status === 'error' ? `error-${error}` : 'stable'}
-          animate={
-            status === 'error'
-              ? { x: [0, -10, 10, -8, 8, -4, 4, 0] }
-              : { x: 0 }
-          }
+          animate={status === 'error' ? { x: [0, -10, 10, -8, 8, -4, 4, 0] } : { x: 0 }}
           transition={{ duration: 0.38, ease: 'easeOut' }}
           className="space-y-4"
         >
@@ -357,13 +361,14 @@ const Verify = () => {
                     <ShieldCheck className="h-4 w-4 text-white/65" />
                   </div>
                 )}
+
                 <div className="min-w-0">
                   <p className="font-medium text-white">{helperText}</p>
                   {status === 'error' && error ? (
                     <p className="mt-1 text-red-200">{error}</p>
                   ) : status === 'idle' ? (
                     <p className="mt-1 text-white/48">
-                      We’ll verify as soon as the last digit is entered.
+                      Verification starts automatically after the last digit.
                     </p>
                   ) : null}
                 </div>
@@ -389,7 +394,7 @@ const Verify = () => {
             ) : spamHintVisible ? (
               <p>Still nothing? Check spam or promotions.</p>
             ) : (
-              <p>Didn’t get it? You can resend in 30s.</p>
+              <p>Need another code? We unlock resend in 30s.</p>
             )}
           </div>
         </div>

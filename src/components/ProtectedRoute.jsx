@@ -1,8 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { isSubscriptionActive, normalizeSubscriptionStatus } from '../utils/subscription.js'
-import { isPersonalized } from '../utils/personalization.js'
-import { isEmailVerified } from '../utils/authFlow.js'
+import { ensureValidRoute } from '../utils/authFlow.js'
 
 const ProtectedRoute = () => {
   const { user, session, loading, profile, profileLoading, initialized } = useAuth()
@@ -17,32 +15,18 @@ const ProtectedRoute = () => {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  if (!isEmailVerified(authUser)) {
-    return <Navigate to="/verify-code" replace state={{ email: authUser.email }} />
-  }
-
   if (profileLoading) {
     return null
   }
 
-  if (!profile) {
-    return <Navigate to="/choose-plan" replace />
-  }
+  const safeRoute = ensureValidRoute({
+    user: authUser,
+    profile,
+    currentPath: location.pathname
+  })
 
-  const planStatus = normalizeSubscriptionStatus(profile.subscription_status)
-  if (planStatus === 'free' && !profile.payment_verified) {
-    return <Navigate to="/choose-plan" replace />
-  }
-
-  if (!isSubscriptionActive(profile)) {
-    return <Navigate to="/payment" replace />
-  }
-
-  if (
-    !isPersonalized(profile) &&
-    location.pathname !== '/personalization'
-  ) {
-    return <Navigate to="/personalization" replace />
+  if (safeRoute && safeRoute !== location.pathname) {
+    return <Navigate to={safeRoute} replace state={{ from: location }} />
   }
 
   return <Outlet />

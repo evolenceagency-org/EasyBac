@@ -46,7 +46,7 @@ const Verified = () => {
 
         <button
           type="button"
-          onClick={() => navigate(user ? '/choose-plan' : '/verify-code', { replace: true })}
+          onClick={() => navigate(user ? '/onboarding' : '/verify', { replace: true })}
           className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.45)] transition-all duration-300 hover:shadow-[0_0_32px_rgba(34,211,238,0.5)]"
         >
           {user ? 'Continue' : 'Enter verification code'}
