@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { Loader2, MailCheck, RefreshCw, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 import {
+  EMAIL_OTP_LENGTH,
   OTP_ATTEMPT_WINDOW_MS,
   OTP_COOLDOWN_SECONDS,
   OTP_MAX_ATTEMPTS,
@@ -100,7 +101,12 @@ const Verify = () => {
     return Math.max(0, Math.ceil((attemptState.blockedUntil - Date.now()) / 1000))
   }, [attemptState.blockedUntil, attemptTick])
 
-  const canVerify = Boolean(code.trim().length === 6 && pendingEmail && !loading && blockedForSeconds === 0)
+  const canVerify = Boolean(
+    code.trim().length === EMAIL_OTP_LENGTH &&
+      pendingEmail &&
+      !loading &&
+      blockedForSeconds === 0
+  )
 
   const handleResend = async () => {
     if (!pendingEmail || cooldown > 0 || resending) return
@@ -129,8 +135,8 @@ const Verify = () => {
       return
     }
 
-    if (code.trim().length !== 6) {
-      setError('Enter the 6-digit verification code.')
+    if (code.trim().length !== EMAIL_OTP_LENGTH) {
+      setError(`Enter the ${EMAIL_OTP_LENGTH}-digit verification code.`)
       return
     }
 
@@ -228,7 +234,7 @@ const Verify = () => {
         <div className="mt-6 text-center">
           <h1 className="text-xl font-semibold md:text-2xl">Enter your verification code</h1>
           <p className="mt-2 text-sm text-white/70">
-            We sent a 6-digit code{pendingEmail ? ` to ${pendingEmail}` : ''}. Enter it below to continue.
+            We sent an {EMAIL_OTP_LENGTH}-digit code{pendingEmail ? ` to ${pendingEmail}` : ''}. Enter it below to continue.
           </p>
         </div>
 
@@ -256,22 +262,22 @@ const Verify = () => {
 
           <div className="space-y-2">
             <label htmlFor="verification-code" className="text-xs font-medium text-white/70">
-              6-digit code
+              {EMAIL_OTP_LENGTH}-digit code
             </label>
             <input
               id="verification-code"
               type="text"
               inputMode="numeric"
               autoFocus
-              maxLength={6}
+              maxLength={EMAIL_OTP_LENGTH}
               value={code}
               onChange={(event) => {
-                setCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                setCode(event.target.value.replace(/\D/g, '').slice(0, EMAIL_OTP_LENGTH))
                 setError('')
                 setSuccess('')
               }}
               className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-center text-2xl tracking-[0.5em] text-white outline-none transition-all duration-300 focus:border-purple-400 focus:ring-2 focus:ring-purple-500/40"
-              placeholder="000000"
+              placeholder={'0'.repeat(EMAIL_OTP_LENGTH)}
             />
             <div className="flex items-center justify-between text-xs text-white/55">
               <span>Code expires in 5-10 minutes.</span>

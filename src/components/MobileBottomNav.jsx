@@ -1,198 +1,230 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BadgeDollarSign,
   BarChart3,
+  BookOpen,
   Brain,
-  Ellipsis,
-  SlidersHorizontal,
+  GraduationCap,
   Heart,
   LayoutDashboard,
   ListTodo,
   LogOut,
   Mail,
-  Timer
+  Settings,
+  SlidersHorizontal
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
 
 const navItems = [
-  { label: 'Home', path: '/dashboard', icon: LayoutDashboard },
-  { label: 'Study', path: '/study', icon: Timer },
-  { label: 'Tasks', path: '/tasks', icon: ListTodo },
-  { label: 'Stats', path: '/analytics', icon: BarChart3 },
-  { label: 'Profile', path: '/personalization', icon: Brain }
+  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/study', label: 'Study', icon: BookOpen },
+  { path: '/tasks', label: 'Tasks', icon: ListTodo },
+  { path: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { key: 'settings', label: 'Settings', icon: Settings, type: 'sheet' }
 ]
 
-const quickActions = [
-  { label: 'AI Control', path: '/ai-control-center', icon: SlidersHorizontal },
-  { label: 'Pricing', path: '/pricing', icon: BadgeDollarSign },
-  { label: 'Donate', path: '/donate', icon: Heart },
-  { label: 'Contact', path: '/contact', icon: Mail }
+const secondaryItems = [
+  {
+    title: 'Product',
+    items: [
+      { key: 'personalization', label: 'Personalization', icon: Brain, path: '/personalization' },
+      { key: 'ai-control', label: 'AI Control', icon: SlidersHorizontal, path: '/ai-control-center' },
+      { key: 'exam-simulation', label: 'Exam Simulation', icon: GraduationCap, path: '/exam-simulation' }
+    ]
+  },
+  {
+    title: 'Business',
+    items: [
+      { key: 'pricing', label: 'Pricing', icon: BadgeDollarSign, path: '/pricing' },
+      { key: 'donate', label: 'Donate', icon: Heart, path: '/donate' },
+      { key: 'contact', label: 'Contact', icon: Mail, path: '/contact' }
+    ]
+  }
 ]
 
 const MobileBottomNav = () => {
-  const [moreOpen, setMoreOpen] = useState(false)
-  const { signOut } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
+  const navigate = useNavigate()
+  const { signOut } = useAuth()
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   useEffect(() => {
-    setMoreOpen(false)
-  }, [location.pathname])
-
-  const activeLabel = useMemo(() => {
-    return navItems.find((item) => item.path === location.pathname)?.label || 'BacTracker'
+    setIsSettingsOpen(false)
   }, [location.pathname])
 
   useEffect(() => {
+    if (typeof document === 'undefined') return undefined
+
     const previousOverflow = document.body.style.overflow
-    if (moreOpen) {
+    if (isSettingsOpen) {
       document.body.style.overflow = 'hidden'
     }
 
     return () => {
-      document.body.style.overflow = previousOverflow || 'auto'
+      document.body.style.overflow = previousOverflow
     }
-  }, [moreOpen])
+  }, [isSettingsOpen])
+
+  const handleSelectSecondaryItem = (path) => {
+    setIsSettingsOpen(false)
+    navigate(path)
+  }
 
   const handleLogout = async () => {
+    setIsSettingsOpen(false)
     await signOut()
-    setMoreOpen(false)
     navigate('/login')
   }
 
-  return (
+  const content = (
     <>
-      <motion.nav
-        initial={{ y: 24, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.15, ease: 'easeOut' }}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-[rgba(5,5,7,0.92)] px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-[20px] md:hidden"
-        aria-label="Mobile navigation"
-      >
-        <div className="surface-subtle mx-auto flex max-w-xl items-center justify-between gap-1 rounded-t-2xl border border-white/[0.06] bg-[rgba(255,255,255,0.03)] px-2 py-1.5">
-          {navItems.map((item) => {
-            const Icon = item.icon
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[9px] font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-[rgba(139,92,246,0.12)] text-white'
-                      : 'text-white/65 hover:bg-white/[0.04] hover:text-white'
-                  }`
-                }
-              >
-                {({ isActive }) => (
-                  <>
-                    <Icon className={`h-4 w-4 ${isActive ? 'text-[#D7E3FF]' : 'text-white/70'}`} />
-                    <span className="mt-1 leading-none">{item.label}</span>
-                  </>
-                )}
-              </NavLink>
-            )
-          })}
-
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.94 }}
-            onClick={() => setMoreOpen((prev) => !prev)}
-            className={`flex min-w-[52px] flex-1 flex-col items-center justify-center rounded-xl px-1.5 py-1.5 text-[9px] font-medium transition-all duration-150 ${
-              moreOpen
-                ? 'bg-[rgba(139,92,246,0.12)] text-white'
-                : 'text-white/65 hover:bg-white/[0.04] hover:text-white'
-            }`}
-          >
-            <motion.div animate={{ rotate: moreOpen ? 90 : 0 }} transition={{ duration: 0.15, ease: 'easeOut' }}>
-              <Ellipsis className={`h-4 w-4 ${moreOpen ? 'text-[#D7E3FF]' : 'text-white/70'}`} />
-            </motion.div>
-            <span className="mt-1 leading-none">More</span>
-          </motion.button>
-        </div>
-      </motion.nav>
-
       <AnimatePresence>
-        {moreOpen && (
+        {isSettingsOpen ? (
           <>
-              <motion.button
+            <motion.button
               type="button"
-              aria-label="Close menu"
-              onClick={() => setMoreOpen(false)}
-              className="fixed inset-0 z-40 bg-black/55 md:hidden"
+              aria-label="Close secondary menu"
+              className="mobile-nav-sheet-overlay md:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              onClick={() => setIsSettingsOpen(false)}
             />
 
             <motion.div
-              initial={{ y: '100%', opacity: 0.9 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: '100%', opacity: 0.9 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+              className="mobile-nav-sheet md:hidden"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
               drag="y"
-              dragConstraints={{ top: 0, bottom: 320 }}
-              dragElastic={0.2}
+              dragConstraints={{ top: 0, bottom: 240 }}
+              dragElastic={0.08}
               onDragEnd={(_, info) => {
-                if (info.offset.y > 100) {
-                  setMoreOpen(false)
+                if (info.offset.y > 80) {
+                  setIsSettingsOpen(false)
                 }
               }}
-              onClick={(event) => event.stopPropagation()}
-              className="surface-elevated fixed inset-x-0 bottom-0 z-50 rounded-t-3xl border-t border-white/[0.12] bg-[#0b0b0f]/96 p-5 pb-[calc(1.1rem+env(safe-area-inset-bottom))] shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-[20px] md:hidden"
             >
-              <div className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-white/15" />
-              <div className="mb-5">
-                <p className="text-xs uppercase tracking-[0.25em] text-white/50">Quick Actions</p>
-                <h3 className="mt-2 text-lg font-semibold text-white">{activeLabel}</h3>
-              </div>
+              <div className="mobile-nav-sheet-handle" />
+              <div className="mobile-nav-sheet-content">
+                {secondaryItems.map((section) => (
+                  <div key={section.title} className="mobile-nav-sheet-section">
+                    <p className="mobile-nav-sheet-section-title">{section.title}</p>
+                    <div className="mobile-nav-sheet-group">
+                      {section.items.map((item) => {
+                        const Icon = item.icon
+                        return (
+                          <button
+                            key={item.key}
+                            type="button"
+                            onClick={() => handleSelectSecondaryItem(item.path)}
+                            className="mobile-nav-sheet-item"
+                          >
+                            <Icon className="h-5 w-5 text-white/80" strokeWidth={2.15} />
+                            <span>{item.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
 
-              <div className="space-y-2.5">
-                {quickActions.map((action, index) => {
-                  const Icon = action.icon
-                  return (
-                    <motion.button
-                      key={action.path}
-                      type="button"
-                      onClick={() => {
-                        setMoreOpen(false)
-                        navigate(action.path)
-                      }}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 8 }}
-                      transition={{ delay: index * 0.05, duration: 0.15, ease: 'easeOut' }}
-                      whileTap={{ scale: 0.97 }}
-                      className="surface-subtle flex w-full items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3 text-left text-sm text-white/90 transition hover:border-[rgba(139,92,246,0.5)] hover:bg-white/[0.05]"
-                    >
-                      <Icon className="h-4 w-4 text-[#D7E3FF]" />
-                      <span>{action.label}</span>
-                    </motion.button>
-                  )
-                })}
-
-                <motion.button
+                <button
                   type="button"
                   onClick={handleLogout}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ delay: 0.18, duration: 0.15, ease: 'easeOut' }}
-                  whileTap={{ scale: 0.97 }}
-                  className="flex w-full items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/[0.08] px-4 py-3 text-left text-sm text-red-100 transition hover:bg-red-500/[0.12]"
+                  className="mobile-nav-sheet-item mobile-nav-sheet-item-logout"
                 >
-                  <LogOut className="h-4 w-4" />
+                  <LogOut className="h-5 w-5" strokeWidth={2.15} />
                   <span>Logout</span>
-                </motion.button>
+                </button>
               </div>
             </motion.div>
           </>
-        )}
+        ) : null}
       </AnimatePresence>
+
+      <div
+        className="mobile-navbar-shell fixed md:hidden pointer-events-none"
+        style={{
+          bottom: 'max(16px, env(safe-area-inset-bottom))',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 997,
+          width: '90%',
+          maxWidth: '500px'
+        }}
+      >
+        <div className="mobile-navbar-inner pointer-events-auto">
+          <div className="mobile-navbar-track">
+            {navItems.map((item) => {
+              const isSheetTrigger = item.type === 'sheet'
+              const isActive = isSheetTrigger ? isSettingsOpen : location.pathname === item.path
+              const Icon = item.icon
+
+              if (isSheetTrigger) {
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    aria-label={item.label}
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="flex h-full flex-1 items-center justify-center"
+                  >
+                    <motion.div
+                      initial={false}
+                      animate={{
+                        y: isActive ? -4 : 0,
+                        scale: isActive ? 1.05 : 1,
+                        opacity: isActive ? 1 : 0.66
+                      }}
+                      transition={{ duration: 0.3, ease: 'easeOut' }}
+                      whileTap={{ scale: 0.97 }}
+                      className={`mobile-nav-item ${isActive ? 'is-active' : ''}`}
+                    >
+                      <Icon className="mobile-nav-icon" strokeWidth={2.35} />
+                    </motion.div>
+                  </button>
+                )
+              }
+
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  aria-label={item.label}
+                  className="flex h-full flex-1 items-center justify-center"
+                >
+                  <motion.div
+                    initial={false}
+                    animate={{
+                      y: isActive ? -4 : 0,
+                      scale: isActive ? 1.05 : 1,
+                      opacity: isActive ? 1 : 0.66
+                    }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`mobile-nav-item ${isActive ? 'is-active' : ''}`}
+                  >
+                    <Icon className="mobile-nav-icon" strokeWidth={2.35} />
+                  </motion.div>
+                </NavLink>
+              )
+            })}
+          </div>
+        </div>
+      </div>
     </>
   )
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal(content, document.body)
 }
 
 export default MobileBottomNav

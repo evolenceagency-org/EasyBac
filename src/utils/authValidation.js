@@ -1,3 +1,5 @@
+import { EMAIL_OTP_LENGTH } from './authFlow.js'
+
 export const validateEmail = (email) => {
   if (!email.trim()) return 'Email is required'
   const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -48,7 +50,7 @@ export const getAuthErrorMessage = (error) => {
   }
 
   if (msg.includes('Token is invalid') || msg.includes('invalid token')) {
-    return 'Invalid code. Please check the 6-digit code and try again.'
+    return `Invalid code. Please check the ${EMAIL_OTP_LENGTH}-digit code and try again.`
   }
 
   if (msg.includes('rate limit') || msg.includes('too many requests')) {

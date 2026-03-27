@@ -40,7 +40,7 @@ const useViewportWidth = () => {
 
 const shellToneClasses = {
   neutral:
-    'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]',
+    'border-[rgba(139,92,246,0.25)] bg-[rgba(10,10,15,0.75)] shadow-[0_6px_20px_rgba(0,0,0,0.35),0_0_12px_rgba(139,92,246,0.08)]',
   suggestion:
     'border-[rgba(139,92,246,0.35)] bg-[rgba(10,10,15,0.9)] shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]',
   active:
@@ -52,7 +52,7 @@ const shellToneClasses = {
 }
 
 const iconBubbleToneClasses = {
-  neutral: 'bg-[rgba(91,92,246,0.08)] text-white ring-[rgba(139,92,246,0.18)]',
+  neutral: 'text-white/80 ring-white/[0.08] opacity-80',
   suggestion: 'bg-[#7c5cff]/12 text-[#E9E4FF] ring-[#7c5cff]/20',
   active: 'bg-[#7c5cff]/14 text-[#F3EEFF] ring-[#7c5cff]/20',
   warning: 'bg-white/[0.05] text-white ring-white/[0.08]',
@@ -60,7 +60,7 @@ const iconBubbleToneClasses = {
 }
 
 const chipToneClasses = {
-  neutral: 'bg-white/[0.05] text-[#D7DCE6]',
+  neutral: 'text-[#D7DCE6]',
   suggestion: 'bg-[#7c5cff]/10 text-[#E9E4FF]',
   active: 'bg-[#7c5cff]/12 text-[#F3EEFF]',
   warning: 'bg-white/[0.06] text-[#E7E9EF]',
@@ -72,18 +72,19 @@ const StatusGlyph = ({ mode, label, compact = false }) => {
   if (compact) {
     if (mode === 'listening') {
       return (
-        <span className="inline-flex items-end gap-0.5" aria-hidden="true">
+        <span className="inline-flex items-center gap-0.5" aria-hidden="true">
           {[0, 1, 2].map((index) => (
             <motion.span
               key={index}
-              className="block w-1 rounded-full bg-current"
-              animate={{ height: [4, 8 + index, 5] }}
+              className="block rounded-full bg-current"
+              style={{ width: index === 1 ? 6 : 4, height: index === 1 ? 12 : 8 }}
+              animate={{ opacity: [0.65, 1, 0.65], scaleY: [0.92, 1.05, 0.92] }}
               transition={{
-                duration: 0.8,
+                duration: 1.1,
                 repeat: Infinity,
                 repeatType: 'mirror',
                 ease: 'easeInOut',
-                delay: index * 0.08
+                delay: index * 0.1
               }}
             />
           ))}
@@ -95,19 +96,22 @@ const StatusGlyph = ({ mode, label, compact = false }) => {
       return (
         <span className="inline-flex items-center gap-0.5" aria-hidden="true">
           <motion.span
-            className="h-1.5 w-1.5 rounded-full bg-current"
-            animate={{ opacity: [0.35, 1, 0.35], scale: [0.9, 1, 0.9] }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+            className="block rounded-full bg-current"
+            style={{ width: 4, height: 10 }}
+            animate={{ opacity: [0.5, 1, 0.5], scaleY: [0.92, 1.04, 0.92] }}
+            transition={{ duration: 1.05, repeat: Infinity, ease: 'easeInOut' }}
           />
           <motion.span
-            className="h-1.5 w-1.5 rounded-full bg-current"
-            animate={{ opacity: [1, 0.35, 1], scale: [1, 0.9, 1] }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: 0.12 }}
+            className="block rounded-full bg-current"
+            style={{ width: 4, height: 12 }}
+            animate={{ opacity: [1, 0.55, 1], scaleY: [1, 0.92, 1] }}
+            transition={{ duration: 1.05, repeat: Infinity, ease: 'easeInOut', delay: 0.12 }}
           />
           <motion.span
-            className="h-1.5 w-1.5 rounded-full bg-current"
-            animate={{ opacity: [0.35, 1, 0.35], scale: [0.9, 1, 0.9] }}
-            transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut', delay: 0.24 }}
+            className="block rounded-full bg-current"
+            style={{ width: 4, height: 10 }}
+            animate={{ opacity: [0.5, 1, 0.5], scaleY: [0.92, 1.04, 0.92] }}
+            transition={{ duration: 1.05, repeat: Infinity, ease: 'easeInOut', delay: 0.24 }}
           />
         </span>
       )
@@ -123,9 +127,9 @@ const StatusGlyph = ({ mode, label, compact = false }) => {
 
     return (
       <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-45" />
-        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-30" />
+        <span className="h-1.5 w-4 rounded-full bg-current opacity-55" />
+        <span className="h-1.5 w-2 rounded-full bg-current opacity-35" />
+        <span className="h-1.5 w-3 rounded-full bg-current opacity-25" />
       </span>
     )
   }
@@ -234,8 +238,8 @@ const AssistantDynamicIsland = ({
 
   const shellToneClass = shellToneClasses[tone] || shellToneClasses.neutral
   const shellGlowClass = isEngaged || isHolding || statusMode === 'listening'
-    ? 'shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_0_20px_rgba(139,92,246,0.25),0_8px_25px_rgba(0,0,0,0.35)]'
-    : 'shadow-[0_0_0_1px_rgba(139,92,246,0.15),0_8px_25px_rgba(0,0,0,0.35)]'
+    ? 'border-[rgba(139,92,246,0.45)] shadow-[0_0_0_1px_rgba(139,92,246,0.2),0_0_16px_rgba(139,92,246,0.15),0_6px_20px_rgba(0,0,0,0.35)]'
+    : ''
   const { style: gestureStyle, ...gestureHandlers } = gestureProps
 
   const contentResistanceX = useTransform(dragX || 0, (value) => clamp(value * 0.06, -5, 5))
@@ -246,13 +250,37 @@ const AssistantDynamicIsland = ({
   const swipeLeftStrength = useTransform(dragX || 0, (value) =>
     value < 0 ? clamp(Math.abs(value) / gestureMotion.swipeMax, 0, 1) : 0
   )
-  const swipeRightOffset = useTransform(dragX || 0, (value) => (value > 0 ? clamp(value * 0.08, 0, 8) : 0))
-  const swipeLeftOffset = useTransform(dragX || 0, (value) => (value < 0 ? clamp(value * 0.08, -8, 0) : 0))
 
   const compactWidth = isMobile ? Math.min(176, Math.max(140, Math.round(width * 0.36))) : 156
-  const expandedWidth = isMobile ? Math.min(width - 16, 420) : Math.min(Math.max(420, Math.round(width * 0.32)), 520)
+  const mobileExpandedWidth = width <= 380 ? width - 40 : width - 56
+  const expandedWidth = isMobile
+    ? Math.min(Math.max(280, mobileExpandedWidth), 400)
+    : Math.min(Math.max(420, Math.round(width * 0.32)), 520)
   const compactHeight = 44
   const expandedHeight = 60
+  const shellWidth = openState ? expandedWidth : compactWidth
+  const feedbackWidth = Math.max(36, Math.round(shellWidth * 0.5))
+  const swipeFeedbackDirection =
+    gestureDirection === 'left' || gestureDirection === 'right' ? gestureDirection : null
+  const swipeFeedbackOpacity =
+    swipeFeedbackDirection === 'right'
+      ? swipeRightStrength
+      : swipeFeedbackDirection === 'left'
+        ? swipeLeftStrength
+        : 0
+  const swipeFeedbackX = useTransform(dragX || 0, (value) => {
+    if (value > 0) {
+      const progress = clamp(value / gestureMotion.swipeMax, 0, 1)
+      return feedbackWidth * (1 - progress)
+    }
+
+    if (value < 0) {
+      const progress = clamp(Math.abs(value) / gestureMotion.swipeMax, 0, 1)
+      return -feedbackWidth * (1 - progress)
+    }
+
+    return swipeFeedbackDirection === 'right' ? feedbackWidth : -feedbackWidth
+  })
   const overlayVariant =
     isHolding || statusMode === 'listening'
       ? 'listening'
@@ -291,7 +319,7 @@ const AssistantDynamicIsland = ({
         onPointerUp={() => setIsEngaged(false)}
         onPointerCancel={() => setIsEngaged(false)}
         className={cn(
-          'relative pointer-events-auto overflow-hidden border backdrop-blur-2xl will-change-[transform,width,height,opacity]',
+          'relative pointer-events-auto overflow-hidden border backdrop-blur-[16px] will-change-[transform,width,height,opacity]',
           shellToneClass,
           shellGlowClass,
           statusMode === 'success' ? 'ring-1 ring-emerald-400/20' : '',
@@ -357,24 +385,34 @@ const AssistantDynamicIsland = ({
           ) : null}
 
           <AnimatePresence initial={false}>
-            <motion.div
-              key="swipe-right-feedback"
-              className="absolute inset-0"
-              style={{
-                opacity: swipeRightStrength,
-                x: swipeRightOffset,
-                background: 'linear-gradient(to left, transparent, rgba(34,197,94,0.15))'
-              }}
-            />
-            <motion.div
-              key="swipe-left-feedback"
-              className="absolute inset-0"
-              style={{
-                opacity: swipeLeftStrength,
-                x: swipeLeftOffset,
-                background: 'linear-gradient(to right, rgba(239,68,68,0.15), transparent)'
-              }}
-            />
+            {swipeFeedbackDirection ? (
+              <motion.div
+                key={`swipe-feedback-${swipeFeedbackDirection}`}
+                className={cn(
+                  'absolute top-0 bottom-0 w-1/2 pointer-events-none',
+                  swipeFeedbackDirection === 'left' ? 'left-0' : 'right-0'
+                )}
+                initial={{
+                  opacity: 0,
+                  x: swipeFeedbackDirection === 'right' ? feedbackWidth : -feedbackWidth
+                }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{
+                  opacity: 0,
+                  x: swipeFeedbackDirection === 'right' ? feedbackWidth : -feedbackWidth
+                }}
+                transition={{ duration: 0.16, ease: 'easeOut' }}
+                style={{
+                  width: feedbackWidth,
+                  opacity: swipeFeedbackOpacity,
+                  x: swipeFeedbackX,
+                  background:
+                    swipeFeedbackDirection === 'right'
+                      ? 'linear-gradient(to left, rgba(34,197,94,0.25), transparent)'
+                      : 'linear-gradient(to right, rgba(239,68,68,0.25), transparent)'
+                }}
+              />
+            ) : null}
           </AnimatePresence>
         </div>
 
@@ -422,7 +460,7 @@ const AssistantDynamicIsland = ({
         </AnimatePresence>
 
         <motion.div
-          className="relative flex h-full w-full items-center gap-3 overflow-hidden px-3.5"
+          className="relative flex h-full w-full items-center justify-between gap-[10px] overflow-hidden px-[14px] py-[10px]"
           style={{
             x: contentResistanceX,
             y: contentResistanceY
@@ -434,11 +472,11 @@ const AssistantDynamicIsland = ({
         >
           <span
             className={cn(
-              'inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full ring-1',
+              'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.05] p-[6px] ring-1',
               iconBubbleToneClasses[tone] || iconBubbleToneClasses.neutral
             )}
           >
-            <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+            <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
           </span>
 
           <AnimatePresence mode="wait" initial={false}>
@@ -465,10 +503,12 @@ const AssistantDynamicIsland = ({
                 transition={{ duration: 0.16, ease: 'easeOut' }}
                 className="min-w-0 flex-1"
               >
-                <div className="flex items-center justify-end gap-1.5 pr-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/55" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/35" />
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/25" />
+                <div className="flex items-center justify-center">
+                  <motion.div
+                    className="h-1 w-6 rounded-full bg-white/30"
+                    animate={{ opacity: [0.6, 1, 0.6], scaleX: [0.95, 1.05, 0.95] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                  />
                 </div>
               </motion.div>
             )}
@@ -483,7 +523,7 @@ const AssistantDynamicIsland = ({
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.16, ease: 'easeOut' }}
                 className={cn(
-                  'inline-flex h-7 shrink-0 items-center rounded-full px-2.5 text-[10px] font-medium',
+                  'inline-flex h-7 shrink-0 items-center rounded-full bg-white/[0.04] px-2.5 text-[10px] font-medium',
                   chipToneClasses[statusMode] || chipToneClasses.neutral
                 )}
                 style={NO_SELECT_STYLE}
@@ -498,7 +538,7 @@ const AssistantDynamicIsland = ({
                 exit={{ opacity: 0, scale: 0.96 }}
                 transition={{ duration: 0.16, ease: 'easeOut' }}
                 className={cn(
-                  'inline-flex h-7 shrink-0 items-center rounded-full px-2.5 text-[10px] font-medium',
+                  'inline-flex h-7 shrink-0 items-center rounded-full bg-white/[0.04] px-2.5 text-[10px] font-medium',
                   chipToneClasses.neutral
                 )}
                 style={NO_SELECT_STYLE}

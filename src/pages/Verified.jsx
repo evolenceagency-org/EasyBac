@@ -20,7 +20,7 @@ const Verified = () => {
   const helperText = useMemo(() => {
     if (!initialized) return 'Verifying your session...'
     if (!user) {
-      return 'If you just confirmed from an old email link, continue to the code screen and finish your setup there.'
+      return 'Verification now uses a 6-digit email code. Continue to the code screen to finish setup.'
     }
     return 'Your email has been successfully verified. Continue to finish setup.'
   }, [initialized, user])

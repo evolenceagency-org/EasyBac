@@ -1,0 +1,1 @@
+import{y as e}from"./focusTasks-0B0VMCjL.js";var t=(t=[])=>{let n=e(new Date);return t.filter(t=>t.completed&&e(t.created_at)===n).length},n=(t=[])=>{let n=e(new Date);return t.filter(e=>e.due_date===n&&e.status!==`on_hold`)},r=t=>{if(!t?.due_date||t.completed||t.status===`on_hold`)return!1;let n=e(new Date);return t.due_date<n};export{n,r,t};

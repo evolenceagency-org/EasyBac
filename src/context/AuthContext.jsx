@@ -1,13 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, supabaseConfigError } from '../lib/supabaseClient.js'
 import {
+  clearPendingRegistration,
   clearPendingVerificationEmail,
+  getPendingRegistrationPassword,
   isEmailVerified,
+  persistPendingRegistration,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
 
 let sessionPromise = null
-let exchangePromise = null
 
 const getSessionOnce = async () => {
   if (!sessionPromise) {
@@ -18,22 +20,18 @@ const getSessionOnce = async () => {
   return sessionPromise
 }
 
-const exchangeAuthFromUrl = async () => {
+const stripLegacyAuthParamsFromUrl = () => {
   if (typeof window === 'undefined') return
 
   const url = new URL(window.location.href)
-  const code = url.searchParams.get('code')
-  const tokenHash = url.searchParams.get('token_hash')
-  const type = url.searchParams.get('type')
-  const hasAuthParams = Boolean(code || tokenHash)
+  const hasLegacyAuthParams = Boolean(
+    url.searchParams.get('code') ||
+      url.searchParams.get('token_hash') ||
+      url.searchParams.get('type') ||
+      url.searchParams.get('state')
+  )
 
-  if (!hasAuthParams) return
-
-  if (code) {
-    await supabase.auth.exchangeCodeForSession(code)
-  } else if (tokenHash && type) {
-    await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
-  }
+  if (!hasLegacyAuthParams) return
 
   url.searchParams.delete('code')
   url.searchParams.delete('token_hash')
@@ -41,15 +39,6 @@ const exchangeAuthFromUrl = async () => {
   url.searchParams.delete('state')
 
   window.history.replaceState({}, '', url.pathname + url.search + url.hash)
-}
-
-const exchangeAuthFromUrlOnce = async () => {
-  if (!exchangePromise) {
-    exchangePromise = exchangeAuthFromUrl().finally(() => {
-      exchangePromise = null
-    })
-  }
-  return exchangePromise
 }
 
 const AuthContext = createContext(null)
@@ -144,7 +133,7 @@ export const AuthProvider = ({ children }) => {
         return
       }
       try {
-        await exchangeAuthFromUrlOnce()
+        stripLegacyAuthParamsFromUrl()
         const { data, error } = await getSessionOnce()
         if (!mounted) return
 
@@ -214,12 +203,20 @@ export const AuthProvider = ({ children }) => {
 
   const signUp = async (email, password) => {
     setLoading(true)
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password
+    const normalizedEmail = email.trim().toLowerCase()
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: true
+      }
     })
-    if (!error && !data?.session) {
-      persistPendingVerificationEmail(email)
+
+    if (!error) {
+      persistPendingVerificationEmail(normalizedEmail)
+      persistPendingRegistration(normalizedEmail, password)
+    } else {
+      clearPendingRegistration()
+      clearPendingVerificationEmail()
     }
     setLoading(false)
     return { data, error }
@@ -241,6 +238,7 @@ export const AuthProvider = ({ children }) => {
     setSession(null)
     setUser(null)
     resetProfileState()
+    clearPendingRegistration()
     clearPendingVerificationEmail()
     setLoading(false)
     return { error }
@@ -279,9 +277,11 @@ export const AuthProvider = ({ children }) => {
   const sendVerificationCode = async (email) => {
     if (!supabase) throw new Error('Supabase is not configured.')
     const normalizedEmail = email.trim().toLowerCase()
-    const { data, error } = await supabase.auth.resend({
-      type: 'signup',
-      email: normalizedEmail
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: true
+      }
     })
 
     if (error) throw error
@@ -295,10 +295,21 @@ export const AuthProvider = ({ children }) => {
     const { data, error } = await supabase.auth.verifyOtp({
       email: normalizedEmail,
       token: code.trim(),
-      type: 'signup'
+      type: 'email'
     })
 
     if (error) throw error
+
+    const pendingPassword = getPendingRegistrationPassword(normalizedEmail)
+    if (pendingPassword) {
+      const { error: passwordError } = await supabase.auth.updateUser({
+        password: pendingPassword
+      })
+
+      if (passwordError) {
+        throw passwordError
+      }
+    }
 
     const verifiedUser = data?.user || data?.session?.user || null
     if (verifiedUser) {
@@ -310,6 +321,7 @@ export const AuthProvider = ({ children }) => {
       await refreshAuthState()
     }
 
+    clearPendingRegistration()
     clearPendingVerificationEmail()
     return data
   }

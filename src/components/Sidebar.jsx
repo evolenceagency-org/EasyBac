@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   LayoutDashboard,
   BookOpen,
-  Timer,
   ListTodo,
   BarChart3,
   Brain,
   SlidersHorizontal,
+  GraduationCap,
   BadgeDollarSign,
   Heart,
   Mail,
@@ -35,9 +35,13 @@ const mainLinks = [
   { label: 'Analytics', path: '/analytics', icon: BarChart3 }
 ]
 
-const secondaryLinks = [
+const productLinks = [
   { label: 'Personalization', path: '/personalization', icon: Brain },
   { label: 'AI Control', path: '/ai-control-center', icon: SlidersHorizontal },
+  { label: 'Exam Simulation', path: '/exam-simulation', icon: GraduationCap }
+]
+
+const businessLinks = [
   { label: 'Pricing', path: '/pricing', icon: BadgeDollarSign },
   { label: 'Donate', path: '/donate', icon: Heart, variant: 'donate', badge: 'NEW' },
   { label: 'Contact', path: '/contact', icon: Mail }
@@ -52,7 +56,7 @@ const getInitialCollapsedState = () => {
 
 const SidebarSectionLabel = ({ collapsed, children }) => {
   if (collapsed) return null
-  return <p className="px-2 text-[11px] uppercase tracking-[0.18em] text-white/40">{children}</p>
+  return <p className="px-1 pt-1 text-[11px] uppercase tracking-[0.08em] text-white/50">{children}</p>
 }
 
 const SidebarActionButton = ({ collapsed, icon: Icon, label, onClick, tone = 'neutral', title }) => {
@@ -104,7 +108,7 @@ const SidebarActionButton = ({ collapsed, icon: Icon, label, onClick, tone = 'ne
 const SidebarContent = ({ collapsed }) => {
   return (
     <>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
         <SidebarSectionLabel collapsed={collapsed}>Main</SidebarSectionLabel>
         <div className="flex flex-col gap-1.5">
           {mainLinks.map((link) => (
@@ -119,10 +123,27 @@ const SidebarContent = ({ collapsed }) => {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <SidebarSectionLabel collapsed={collapsed}>Secondary</SidebarSectionLabel>
+      <div className="flex flex-col gap-2">
+        <SidebarSectionLabel collapsed={collapsed}>Product</SidebarSectionLabel>
         <div className="flex flex-col gap-1.5">
-          {secondaryLinks.map((link) => (
+          {productLinks.map((link) => (
+            <NavItem
+              key={link.path}
+              to={link.path}
+              icon={link.icon}
+              label={link.label}
+              collapsed={collapsed}
+              variant={link.variant}
+              badge={link.badge}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <SidebarSectionLabel collapsed={collapsed}>Business</SidebarSectionLabel>
+        <div className="flex flex-col gap-1.5">
+          {businessLinks.map((link) => (
             <NavItem
               key={link.path}
               to={link.path}
@@ -187,7 +208,7 @@ const Sidebar = () => {
           {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
         </button>
 
-        <div className={cn('hide-scrollbar flex-1 space-y-4 overflow-y-auto px-3 pb-3 pt-4', isCollapsed && 'px-2')}>
+        <div className={cn('hide-scrollbar flex-1 space-y-6 overflow-y-auto px-3 pb-3 pt-4', isCollapsed && 'px-2')}>
           <div className={cn('flex items-center gap-3 pb-2', isCollapsed && 'justify-center')}> 
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[rgba(139,92,246,0.16)] text-white shadow-[0_0_0_1px_rgba(139,92,246,0.14)]">
               <BookOpen className="h-4 w-4" />
@@ -208,7 +229,7 @@ const Sidebar = () => {
             </motion.div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-6">
             <SidebarContent collapsed={isCollapsed} />
           </div>
         </div>
@@ -260,6 +281,7 @@ const Sidebar = () => {
                 </motion.p>
               </div>
 
+              <SidebarSectionLabel collapsed={isCollapsed}>System</SidebarSectionLabel>
               <SidebarActionButton
                 collapsed={isCollapsed}
                 icon={LogOut}
