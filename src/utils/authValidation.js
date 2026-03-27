@@ -57,6 +57,14 @@ export const getAuthErrorMessage = (error) => {
     return 'Too many attempts. Please wait a moment and try again.'
   }
 
+  if (msg.includes('network') || msg.includes('fetch')) {
+    return 'Network issue. Check your connection and try again.'
+  }
+
+  if (msg.includes('request timed out') || msg.includes('timeout')) {
+    return 'The request took too long. Try again in a moment.'
+  }
+
   return 'Something went wrong. Please try again'
 }
 

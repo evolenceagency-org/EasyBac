@@ -1,141 +1,65 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useAuth } from '../context/AuthContext.jsx'
+import { ArrowRight, Loader2, Mail } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 import {
-  getAuthErrorMessage,
-  validateEmail,
-  validatePassword
-} from '../utils/authValidation.js'
-import {
+  EMAIL_OTP_LENGTH,
   ensureValidRoute,
-  isEmailVerified,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
+import { getAuthErrorMessage, validateEmail } from '../utils/authValidation.js'
 
 const Login = () => {
-  const { signIn, signOut, user, profile, initialized, refreshAuthState } = useAuth()
+  const { signIn, user, profile, initialized } = useAuth()
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [capsLock, setCapsLock] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [touched, setTouched] = useState({ email: false, password: false })
+  const [touched, setTouched] = useState(false)
   const navigate = useNavigate()
-  const location = useLocation()
 
   const emailError = useMemo(
-    () => (touched.email ? validateEmail(email) : ''),
-    [email, touched.email]
+    () => (touched ? validateEmail(email) : ''),
+    [email, touched]
   )
-  const passwordError = useMemo(
-    () => (touched.password ? validatePassword(password) : ''),
-    [password, touched.password]
-  )
-
-  const canSubmit = useMemo(
-    () =>
-      Boolean(email.trim() && password.trim()) &&
-      !emailError &&
-      !passwordError &&
-      !loading,
-    [email, password, emailError, passwordError, loading]
-  )
+  const canSubmit = Boolean(email.trim()) && !emailError && !loading
 
   useEffect(() => {
     if (!initialized || !user) return
-    const normalizedInput = email.trim().toLowerCase()
-    const authenticatedEmail = user.email?.trim().toLowerCase() || ''
-
-    if (normalizedInput && authenticatedEmail && normalizedInput !== authenticatedEmail) {
-      return
-    }
-
     const safeRoute = ensureValidRoute({ user, profile, currentPath: '/login' })
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
     }
-  }, [email, initialized, navigate, profile, user])
+  }, [initialized, navigate, profile, user])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    setTouched(true)
     setError('')
     setSuccess('')
-    setTouched({ email: true, password: true })
 
-    const emailValidation = validateEmail(email)
-    const passwordValidation = validatePassword(password)
-
-    if (emailValidation || passwordValidation) {
-      setError(emailValidation || passwordValidation)
+    const normalizedEmail = email.trim().toLowerCase()
+    const nextEmailError = validateEmail(normalizedEmail)
+    if (nextEmailError) {
+      setError(nextEmailError)
       return
     }
 
     try {
       setLoading(true)
-      const normalizedEmail = email.trim().toLowerCase()
+      const { error: otpError } = await signIn(normalizedEmail)
+      if (otpError) throw otpError
 
-      if (user?.email && user.email.toLowerCase() !== normalizedEmail) {
-        await signOut()
-      }
-
-      const { data, error: signInError } = await signIn(normalizedEmail, password)
-      if (signInError) {
-        throw signInError
-      }
-
-      const authUser = data?.user || data?.session?.user || null
-      if (!authUser || authUser.email?.trim().toLowerCase() !== normalizedEmail) {
-        await signOut()
-        throw new Error('Invalid login credentials')
-      }
-
-      if (authUser && !isEmailVerified(authUser)) {
-        persistPendingVerificationEmail(normalizedEmail)
-        navigate('/verify-code', {
-          replace: true,
-          state: { email: normalizedEmail }
-        })
-        return
-      }
-
-      const refreshed = await refreshAuthState()
-      if (
-        !refreshed?.user ||
-        refreshed.user.email?.trim().toLowerCase() !== normalizedEmail
-      ) {
-        await signOut()
-        throw new Error('Invalid login credentials')
-      }
-
-      setSuccess('Welcome back.')
-
-      const redirectTo =
-        ensureValidRoute({
-          user: refreshed?.user || authUser,
-          profile: refreshed?.profile || profile,
-          currentPath: location.state?.from?.pathname || '/login'
-        }) ||
-        location.state?.from?.pathname ||
-        '/dashboard'
-
-      navigate(redirectTo, { replace: true })
+      persistPendingVerificationEmail(normalizedEmail)
+      setSuccess(`Your ${EMAIL_OTP_LENGTH}-digit code is on its way.`)
+      navigate('/verify-code', {
+        replace: true,
+        state: { email: normalizedEmail }
+      })
     } catch (authError) {
-      const friendlyError = getAuthErrorMessage(authError)
-      setError(friendlyError)
-      if (friendlyError === 'Please verify your email before logging in') {
-        const normalizedEmail = email.trim().toLowerCase()
-        persistPendingVerificationEmail(normalizedEmail)
-        navigate('/verify-code', {
-          replace: true,
-          state: { email: normalizedEmail }
-        })
-      }
-      return
+      setError(getAuthErrorMessage(authError))
     } finally {
       setLoading(false)
     }
@@ -144,133 +68,75 @@ const Login = () => {
   return (
     <AuthCard
       label="Welcome back"
-      title="Login to EasyBac"
-      subtitle="Continue your preparation journey with smarter tracking."
-      sideTitle="A clearer path to Bac success"
-      sideSubtitle="Track deep study sessions, focus streaks, and insights that help you improve every week."
+      title="Log in with your email code"
+      subtitle="Enter your email and we’ll send a fresh verification code right away."
+      sideTitle="Passwordless, fast, focused"
+      sideSubtitle="No password resets, no magic links, just a quick OTP flow that gets you back into EasyBac."
       footer={
         <p>
-          No account yet?{' '}
-          <Link className="text-emerald-300" to="/register">
-            Create one
+          New here?{' '}
+          <Link className="text-[#c084fc]" to="/register">
+            Create an account
           </Link>
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <label
-            htmlFor="login-email"
-            className="block text-xs font-medium text-white/70"
-          >
+          <label htmlFor="login-email" className="block text-xs font-medium text-white/70">
             Email
           </label>
-          <input
-            type="email"
-            id="login-email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value)
-              setError('')
-              setSuccess('')
-            }}
-            onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
-            placeholder="you@example.com"
-            autoFocus
-            aria-invalid={Boolean(emailError || error)}
-            className={`w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:outline-none focus:ring-2 ${
-              emailError
-                ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/40'
-                : 'border-white/10 focus:border-purple-400 focus:ring-purple-500/40'
-            }`}
-          />
-          {emailError && (
-            <p className="text-xs text-red-300">{emailError}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <label
-            htmlFor="login-password"
-            className="block text-xs font-medium text-white/70"
-          >
-            Password
-          </label>
           <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+              <Mail className="h-4 w-4" />
+            </span>
             <input
-              id="login-password"
-              type={showPassword ? 'text' : 'password'}
-              value={password}
+              id="login-email"
+              type="email"
+              autoFocus
+              value={email}
               onChange={(event) => {
-                setPassword(event.target.value)
+                setEmail(event.target.value)
                 setError('')
                 setSuccess('')
               }}
-              onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-              onKeyUp={(event) => setCapsLock(event.getModifierState('CapsLock'))}
-              placeholder="Password"
-              aria-invalid={Boolean(passwordError || error)}
-              className={`w-full rounded-xl border bg-white/5 px-4 py-3 pr-12 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:outline-none focus:ring-2 ${
-                passwordError
-                  ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/40'
-                  : 'border-white/10 focus:border-purple-400 focus:ring-purple-500/40'
+              onBlur={() => setTouched(true)}
+              placeholder="you@example.com"
+              className={`w-full rounded-2xl border bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm text-white transition duration-200 outline-none ${
+                emailError
+                  ? 'border-red-500/60 focus:border-red-500 focus:ring-2 focus:ring-red-500/30'
+                  : 'border-white/[0.08] focus:border-[#8b5cf6]/55 focus:ring-2 focus:ring-[#8b5cf6]/18'
               }`}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 transition hover:text-white"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
           </div>
-          {passwordError && (
-            <p className="text-xs text-red-300">{passwordError}</p>
-          )}
-          {capsLock && (
-            <p className="text-xs text-amber-200">Caps Lock is on</p>
-          )}
+          {emailError ? <p className="text-xs text-red-300">{emailError}</p> : null}
         </div>
-        {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+
+        {error ? (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
-        )}
-        {success && (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+        ) : null}
+
+        {success ? (
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
             {success}
           </div>
-        )}
+        ) : null}
+
         <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.985 }}
           type="submit"
           disabled={!canSubmit}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.45)] transition-all duration-300 hover:shadow-[0_0_32px_rgba(34,211,238,0.5)] disabled:cursor-not-allowed disabled:opacity-70"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition duration-200 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading ? 'Processing...' : 'Login'}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+          {loading ? 'Sending code...' : 'Send login code'}
         </motion.button>
       </form>
-
-      <div className="mt-6">
-        <div className="flex items-center gap-4 text-xs text-white/50">
-          <span className="h-px flex-1 bg-white/10" />
-          OR
-          <span className="h-px flex-1 bg-white/10" />
-        </div>
-        <button
-          type="button"
-          className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm text-white/70 transition-all duration-300 hover:border-white/20"
-          disabled
-        >
-          Continue with Google (soon)
-        </button>
-      </div>
     </AuthCard>
   )
 }
 
 export default Login
-

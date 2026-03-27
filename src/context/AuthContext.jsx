@@ -1,11 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, supabaseConfigError } from '../lib/supabaseClient.js'
 import {
-  clearPendingRegistration,
   clearPendingVerificationEmail,
-  getPendingRegistrationPassword,
   isEmailVerified,
-  persistPendingRegistration,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
 
@@ -201,7 +198,9 @@ export const AuthProvider = ({ children }) => {
     })
   }, [user])
 
-  const signUp = async (email, password) => {
+  const requestOtp = async (email) => {
+    if (!supabase) throw new Error('Supabase is not configured.')
+
     setLoading(true)
     const normalizedEmail = email.trim().toLowerCase()
     const { data, error } = await supabase.auth.signInWithOtp({
@@ -213,23 +212,20 @@ export const AuthProvider = ({ children }) => {
 
     if (!error) {
       persistPendingVerificationEmail(normalizedEmail)
-      persistPendingRegistration(normalizedEmail, password)
     } else {
-      clearPendingRegistration()
       clearPendingVerificationEmail()
     }
+
     setLoading(false)
     return { data, error }
   }
 
-  const signIn = async (email, password) => {
-    setLoading(true)
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
-    setLoading(false)
-    return { data, error }
+  const signUp = async (email) => {
+    return requestOtp(email)
+  }
+
+  const signIn = async (email) => {
+    return requestOtp(email)
   }
 
   const signOut = async () => {
@@ -238,7 +234,6 @@ export const AuthProvider = ({ children }) => {
     setSession(null)
     setUser(null)
     resetProfileState()
-    clearPendingRegistration()
     clearPendingVerificationEmail()
     setLoading(false)
     return { error }
@@ -275,17 +270,8 @@ export const AuthProvider = ({ children }) => {
   }
 
   const sendVerificationCode = async (email) => {
-    if (!supabase) throw new Error('Supabase is not configured.')
-    const normalizedEmail = email.trim().toLowerCase()
-    const { data, error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        shouldCreateUser: true
-      }
-    })
-
+    const { data, error } = await requestOtp(email)
     if (error) throw error
-    persistPendingVerificationEmail(normalizedEmail)
     return data
   }
 
@@ -300,30 +286,24 @@ export const AuthProvider = ({ children }) => {
 
     if (error) throw error
 
-    const pendingPassword = getPendingRegistrationPassword(normalizedEmail)
-    if (pendingPassword) {
-      const { error: passwordError } = await supabase.auth.updateUser({
-        password: pendingPassword
-      })
-
-      if (passwordError) {
-        throw passwordError
-      }
-    }
-
     const verifiedUser = data?.user || data?.session?.user || null
+    let verifiedProfile = null
     if (verifiedUser) {
       setSession(data?.session ?? null)
       setUser(verifiedUser)
       profileLoadedRef.current = false
-      await fetchProfile(verifiedUser)
+      verifiedProfile = await fetchProfile(verifiedUser)
     } else {
-      await refreshAuthState()
+      const refreshed = await refreshAuthState()
+      verifiedProfile = refreshed?.profile || null
     }
 
-    clearPendingRegistration()
     clearPendingVerificationEmail()
-    return data
+    return {
+      ...data,
+      user: verifiedUser,
+      profile: verifiedProfile
+    }
   }
 
   const selectPlan = async (plan) => {
@@ -440,6 +420,7 @@ export const AuthProvider = ({ children }) => {
       saveDailyInsight,
       sendVerificationCode,
       verifyCode,
+      requestOtp,
       refreshAuthState,
       signUp,
       signIn,

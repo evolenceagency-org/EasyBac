@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { MailCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { ensureValidRoute } from '../utils/authFlow.js'
+import { EMAIL_OTP_LENGTH, ensureValidRoute } from '../utils/authFlow.js'
 
 const Verified = () => {
   const navigate = useNavigate()
@@ -20,7 +20,7 @@ const Verified = () => {
   const helperText = useMemo(() => {
     if (!initialized) return 'Verifying your session...'
     if (!user) {
-      return 'Verification now uses a 6-digit email code. Continue to the code screen to finish setup.'
+      return `Verification now uses an ${EMAIL_OTP_LENGTH}-digit email code. Continue to the code screen to finish setup.`
     }
     return 'Your email has been successfully verified. Continue to finish setup.'
   }, [initialized, user])

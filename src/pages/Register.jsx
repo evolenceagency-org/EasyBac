@@ -1,46 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
-import { useAuth } from '../context/AuthContext.jsx'
+import { ArrowRight, Loader2, Mail } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
-import {
-  getAuthErrorMessage,
-  getPasswordStrength,
-  validateEmail,
-  validatePassword
-} from '../utils/authValidation.js'
-import { ensureValidRoute } from '../utils/authFlow.js'
+import { useAuth } from '../context/AuthContext.jsx'
+import { EMAIL_OTP_LENGTH, ensureValidRoute } from '../utils/authFlow.js'
+import { getAuthErrorMessage, validateEmail } from '../utils/authValidation.js'
 
 const Register = () => {
   const { signUp, user, profile, initialized } = useAuth()
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [capsLock, setCapsLock] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [touched, setTouched] = useState({ email: false, password: false })
-  const navigate = useNavigate()
+  const [touched, setTouched] = useState(false)
 
   const emailError = useMemo(
-    () => (touched.email ? validateEmail(email) : ''),
-    [email, touched.email]
+    () => (touched ? validateEmail(email) : ''),
+    [email, touched]
   )
-  const passwordError = useMemo(
-    () => (touched.password ? validatePassword(password) : ''),
-    [password, touched.password]
-  )
-  const strength = useMemo(() => getPasswordStrength(password), [password])
-  const canSubmit = useMemo(
-    () =>
-      Boolean(email.trim() && password.trim()) &&
-      !emailError &&
-      !passwordError &&
-      !loading,
-    [email, password, emailError, passwordError, loading]
-  )
+
+  const canSubmit = Boolean(email.trim()) && !emailError && !loading
 
   useEffect(() => {
     if (!initialized || !user) return
@@ -52,35 +33,27 @@ const Register = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    setTouched(true)
     setError('')
     setSuccess('')
-    setTouched({ email: true, password: true })
 
-    const emailValidation = validateEmail(email)
-    const passwordValidation = validatePassword(password)
-
-    if (emailValidation || passwordValidation) {
-      setError(emailValidation || passwordValidation)
+    const nextEmail = email.trim().toLowerCase()
+    const nextEmailError = validateEmail(nextEmail)
+    if (nextEmailError) {
+      setError(nextEmailError)
       return
     }
 
     try {
       setLoading(true)
-      const { data, error: signUpError } = await signUp(email, password)
-      if (signUpError) {
-        throw signUpError
-      }
+      const { error: otpError } = await signUp(nextEmail)
+      if (otpError) throw otpError
 
-      if (!data?.session) {
-        setSuccess('We sent a verification code to your email.')
-        navigate('/verify-code', {
-          replace: true,
-          state: { email: email.trim().toLowerCase() }
-        })
-        return
-      }
-
-      navigate('/choose-plan', { replace: true })
+      setSuccess(`We sent a ${EMAIL_OTP_LENGTH}-digit verification code to ${nextEmail}.`)
+      navigate('/verify-code', {
+        replace: true,
+        state: { email: nextEmail }
+      })
     } catch (authError) {
       setError(getAuthErrorMessage(authError))
     } finally {
@@ -90,126 +63,75 @@ const Register = () => {
 
   return (
     <AuthCard
-      label="Start today"
-      title="Create your account"
-      subtitle="Join EasyBac to track your study progress with clarity."
-      sideTitle="Build momentum from day one"
-      sideSubtitle="Your Bac journey becomes easier when the plan is clear and measurable."
+      label="Create account"
+      title="Start with your email"
+      subtitle="We’ll send a one-time code instantly. No password, no magic link, no friction."
+      sideTitle="Onboarding in one fast step"
+      sideSubtitle="Request a secure code, verify it, and continue straight into your plan setup."
       footer={
         <p>
           Already have an account?{' '}
-          <Link className="text-emerald-300" to="/login">
-            Login
+          <Link className="text-[#c084fc]" to="/login">
+            Log in with code
           </Link>
         </p>
       }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
-          <label
-            htmlFor="register-email"
-            className="block text-xs font-medium text-white/70"
-          >
+          <label htmlFor="register-email" className="block text-xs font-medium text-white/70">
             Email
           </label>
-          <input
-            type="email"
-            id="register-email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value)
-              setError('')
-              setSuccess('')
-            }}
-            onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
-            placeholder="you@example.com"
-            autoFocus
-            aria-invalid={Boolean(emailError || error)}
-            className={`w-full rounded-xl border bg-white/5 px-4 py-3 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:outline-none focus:ring-2 ${
-              emailError
-                ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/40'
-                : 'border-white/10 focus:border-purple-400 focus:ring-purple-500/40'
-            }`}
-          />
-          {emailError && <p className="text-xs text-red-300">{emailError}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <label
-            htmlFor="register-password"
-            className="block text-xs font-medium text-white/70"
-          >
-            Password
-          </label>
           <div className="relative">
+            <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/40">
+              <Mail className="h-4 w-4" />
+            </span>
             <input
-              id="register-password"
-              type={showPassword ? 'text' : 'password'}
-              value={password}
+              id="register-email"
+              type="email"
+              autoFocus
+              value={email}
               onChange={(event) => {
-                setPassword(event.target.value)
+                setEmail(event.target.value)
                 setError('')
                 setSuccess('')
               }}
-              onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-              onKeyUp={(event) => setCapsLock(event.getModifierState('CapsLock'))}
-              placeholder="Password"
-              aria-invalid={Boolean(passwordError || error)}
-              className={`w-full rounded-xl border bg-white/5 px-4 py-3 pr-12 text-sm text-white placeholder:text-white/40 transition-all duration-300 focus:outline-none focus:ring-2 ${
-                passwordError
-                  ? 'border-red-500/60 focus:border-red-500 focus:ring-red-500/40'
-                  : 'border-white/10 focus:border-purple-400 focus:ring-purple-500/40'
+              onBlur={() => setTouched(true)}
+              placeholder="you@example.com"
+              className={`w-full rounded-2xl border bg-white/[0.03] py-3.5 pl-11 pr-4 text-sm text-white transition duration-200 outline-none ${
+                emailError
+                  ? 'border-red-500/60 focus:border-red-500 focus:ring-2 focus:ring-red-500/30'
+                  : 'border-white/[0.08] focus:border-[#8b5cf6]/55 focus:ring-2 focus:ring-[#8b5cf6]/18'
               }`}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((prev) => !prev)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 transition hover:text-white"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            >
-              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
           </div>
-          {passwordError && <p className="text-xs text-red-300">{passwordError}</p>}
-          {capsLock && <p className="text-xs text-amber-200">Caps Lock is on</p>}
-          <p className={`text-xs ${strength.tone}`}>{strength.label}</p>
+          <p className="text-xs text-white/42">We’ll create your account automatically if it doesn’t exist yet.</p>
+          {emailError ? <p className="text-xs text-red-300">{emailError}</p> : null}
         </div>
-        {success && (
-          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-            {success}
-          </div>
-        )}
-        {error && (
-          <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+
+        {error ? (
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
             {error}
           </div>
-        )}
+        ) : null}
+
+        {success ? (
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            {success}
+          </div>
+        ) : null}
+
         <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.985 }}
           type="submit"
           disabled={!canSubmit}
-          className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_24px_rgba(16,185,129,0.45)] transition-all duration-300 hover:shadow-[0_0_32px_rgba(34,211,238,0.5)] disabled:cursor-not-allowed disabled:opacity-70"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition duration-200 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading ? 'Processing...' : 'Create Account'}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+          {loading ? 'Sending code...' : 'Continue with email code'}
         </motion.button>
       </form>
-
-      <div className="mt-6">
-        <div className="flex items-center gap-4 text-xs text-white/50">
-          <span className="h-px flex-1 bg-white/10" />
-          OR
-          <span className="h-px flex-1 bg-white/10" />
-        </div>
-        <button
-          type="button"
-          className="mt-4 w-full rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm text-white/70 transition-all duration-300 hover:border-white/20"
-          disabled
-        >
-          Continue with Google (soon)
-        </button>
-      </div>
     </AuthCard>
   )
 }
