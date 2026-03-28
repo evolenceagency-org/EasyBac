@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { EMAIL_OTP_LENGTH, ensureValidRoute, isEmailVerified } from '../utils/authFlow.js'
+import { EMAIL_OTP_LENGTH, getAuthenticatedHomeRoute, isEmailVerified } from '../utils/authFlow.js'
 import {
   getAuthErrorMessage,
   getPasswordStrength,
@@ -42,11 +42,7 @@ const Register = () => {
   useEffect(() => {
     if (!initialized || authLoading || !user) return
 
-    const safeRoute = ensureValidRoute({
-      user,
-      profile,
-      currentPath: '/register'
-    })
+    const safeRoute = getAuthenticatedHomeRoute({ user, profile })
 
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
@@ -85,11 +81,7 @@ const Register = () => {
       }
 
       const safeRoute =
-        ensureValidRoute({
-          user: signedUpUser,
-          profile,
-          currentPath: '/register'
-        }) || '/personalization'
+        getAuthenticatedHomeRoute({ user: signedUpUser, profile }) || '/personalization'
 
       navigate(safeRoute, { replace: true })
     } catch (authError) {

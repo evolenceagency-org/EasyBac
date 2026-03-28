@@ -56,6 +56,7 @@ export const AuthProvider = ({ children }) => {
   const profileLoadedRef = useRef(false)
   const profileUserRef = useRef(null)
   const profileRequestRef = useRef({ userId: null, promise: null })
+  const missingProfileColumnsRef = useRef(new Set())
 
   const resetProfileState = () => {
     setProfile(null)
@@ -64,6 +65,43 @@ export const AuthProvider = ({ children }) => {
     profileLoadedRef.current = false
     profileUserRef.current = null
     profileRequestRef.current = { userId: null, promise: null }
+  }
+
+  const stripUnsupportedProfileColumns = (payload) => {
+    const nextPayload = { ...payload }
+    for (const column of missingProfileColumnsRef.current) {
+      delete nextPayload[column]
+    }
+    return nextPayload
+  }
+
+  const upsertProfileRecord = async (payload, errorLabel) => {
+    const performUpsert = async () =>
+      supabase
+        .from('profiles')
+        .upsert(stripUnsupportedProfileColumns(payload), { onConflict: 'id' })
+        .select()
+        .single()
+
+    let result = await performUpsert()
+
+    if (result.error?.code === 'PGRST204') {
+      const missingColumnMatch = /Could not find the '([^']+)' column/i.exec(
+        result.error?.message || ''
+      )
+
+      if (missingColumnMatch?.[1]) {
+        missingProfileColumnsRef.current.add(missingColumnMatch[1])
+      }
+
+      result = await performUpsert()
+    }
+
+    if (result.error && errorLabel) {
+      console.error(errorLabel, result.error)
+    }
+
+    return result
   }
 
   const fetchProfile = async (authUser) => {
@@ -97,27 +135,22 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (!data) {
-          const { data: created, error: createError } = await supabase
-            .from('profiles')
-            .upsert(
-              {
-                id: authUser.id,
-                email: authUser.email,
-                onboarding_completed: false,
-                personalized: false,
-                plan: null,
-                subscription_status: 'free',
-                trial_start: null,
-                payment_verified: false,
-                personalization: null
-              },
-              { onConflict: 'id' }
-            )
-            .select()
-            .single()
+          const { data: created, error: createError } = await upsertProfileRecord(
+            {
+              id: authUser.id,
+              email: authUser.email,
+              onboarding_completed: false,
+              personalized: false,
+              plan: null,
+              subscription_status: 'free',
+              trial_start: null,
+              payment_verified: false,
+              personalization: null
+            },
+            '[Auth] profiles bootstrap upsert failed'
+          )
 
           if (createError) {
-            console.error('[Auth] profiles bootstrap upsert failed', createError)
             setProfileError('Unable to create your profile.')
             setProfile(null)
             return null
@@ -398,7 +431,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const normalizedPlan = String(plan || '').toLowerCase()
-    if (!['trial', 'premium'].includes(normalizedPlan)) {
+    if (!['trial'].includes(normalizedPlan)) {
       throw new Error('Invalid plan')
     }
 
@@ -419,14 +452,12 @@ export const AuthProvider = ({ children }) => {
       last_insight_date: profile?.last_insight_date ?? null
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert(payload, { onConflict: 'id' })
-      .select()
-      .single()
+    const { data, error } = await upsertProfileRecord(
+      payload,
+      '[Auth] selectPlan upsert failed'
+    )
 
     if (error) {
-      console.error('[Auth] selectPlan upsert failed', error)
       throw error
     }
 
@@ -434,34 +465,55 @@ export const AuthProvider = ({ children }) => {
     return data
   }
 
+  const startPremiumTrialCheckout = async () => {
+    if (!supabase) {
+      throw new Error('Supabase is not configured.')
+    }
+
+    if (!user?.id) {
+      throw new Error('Missing user id')
+    }
+
+    const { data, error } = await supabase.rpc('start_premium_trial_checkout')
+
+    if (error) {
+      console.error('[Auth] startPremiumTrialCheckout failed', error)
+      throw error
+    }
+
+    const nextProfile = Array.isArray(data) ? data[0] : data
+    if (nextProfile) {
+      setProfile(nextProfile)
+      return nextProfile
+    }
+
+    const refreshed = await fetchProfile(user)
+    return refreshed
+  }
+
   const updatePersonalization = async (personalization) => {
     if (!user?.id) {
       throw new Error('Missing user id')
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert(
-        {
-          id: user.id,
-          email: user.email,
-          onboarding_completed: profile?.onboarding_completed || false,
-          personalized: true,
-          plan: profile?.plan ?? null,
-          subscription_status: profile?.subscription_status || 'free',
-          trial_start: profile?.trial_start || null,
-          payment_verified: profile?.payment_verified || false,
-          personalization,
-          daily_insight: profile?.daily_insight ?? null,
-          last_insight_date: profile?.last_insight_date ?? null
-        },
-        { onConflict: 'id' }
-      )
-      .select()
-      .single()
+    const { data, error } = await upsertProfileRecord(
+      {
+        id: user.id,
+        email: user.email,
+        onboarding_completed: profile?.onboarding_completed || false,
+        personalized: true,
+        plan: profile?.plan ?? null,
+        subscription_status: profile?.subscription_status || 'free',
+        trial_start: profile?.trial_start || null,
+        payment_verified: profile?.payment_verified || false,
+        personalization,
+        daily_insight: profile?.daily_insight ?? null,
+        last_insight_date: profile?.last_insight_date ?? null
+      },
+      '[Auth] updatePersonalization upsert failed'
+    )
 
     if (error) {
-      console.error('[Auth] updatePersonalization upsert failed', error)
       throw error
     }
 
@@ -474,29 +526,24 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Missing user id')
     }
 
-    const { data, error } = await supabase
-      .from('profiles')
-      .upsert(
-        {
-          id: user.id,
-          email: user.email,
-          onboarding_completed: profile?.onboarding_completed || false,
-          personalized: profile?.personalized === true || isPersonalized(profile),
-          plan: profile?.plan ?? null,
-          subscription_status: profile?.subscription_status || 'free',
-          trial_start: profile?.trial_start || null,
-          payment_verified: profile?.payment_verified || false,
-          personalization: profile?.personalization ?? null,
-          last_insight_date: insightDate,
-          daily_insight: insightPayload
-        },
-        { onConflict: 'id' }
-      )
-      .select()
-      .single()
+    const { data, error } = await upsertProfileRecord(
+      {
+        id: user.id,
+        email: user.email,
+        onboarding_completed: profile?.onboarding_completed || false,
+        personalized: profile?.personalized === true || isPersonalized(profile),
+        plan: profile?.plan ?? null,
+        subscription_status: profile?.subscription_status || 'free',
+        trial_start: profile?.trial_start || null,
+        payment_verified: profile?.payment_verified || false,
+        personalization: profile?.personalization ?? null,
+        last_insight_date: insightDate,
+        daily_insight: insightPayload
+      },
+      '[Auth] saveDailyInsight upsert failed'
+    )
 
     if (error) {
-      console.error('[Auth] saveDailyInsight upsert failed', error)
       throw error
     }
 
@@ -522,6 +569,7 @@ export const AuthProvider = ({ children }) => {
       initialized,
       isEmailVerified: isEmailVerified(user),
       startFreeTrial,
+      startPremiumTrialCheckout,
       selectPlan,
       updatePersonalization,
       saveDailyInsight,

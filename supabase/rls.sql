@@ -13,6 +13,12 @@ as $$
     where p.id = uid
       and (
         p.payment_verified = true
+        or p.subscription_status = 'premium'
+        or (
+          p.trial_active = true
+          and p.trial_ends_at is not null
+          and p.trial_ends_at > now()
+        )
         or (
           p.subscription_status in ('trial', 'free_trial')
           and p.trial_start is not null
@@ -60,6 +66,15 @@ using (id = auth.uid())
 with check (
   id = auth.uid()
   and payment_verified = (select p.payment_verified from public.profiles p where p.id = auth.uid())
+  and trial_active is not distinct from (select p.trial_active from public.profiles p where p.id = auth.uid())
+  and trial_ends_at is not distinct from (select p.trial_ends_at from public.profiles p where p.id = auth.uid())
+  and (
+    plan is not distinct from (select p.plan from public.profiles p where p.id = auth.uid())
+    or (
+      (select coalesce(p.plan, 'free') from public.profiles p where p.id = auth.uid()) in ('free', '')
+      and plan = 'trial'
+    )
+  )
   and (
     (
       trial_start is not distinct from (select p.trial_start from public.profiles p where p.id = auth.uid())

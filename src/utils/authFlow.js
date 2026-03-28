@@ -1,4 +1,5 @@
 import { isPersonalized } from './personalization.js'
+import { isPremiumTrialActive } from './subscription.js'
 
 export const PENDING_VERIFICATION_EMAIL_KEY = 'auth:pending-verification-email'
 export const EMAIL_OTP_LENGTH = 6
@@ -46,6 +47,14 @@ export const hasCompletedOnboarding = (profile) => {
   return isPersonalized(profile) && hasSelectedPlan(profile)
 }
 
+export const getAuthenticatedHomeRoute = ({ user, profile }) => {
+  if (!user) return '/login'
+  if (!isEmailVerified(user)) return '/verify'
+  if (!profile || !isPersonalized(profile)) return '/personalization'
+  if (!hasSelectedPlan(profile)) return '/choose-plan'
+  return '/dashboard'
+}
+
 export const ensureValidRoute = ({ user, profile, currentPath = '' }) => {
   if (!user) return '/login'
 
@@ -55,15 +64,20 @@ export const ensureValidRoute = ({ user, profile, currentPath = '' }) => {
 
   if (!profile) return null
 
-  const onboardingRoutes = new Set(['/onboarding', '/personalization', '/choose-plan'])
+  const personalizationRoutes = new Set(['/onboarding', '/personalization'])
+  const planRoutes = new Set(['/choose-plan', '/checkout'])
 
   if (!isPersonalized(profile)) {
-    return onboardingRoutes.has(currentPath) ? null : '/personalization'
+    return personalizationRoutes.has(currentPath) ? null : '/personalization'
   }
 
   if (!hasSelectedPlan(profile)) {
-    return onboardingRoutes.has(currentPath) ? null : '/choose-plan'
+    return planRoutes.has(currentPath) ? null : '/choose-plan'
   }
 
-  return currentPath === '/dashboard' ? null : '/dashboard'
+  if (isPremiumTrialActive(profile) && currentPath === '/payment-pending') {
+    return null
+  }
+
+  return null
 }

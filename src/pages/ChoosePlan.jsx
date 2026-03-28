@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { ensureValidRoute, hasSelectedPlan, isEmailVerified } from '../utils/authFlow.js'
+import { getAuthenticatedHomeRoute, hasSelectedPlan, isEmailVerified } from '../utils/authFlow.js'
 import { isPersonalized } from '../utils/personalization.js'
 
 const freeFeatures = ['Study dashboard', 'Task tracking', 'Exam practice']
@@ -36,7 +36,7 @@ const ChoosePlan = () => {
     }
 
     if (hasSelectedPlan(profile)) {
-      const safeRoute = ensureValidRoute({ user, profile, currentPath: '/choose-plan' })
+      const safeRoute = getAuthenticatedHomeRoute({ user, profile })
       if (safeRoute && safeRoute !== '/choose-plan') {
         navigate(safeRoute, { replace: true })
       }
@@ -52,6 +52,11 @@ const ChoosePlan = () => {
 
     try {
       setLoadingPlan(nextPlan)
+      if (nextPlan === 'premium') {
+        navigate('/checkout', { replace: true })
+        return
+      }
+
       await selectPlan(nextPlan)
       navigate('/dashboard', { replace: true })
     } catch {
@@ -115,7 +120,7 @@ const ChoosePlan = () => {
                   ? 'Starting...'
                   : !canSelectPlan
                     ? 'Setting up...'
-                    : 'Choose Free'}
+                    : 'Start Free Trial'}
               </button>
             </motion.div>
 
@@ -131,7 +136,7 @@ const ChoosePlan = () => {
                 </span>
               </div>
               <p className="mt-2 text-3xl font-bold">Start Pro</p>
-              <p className="mt-1 text-sm text-white/70">Save Pro as your preferred plan and continue setup without leaving onboarding.</p>
+              <p className="mt-1 text-sm text-white/70">Continue to checkout, unlock instant trial access, and keep studying while payment review happens.</p>
 
               <ul className="mt-5 space-y-3">
                 {proFeatures.map((feature) => (
@@ -149,10 +154,10 @@ const ChoosePlan = () => {
                 className="mt-6 w-full rounded-xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.32)] transition-all duration-300 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loadingPlan === 'premium'
-                  ? 'Starting...'
+                  ? 'Opening...'
                   : !canSelectPlan
                     ? 'Setting up...'
-                    : 'Choose Pro'}
+                    : 'Start with Premium'}
               </button>
             </motion.div>
           </div>

@@ -11,7 +11,7 @@ import {
   OTP_COOLDOWN_SECONDS,
   OTP_MAX_ATTEMPTS,
   clearPendingVerificationEmail,
-  ensureValidRoute,
+  getAuthenticatedHomeRoute,
   getPendingVerificationEmail,
   isEmailVerified,
   persistPendingVerificationEmail
@@ -122,7 +122,7 @@ const Verify = () => {
   useEffect(() => {
     if (!initialized || profileLoading || status === 'verifying' || !user || !isEmailVerified(user)) return
 
-    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/verify' })
+    const safeRoute = getAuthenticatedHomeRoute({ user, profile })
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
     }
@@ -173,10 +173,9 @@ const Verify = () => {
       clearPendingVerificationEmail()
       setStatus('success')
 
-      const safeRoute = ensureValidRoute({
+      const safeRoute = getAuthenticatedHomeRoute({
         user: verified?.user || user,
-        profile: verified?.profile || profile,
-        currentPath: '/verify'
+        profile: verified?.profile || profile
       })
 
       window.setTimeout(() => {

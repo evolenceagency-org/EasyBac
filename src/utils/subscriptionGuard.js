@@ -11,7 +11,7 @@ export const checkTrialAndBlock = (profile, navigate) => {
 
   if (navigate) {
     setTimeout(() => {
-      navigate('/payment')
+      navigate('/checkout')
     }, 300)
   }
 

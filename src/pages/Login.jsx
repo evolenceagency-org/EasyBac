@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { ArrowRight, Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { ensureValidRoute, isEmailVerified, persistPendingVerificationEmail } from '../utils/authFlow.js'
+import { getAuthenticatedHomeRoute, isEmailVerified, persistPendingVerificationEmail } from '../utils/authFlow.js'
 import { getAuthErrorMessage, validateEmail, validatePassword } from '../utils/authValidation.js'
 
 const Login = () => {
@@ -37,11 +37,7 @@ const Login = () => {
   useEffect(() => {
     if (!initialized || authLoading || !user) return
 
-    const safeRoute = ensureValidRoute({
-      user,
-      profile,
-      currentPath: '/login'
-    })
+    const safeRoute = getAuthenticatedHomeRoute({ user, profile })
 
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
@@ -84,11 +80,7 @@ const Login = () => {
       }
 
       const redirectTo =
-        ensureValidRoute({
-          user: authUser,
-          profile: authProfile,
-          currentPath: location.state?.from?.pathname || '/login'
-        }) ||
+        getAuthenticatedHomeRoute({ user: authUser, profile: authProfile }) ||
         location.state?.from?.pathname ||
         '/dashboard'
 

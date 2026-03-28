@@ -64,7 +64,7 @@ export const DataProvider = ({ children }) => {
   )
 
   const redirectToPayment = useCallback(() => {
-    navigate('/payment', { replace: true })
+    navigate('/checkout', { replace: true })
   }, [navigate])
 
   const refreshTasks = useCallback(

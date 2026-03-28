@@ -11,6 +11,8 @@ create table if not exists public.profiles (
   plan text,
   subscription_status text not null default 'free',
   trial_start timestamptz,
+  trial_active boolean not null default false,
+  trial_ends_at timestamptz,
   payment_verified boolean not null default false,
   personalization jsonb default '{}'::jsonb,
   last_insight_date date,
@@ -24,6 +26,8 @@ alter table public.profiles
   add column if not exists plan text,
   add column if not exists subscription_status text not null default 'free',
   add column if not exists trial_start timestamptz,
+  add column if not exists trial_active boolean not null default false,
+  add column if not exists trial_ends_at timestamptz,
   add column if not exists payment_verified boolean not null default false,
   add column if not exists personalization jsonb default '{}'::jsonb,
   add column if not exists last_insight_date date,
@@ -59,21 +63,28 @@ alter table public.profiles
 
 alter table public.profiles
   add constraint profiles_subscription_status_check
-  check (subscription_status in ('free', 'trial', 'premium'));
+  check (subscription_status in ('free', 'trial', 'premium', 'premium_trial'));
 
 alter table public.profiles
   drop constraint if exists profiles_plan_check;
 
 alter table public.profiles
   add constraint profiles_plan_check
-  check (plan in ('trial', 'premium') or plan is null);
+  check (plan in ('free', 'trial', 'premium', 'premium_trial') or plan is null);
 
 update public.profiles
 set
   plan = case
     when payment_verified = true or subscription_status = 'premium' then 'premium'
+    when trial_active = true and trial_ends_at is not null and trial_ends_at > now() then 'premium_trial'
     when subscription_status = 'trial' then 'trial'
     else plan
+  end,
+  subscription_status = case
+    when payment_verified = true or subscription_status = 'premium' then 'premium'
+    when trial_active = true and trial_ends_at is not null and trial_ends_at > now() then 'premium_trial'
+    when subscription_status = 'free_trial' then 'trial'
+    else subscription_status
   end,
   personalized = case
     when personalized = true then true
@@ -103,6 +114,8 @@ begin
     plan,
     subscription_status,
     trial_start,
+    trial_active,
+    trial_ends_at,
     payment_verified,
     personalization
   )
@@ -113,6 +126,8 @@ begin
     false,
     null,
     'free',
+    null,
+    false,
     null,
     false,
     null
@@ -135,5 +150,138 @@ create index if not exists profiles_subscription_status_idx
 
 create index if not exists profiles_trial_start_idx
   on public.profiles(trial_start);
+
+create index if not exists profiles_trial_active_idx
+  on public.profiles(trial_active);
+
+create index if not exists profiles_trial_ends_at_idx
+  on public.profiles(trial_ends_at);
+
+create or replace function public.start_premium_trial_checkout()
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_uid uuid := auth.uid();
+  current_email text;
+  next_profile public.profiles;
+begin
+  if current_uid is null then
+    raise exception 'Authentication required';
+  end if;
+
+  select email into current_email
+  from auth.users
+  where id = current_uid;
+
+  insert into public.profiles (
+    id,
+    email,
+    onboarding_completed,
+    personalized,
+    plan,
+    subscription_status,
+    trial_start,
+    trial_active,
+    trial_ends_at,
+    payment_verified
+  )
+  values (
+    current_uid,
+    current_email,
+    true,
+    false,
+    'premium_trial',
+    'premium_trial',
+    null,
+    true,
+    now() + interval '48 hours',
+    false
+  )
+  on conflict (id) do update
+  set
+    email = excluded.email,
+    onboarding_completed = true,
+    plan = case
+      when profiles.payment_verified = true or profiles.subscription_status = 'premium'
+        then 'premium'
+      else 'premium_trial'
+    end,
+    subscription_status = case
+      when profiles.payment_verified = true or profiles.subscription_status = 'premium'
+        then 'premium'
+      else 'premium_trial'
+    end,
+    trial_active = case
+      when profiles.payment_verified = true or profiles.subscription_status = 'premium'
+        then false
+      else true
+    end,
+    trial_ends_at = case
+      when profiles.payment_verified = true or profiles.subscription_status = 'premium'
+        then null
+      else now() + interval '48 hours'
+    end
+  returning * into next_profile;
+
+  return next_profile;
+end;
+$$;
+
+create or replace function public.admin_confirm_payment(target_user_id uuid)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_profile public.profiles;
+begin
+  update public.profiles
+  set
+    plan = 'premium',
+    subscription_status = 'premium',
+    payment_verified = true,
+    trial_active = false,
+    trial_ends_at = null,
+    onboarding_completed = true
+  where id = target_user_id
+  returning * into next_profile;
+
+  return next_profile;
+end;
+$$;
+
+create or replace function public.admin_reject_payment(target_user_id uuid)
+returns public.profiles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  next_profile public.profiles;
+begin
+  update public.profiles
+  set
+    plan = 'free',
+    subscription_status = 'free',
+    payment_verified = false,
+    trial_active = false,
+    trial_ends_at = null,
+    onboarding_completed = true
+  where id = target_user_id
+  returning * into next_profile;
+
+  return next_profile;
+end;
+$$;
+
+revoke all on function public.start_premium_trial_checkout() from public, anon, authenticated;
+grant execute on function public.start_premium_trial_checkout() to authenticated;
+
+revoke all on function public.admin_confirm_payment(uuid) from public, anon, authenticated;
+revoke all on function public.admin_reject_payment(uuid) from public, anon, authenticated;
 
 commit;

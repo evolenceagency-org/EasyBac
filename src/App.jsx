@@ -4,7 +4,6 @@ import { AnimatePresence } from 'framer-motion'
 import MainLayout from './layout/MainLayout.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
-import Payment from './pages/Payment.jsx'
 import Verify from './pages/Verify.jsx'
 import Onboarding from './pages/Onboarding.jsx'
 import Landing from './pages/Landing.jsx'
@@ -12,11 +11,13 @@ import Contact from './pages/Contact.jsx'
 import Pricing from './pages/Pricing.jsx'
 import ChoosePlan from './pages/ChoosePlan.jsx'
 import DonatePage from './pages/DonatePage.jsx'
+import Checkout from './pages/Checkout.jsx'
+import PaymentPending from './pages/PaymentPending.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
 import useAppAnalytics from './hooks/useAppAnalytics.js'
 import { supabaseConfigError } from './lib/supabaseClient.js'
-import { ensureValidRoute } from './utils/authFlow.js'
+import { getAuthenticatedHomeRoute } from './utils/authFlow.js'
 
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'))
 const Study = lazy(() => import('./pages/Study.jsx'))
@@ -46,7 +47,7 @@ const AuthRedirect = ({ children }) => {
   }
 
   if (user) {
-    const safeRoute = ensureValidRoute({ user, profile })
+    const safeRoute = getAuthenticatedHomeRoute({ user, profile })
     return <Navigate to={safeRoute || '/dashboard'} replace />
   }
 
@@ -109,7 +110,9 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
-            <Route path="/payment" element={<Payment />} />
+            <Route path="/checkout" element={<Checkout />} />
+            <Route path="/payment-pending" element={<PaymentPending />} />
+            <Route path="/payment" element={<Navigate to="/checkout" replace />} />
             <Route path="/exam-simulation" element={<ExamSimulation />} />
             <Route path="/exam-result" element={<ExamResult />} />
             <Route element={<MainLayout />}>

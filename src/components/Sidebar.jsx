@@ -20,7 +20,10 @@ import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
 import {
+  getPremiumTrialHoursLeft,
   getTrialDaysLeft,
+  hasPremiumAccess,
+  isPremiumTrialActive,
   isSubscriptionActive,
   normalizeSubscriptionStatus
 } from '../utils/subscription.js'
@@ -179,17 +182,21 @@ const Sidebar = () => {
   }
 
   const plan = normalizeSubscriptionStatus(profile?.subscription_status)
-  const showUpgrade = Boolean(profile && plan === 'trial' && !profile.payment_verified)
+  const premiumTrialActive = isPremiumTrialActive(profile)
+  const showUpgrade = Boolean(profile && !hasPremiumAccess(profile))
 
   const subscriptionBadge = useMemo(() => {
     if (!profile) return null
-    if (profile.payment_verified) return 'Premium Access'
+    if (premiumTrialActive) {
+      return `Premium trial - ${getPremiumTrialHoursLeft(profile)}h left`
+    }
+    if (profile.payment_verified || plan === 'premium') return 'Premium Access'
     if (isSubscriptionActive(profile)) {
       const daysLeft = getTrialDaysLeft(profile)
       return `Trial - ${daysLeft} days left`
     }
     return 'Payment Required'
-  }, [profile])
+  }, [plan, premiumTrialActive, profile])
 
   return (
     <motion.aside
@@ -249,7 +256,7 @@ const Sidebar = () => {
 
           {showUpgrade && (
             <Link
-              to="/payment"
+              to="/checkout"
               className={cn(
                 'mb-2.5 inline-flex items-center justify-center rounded-[10px] border border-[rgba(139,92,246,0.25)] bg-[linear-gradient(90deg,rgba(139,92,246,0.95),rgba(168,85,247,0.95))] px-3 py-2 text-[11px] font-semibold text-white transition hover:border-[rgba(139,92,246,0.4)] hover:opacity-95',
                 isCollapsed && 'h-10 w-10 px-0 py-0'
