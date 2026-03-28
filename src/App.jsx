@@ -39,9 +39,9 @@ const LoadingScreen = () => (
 )
 
 const AuthRedirect = ({ children }) => {
-  const { user, profile, initialized } = useAuth()
+  const { user, profile, initialized, profileLoading } = useAuth()
 
-  if (!initialized) {
+  if (!initialized || (user && profileLoading)) {
     return <LoadingScreen />
   }
 

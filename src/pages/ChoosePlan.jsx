@@ -1,19 +1,13 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
-import { ensureValidRoute, isEmailVerified } from '../utils/authFlow.js'
+import { ensureValidRoute, hasSelectedPlan, isEmailVerified } from '../utils/authFlow.js'
 import { isPersonalized } from '../utils/personalization.js'
 
-const freeFeatures = ['Basic tracking', 'Limited sessions', 'Pomodoro timer']
-const premiumFeatures = [
-  'Unlimited sessions',
-  'AI insights',
-  'Advanced analytics',
-  'Subject tracking',
-  'Priority support'
-]
+const freeFeatures = ['Study dashboard', 'Task tracking', 'Exam practice']
+const proFeatures = ['Unlimited sessions', 'AI insights', 'Advanced analytics', 'Priority features']
 
 const ChoosePlan = () => {
   const { user, profile, initialized, loading, profileLoading, selectPlan } = useAuth()
@@ -32,7 +26,7 @@ const ChoosePlan = () => {
     }
 
     if (!isEmailVerified(user)) {
-      navigate('/verify', { replace: true, state: { email: user.email, flow: 'signup' } })
+      navigate('/verify', { replace: true, state: { email: user.email } })
       return
     }
 
@@ -41,60 +35,35 @@ const ChoosePlan = () => {
       return
     }
 
-    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/choose-plan' })
-    if (safeRoute && safeRoute !== '/choose-plan') {
-      navigate(safeRoute, { replace: true })
+    if (hasSelectedPlan(profile)) {
+      const safeRoute = ensureValidRoute({ user, profile, currentPath: '/choose-plan' })
+      if (safeRoute && safeRoute !== '/choose-plan') {
+        navigate(safeRoute, { replace: true })
+      }
     }
   }, [initialized, loading, navigate, profile, profileLoading, user])
 
-  const handleFreeTrial = async () => {
+  const handleSelectPlan = async (nextPlan) => {
     setActionError('')
     if (!canSelectPlan) {
       setActionError('Please log in first.')
       return
     }
+
     try {
-      setLoadingPlan('free')
-      await selectPlan('trial')
+      setLoadingPlan(nextPlan)
+      await selectPlan(nextPlan)
       navigate('/dashboard', { replace: true })
     } catch {
-      setActionError('Unable to start your trial right now. Please try again.')
-    } finally {
-      setLoadingPlan('')
-    }
-  }
-
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1)
-      return
-    }
-    navigate('/onboarding', { replace: true })
-  }
-
-  const handlePremium = async () => {
-    setActionError('')
-    if (!canSelectPlan) {
-      setActionError('Please log in first.')
-      return
-    }
-
-    try {
-      setLoadingPlan('premium')
-      await selectPlan('premium')
-      navigate('/payment', { replace: true })
-    } catch {
-      setActionError('Unable to continue to premium right now. Please try again.')
+      setActionError('Unable to save your plan right now. Please try again.')
     } finally {
       setLoadingPlan('')
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-[#0a0a0f] to-[#050508] text-white">
+    <div className="min-h-screen bg-[#050507] text-white">
       <div className="relative px-4 pb-14 pt-8 md:px-12 md:pb-16 md:pt-12">
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_20%,rgba(139,92,246,0.16),transparent_30%),radial-gradient(circle_at_80%_80%,rgba(59,130,246,0.14),transparent_32%)]" />
-
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -103,31 +72,31 @@ const ChoosePlan = () => {
         >
           <button
             type="button"
-            onClick={handleBack}
+            onClick={() => navigate('/personalization', { replace: true })}
             className="inline-flex w-fit items-center gap-2 text-[13px] text-white/60 transition hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back
           </button>
 
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl md:p-7">
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-xl md:p-7">
             <h1 className="text-2xl font-semibold tracking-tight md:text-4xl">
               Choose your plan to continue
             </h1>
             <p className="mt-3 text-sm text-white/70 md:text-base">
-              Pick how you want to continue. You can start your free trial now or go premium when you are ready.
+              Pick the experience you want to start with. Once you choose, we&apos;ll finish onboarding and take you into the dashboard.
             </p>
-            <span className="mt-5 block h-[2px] w-40 bg-gradient-to-r from-purple-500 to-blue-500" />
           </div>
 
-          <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 md:gap-6">
             <motion.div
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-xl md:p-6"
+              className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-xl md:p-6"
             >
-              <p className="text-xs uppercase tracking-wide text-white/60">Start Free Trial</p>
-              <p className="mt-2 text-3xl font-bold">3 Days Trial</p>
+              <p className="text-xs uppercase tracking-wide text-white/60">Free</p>
+              <p className="mt-2 text-3xl font-bold">Start Free</p>
+              <p className="mt-1 text-sm text-white/65">A lighter starting point with the core study workflow.</p>
               <ul className="mt-5 space-y-3">
                 {freeFeatures.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm text-white/75">
@@ -138,37 +107,36 @@ const ChoosePlan = () => {
               </ul>
               <button
                 type="button"
-                onClick={handleFreeTrial}
-                disabled={loadingPlan === 'free' || !canSelectPlan}
+                onClick={() => handleSelectPlan('trial')}
+                disabled={loadingPlan === 'trial' || !canSelectPlan}
                 className="mt-6 w-full rounded-xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all duration-300 hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loadingPlan === 'free'
+                {loadingPlan === 'trial'
                   ? 'Starting...'
                   : !canSelectPlan
                     ? 'Setting up...'
-                    : 'Start Free Trial'}
+                    : 'Choose Free'}
               </button>
             </motion.div>
 
             <motion.div
-              whileHover={{ scale: 1.05 }}
+              whileHover={{ scale: 1.01 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="relative rounded-2xl border border-purple-500/40 bg-gradient-to-br from-purple-600/20 to-blue-600/20 p-5 shadow-[0_0_40px_rgba(139,92,246,0.25)] backdrop-blur-xl md:p-6"
+              className="rounded-2xl border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 p-5 shadow-[0_0_28px_rgba(139,92,246,0.18)] backdrop-blur-xl md:p-6"
             >
-              <div className="absolute right-4 top-4 flex flex-wrap gap-2">
-                <span className="rounded-full border border-purple-300/25 bg-purple-500/20 px-3 py-1 text-xs text-purple-100">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs uppercase tracking-wide text-white/70">Pro</p>
+                <span className="rounded-full border border-[#c084fc]/30 bg-[#8b5cf6]/15 px-3 py-1 text-[11px] text-[#eadcff]">
                   Recommended
                 </span>
               </div>
-
-              <p className="pt-12 text-xs uppercase tracking-wide text-white/70">Premium</p>
-              <p className="mt-2 text-2xl font-bold md:text-3xl">299 MAD - Full access until exam</p>
-              <p className="mt-1 text-sm text-white/70">One-time payment</p>
+              <p className="mt-2 text-3xl font-bold">Start Pro</p>
+              <p className="mt-1 text-sm text-white/70">Save Pro as your preferred plan and continue setup without leaving onboarding.</p>
 
               <ul className="mt-5 space-y-3">
-                {premiumFeatures.map((feature) => (
+                {proFeatures.map((feature) => (
                   <li key={feature} className="flex items-center gap-2 text-sm text-white/85">
-                    <CheckCircle2 className="h-4 w-4 text-purple-200" />
+                    <CheckCircle2 className="h-4 w-4 text-[#d8b4fe]" />
                     {feature}
                   </li>
                 ))}
@@ -176,20 +144,24 @@ const ChoosePlan = () => {
 
               <button
                 type="button"
-                onClick={handlePremium}
+                onClick={() => handleSelectPlan('premium')}
                 disabled={loadingPlan === 'premium' || !canSelectPlan}
-                className="mt-6 w-full rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-[0_0_25px_rgba(139,92,246,0.45)] transition-all duration-300 hover:scale-105 hover:shadow-[0_0_35px_rgba(139,92,246,0.6)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-6 w-full rounded-xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white shadow-[0_0_20px_rgba(139,92,246,0.32)] transition-all duration-300 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loadingPlan === 'premium' ? 'Preparing...' : 'Start with Premium'}
+                {loadingPlan === 'premium'
+                  ? 'Starting...'
+                  : !canSelectPlan
+                    ? 'Setting up...'
+                    : 'Choose Pro'}
               </button>
             </motion.div>
           </div>
 
-          {actionError && (
+          {actionError ? (
             <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
               {actionError}
             </div>
-          )}
+          ) : null}
         </motion.div>
       </div>
     </div>
@@ -197,4 +169,3 @@ const ChoosePlan = () => {
 }
 
 export default ChoosePlan
-

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2, Lock, Mail } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { EMAIL_OTP_LENGTH, ensureValidRoute, isEmailVerified } from '../utils/authFlow.js'
@@ -13,12 +13,12 @@ import {
 } from '../utils/authValidation.js'
 
 const Register = () => {
-  const { signUp, user, profile, initialized } = useAuth()
+  const { signUp, user, profile, initialized, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [touched, setTouched] = useState({ email: false, password: false })
@@ -32,15 +32,26 @@ const Register = () => {
     [password, touched.password]
   )
   const strength = useMemo(() => getPasswordStrength(password), [password])
-  const canSubmit = Boolean(email.trim() && password.trim()) && !emailError && !passwordError && !loading
+
+  const canSubmit =
+    Boolean(email.trim() && password.trim()) &&
+    !emailError &&
+    !passwordError &&
+    !submitting
 
   useEffect(() => {
-    if (!initialized || !user) return
-    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/register' })
+    if (!initialized || authLoading || !user) return
+
+    const safeRoute = ensureValidRoute({
+      user,
+      profile,
+      currentPath: '/register'
+    })
+
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
     }
-  }, [initialized, navigate, profile, user])
+  }, [authLoading, initialized, navigate, profile, user])
 
   const handleSubmit = async (event) => {
     event.preventDefault()
@@ -51,33 +62,40 @@ const Register = () => {
     const normalizedEmail = email.trim().toLowerCase()
     const nextEmailError = validateEmail(normalizedEmail)
     const nextPasswordError = validatePassword(password)
+
     if (nextEmailError || nextPasswordError) {
       setError(nextEmailError || nextPasswordError)
       return
     }
 
     try {
-      setLoading(true)
+      setSubmitting(true)
       const { data, error: signUpError } = await signUp(normalizedEmail, password)
       if (signUpError) throw signUpError
 
       setSuccess(`We sent a ${EMAIL_OTP_LENGTH}-digit verification code to ${normalizedEmail}.`)
 
       const signedUpUser = data?.user || data?.session?.user || null
-
       if (!signedUpUser || !isEmailVerified(signedUpUser)) {
         navigate('/verify', {
           replace: true,
-          state: { email: normalizedEmail, flow: 'signup' }
+          state: { email: normalizedEmail }
         })
         return
       }
 
-      navigate('/onboarding', { replace: true })
+      const safeRoute =
+        ensureValidRoute({
+          user: signedUpUser,
+          profile,
+          currentPath: '/register'
+        }) || '/personalization'
+
+      navigate(safeRoute, { replace: true })
     } catch (authError) {
       setError(getAuthErrorMessage(authError))
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -85,9 +103,9 @@ const Register = () => {
     <AuthCard
       label="Create account"
       title="Create your EasyBac account"
-      subtitle="Start with your email and password, then confirm ownership with a one-time code."
-      sideTitle="A clean signup flow"
-      sideSubtitle="Create the account first, verify it with an OTP, and continue directly into onboarding and plan selection."
+      subtitle="Start with your email and password, then confirm the account with a 6-digit code."
+      sideTitle="Register, verify, continue"
+      sideSubtitle="This flow creates the account first, verifies ownership with OTP, then moves directly into personalization and plan selection."
       footer={
         <p>
           Already have an account?{' '}
@@ -163,7 +181,11 @@ const Register = () => {
             </button>
           </div>
           <div className="flex items-center justify-between gap-3 text-xs">
-            {passwordError ? <p className="text-red-300">{passwordError}</p> : <span className="text-white/42">Use a password you’ll remember.</span>}
+            {passwordError ? (
+              <p className="text-red-300">{passwordError}</p>
+            ) : (
+              <span className="text-white/42">Use a password you&apos;ll remember.</span>
+            )}
             <span className={strength.tone}>{strength.label}</span>
           </div>
         </div>
@@ -187,8 +209,8 @@ const Register = () => {
           disabled={!canSubmit}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition duration-200 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          {loading ? 'Creating account...' : 'Create account'}
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+          {submitting ? 'Creating account...' : 'Create account'}
         </motion.button>
       </form>
     </AuthCard>
@@ -196,4 +218,3 @@ const Register = () => {
 }
 
 export default Register
-

@@ -1,33 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { ArrowRight, Eye, EyeOff, Loader2, Mail, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, Loader2, Mail } from 'lucide-react'
 import AuthCard from '../components/AuthCard.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import {
-  EMAIL_OTP_LENGTH,
-  ensureValidRoute,
-  isEmailVerified,
-  persistPendingVerificationEmail
-} from '../utils/authFlow.js'
-import {
-  getAuthErrorMessage,
-  validateEmail,
-  validatePassword
-} from '../utils/authValidation.js'
+import { ensureValidRoute, isEmailVerified, persistPendingVerificationEmail } from '../utils/authFlow.js'
+import { getAuthErrorMessage, validateEmail, validatePassword } from '../utils/authValidation.js'
 
 const Login = () => {
-  const { signIn, requestLoginOtp, signOut, user, profile, initialized } = useAuth()
+  const { signIn, user, profile, initialized, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [otpLoading, setOtpLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
   const [touched, setTouched] = useState({ email: false, password: false })
 
   const emailError = useMemo(
@@ -38,75 +27,66 @@ const Login = () => {
     () => (touched.password ? validatePassword(password) : ''),
     [password, touched.password]
   )
-  const canSubmit = Boolean(email.trim() && password.trim()) && !emailError && !passwordError && !loading
-  const canRequestOtp = Boolean(email.trim()) && !validateEmail(email) && !otpLoading
+
+  const canSubmit =
+    Boolean(email.trim() && password.trim()) &&
+    !emailError &&
+    !passwordError &&
+    !submitting
 
   useEffect(() => {
-    if (!initialized || !user) return
-    const normalizedInput = email.trim().toLowerCase()
-    const authenticatedEmail = user.email?.trim().toLowerCase() || ''
+    if (!initialized || authLoading || !user) return
 
-    if (normalizedInput && authenticatedEmail && normalizedInput !== authenticatedEmail) {
-      return
-    }
+    const safeRoute = ensureValidRoute({
+      user,
+      profile,
+      currentPath: '/login'
+    })
 
-    const safeRoute = ensureValidRoute({ user, profile, currentPath: '/login' })
     if (safeRoute) {
       navigate(safeRoute, { replace: true })
     }
-  }, [email, initialized, navigate, profile, user])
+  }, [authLoading, initialized, navigate, profile, user])
 
-  const handlePasswordLogin = async (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
     setTouched({ email: true, password: true })
     setError('')
-    setSuccess('')
 
     const normalizedEmail = email.trim().toLowerCase()
     const nextEmailError = validateEmail(normalizedEmail)
     const nextPasswordError = validatePassword(password)
+
     if (nextEmailError || nextPasswordError) {
       setError(nextEmailError || nextPasswordError)
       return
     }
 
     try {
-      setLoading(true)
-
-      if (user?.email && user.email.toLowerCase() !== normalizedEmail) {
-        await signOut()
-      }
-
+      setSubmitting(true)
       const { data, error: signInError } = await signIn(normalizedEmail, password)
       if (signInError) throw signInError
 
       const authUser = data?.user || data?.session?.user || null
-      if (!authUser || authUser.email?.trim().toLowerCase() !== normalizedEmail) {
-        await signOut()
+      const authProfile = data?.profile || profile
+
+      if (!authUser) {
         throw new Error('Invalid login credentials')
       }
 
       if (!isEmailVerified(authUser)) {
-        persistPendingVerificationEmail(normalizedEmail, 'signup')
+        persistPendingVerificationEmail(normalizedEmail)
         navigate('/verify', {
           replace: true,
-          state: { email: normalizedEmail, flow: 'signup' }
+          state: { email: normalizedEmail }
         })
         return
       }
 
-      const hydratedUser = data?.user || data?.session?.user || null
-      const hydratedProfile = data?.profile || profile
-
-      if (!hydratedUser || hydratedUser.email?.trim().toLowerCase() !== normalizedEmail) {
-        await signOut()
-        throw new Error('Invalid login credentials')
-      }
-
       const redirectTo =
         ensureValidRoute({
-          user: hydratedUser,
-          profile: hydratedProfile,
+          user: authUser,
+          profile: authProfile,
           currentPath: location.state?.from?.pathname || '/login'
         }) ||
         location.state?.from?.pathname ||
@@ -114,38 +94,18 @@ const Login = () => {
 
       navigate(redirectTo, { replace: true })
     } catch (authError) {
+      if (/Email not confirmed/i.test(authError?.message || '')) {
+        persistPendingVerificationEmail(normalizedEmail)
+        navigate('/verify', {
+          replace: true,
+          state: { email: normalizedEmail }
+        })
+        return
+      }
+
       setError(getAuthErrorMessage(authError))
     } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleOtpLogin = async () => {
-    setTouched((prev) => ({ ...prev, email: true }))
-    setError('')
-    setSuccess('')
-
-    const normalizedEmail = email.trim().toLowerCase()
-    const nextEmailError = validateEmail(normalizedEmail)
-    if (nextEmailError) {
-      setError(nextEmailError)
-      return
-    }
-
-    try {
-      setOtpLoading(true)
-      const { error: otpError } = await requestLoginOtp(normalizedEmail)
-      if (otpError) throw otpError
-
-      setSuccess(`We sent a ${EMAIL_OTP_LENGTH}-digit login code to ${normalizedEmail}.`)
-      navigate('/verify', {
-        replace: true,
-        state: { email: normalizedEmail, flow: 'otp-login' }
-      })
-    } catch (authError) {
-      setError(getAuthErrorMessage(authError))
-    } finally {
-      setOtpLoading(false)
+      setSubmitting(false)
     }
   }
 
@@ -153,9 +113,9 @@ const Login = () => {
     <AuthCard
       label="Welcome back"
       title="Log in to EasyBac"
-      subtitle="Use your password as the default path, or request a one-time code when you need it."
-      sideTitle="Password first, OTP when needed"
-      sideSubtitle="This keeps login predictable, avoids accidental account creation, and still gives you a secure fallback."
+      subtitle="Use your email and password to continue exactly where you left off."
+      sideTitle="One clear login path"
+      sideSubtitle="Login never creates an account. If the email is verified, we route straight into onboarding or the dashboard."
       footer={
         <p>
           Need an account first?{' '}
@@ -165,7 +125,7 @@ const Login = () => {
         </p>
       }
     >
-      <form onSubmit={handlePasswordLogin} className="space-y-5">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div className="space-y-2">
           <label htmlFor="login-email" className="block text-xs font-medium text-white/70">
             Email
@@ -182,7 +142,6 @@ const Login = () => {
               onChange={(event) => {
                 setEmail(event.target.value)
                 setError('')
-                setSuccess('')
               }}
               onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
               placeholder="you@example.com"
@@ -197,19 +156,9 @@ const Login = () => {
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <label htmlFor="login-password" className="block text-xs font-medium text-white/70">
-              Password
-            </label>
-            <button
-              type="button"
-              onClick={handleOtpLogin}
-              disabled={!canRequestOtp}
-              className="text-xs text-[#c084fc] transition hover:text-[#d8b4fe] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              {otpLoading ? 'Sending code...' : 'Use email code instead'}
-            </button>
-          </div>
+          <label htmlFor="login-password" className="block text-xs font-medium text-white/70">
+            Password
+          </label>
           <div className="relative">
             <input
               id="login-password"
@@ -218,7 +167,6 @@ const Login = () => {
               onChange={(event) => {
                 setPassword(event.target.value)
                 setError('')
-                setSuccess('')
               }}
               onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
               placeholder="Your password"
@@ -246,15 +194,6 @@ const Login = () => {
           </div>
         ) : null}
 
-        {success ? (
-          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4" />
-              <span>{success}</span>
-            </div>
-          </div>
-        ) : null}
-
         <motion.button
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.985 }}
@@ -262,8 +201,8 @@ const Login = () => {
           disabled={!canSubmit}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition duration-200 hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-          {loading ? 'Logging in...' : 'Log in'}
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+          {submitting ? 'Logging in...' : 'Log in'}
         </motion.button>
       </form>
     </AuthCard>

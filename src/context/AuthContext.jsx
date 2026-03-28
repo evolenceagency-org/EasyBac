@@ -5,6 +5,7 @@ import {
   isEmailVerified,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
+import { isPersonalized } from '../utils/personalization.js'
 
 let sessionPromise = null
 
@@ -90,7 +91,7 @@ export const AuthProvider = ({ children }) => {
 
         if (error) {
           console.error('[Auth] profiles select failed', error)
-          setProfileError('Unable to verify subscription.')
+          setProfileError('Unable to load your profile.')
           setProfile(null)
           return null
         }
@@ -103,6 +104,7 @@ export const AuthProvider = ({ children }) => {
                 id: authUser.id,
                 email: authUser.email,
                 onboarding_completed: false,
+                personalized: false,
                 plan: null,
                 subscription_status: 'free',
                 trial_start: null,
@@ -116,7 +118,7 @@ export const AuthProvider = ({ children }) => {
 
           if (createError) {
             console.error('[Auth] profiles bootstrap upsert failed', createError)
-            setProfileError('Unable to verify subscription.')
+            setProfileError('Unable to create your profile.')
             setProfile(null)
             return null
           }
@@ -173,19 +175,17 @@ export const AuthProvider = ({ children }) => {
         setInitialized(true)
         return
       }
+
       try {
         stripLegacyAuthParamsFromUrl()
         const { data, error } = await getSessionOnce()
         if (!mounted) return
 
-        if (error) {
-          throw error
-        }
+        if (error) throw error
 
         const nextSession = data?.session ?? null
         setSession(nextSession)
         setUser(nextSession?.user ?? null)
-        setLoading(false)
 
         if (!nextSession?.user) {
           resetProfileState()
@@ -193,16 +193,13 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         if (!mounted) return
         const recovered = await clearInvalidSession(err)
-        if (recovered) {
-          setLoading(false)
-          setInitialized(true)
-          return
+        if (!recovered) {
+          setProfileError('Unable to verify your session.')
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setProfileLoading(false)
         }
-        setProfileError('Unable to verify subscription.')
-        setSession(null)
-        setUser(null)
-        setProfile(null)
-        setProfileLoading(false)
       } finally {
         if (mounted) {
           setLoading(false)
@@ -222,7 +219,6 @@ export const AuthProvider = ({ children }) => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
         if (!mounted) return
-        setLoading(true)
         setSession(newSession)
         setUser(newSession?.user ?? null)
         setLoading(false)
@@ -242,8 +238,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     if (!user) return
     if (profileLoadedRef.current && profileUserRef.current === user.id) return
+
     fetchProfile(user).catch(() => {
-      setProfileError('Unable to verify subscription.')
+      setProfileError('Unable to load your profile.')
       setProfileLoading(false)
     })
   }, [user])
@@ -259,7 +256,7 @@ export const AuthProvider = ({ children }) => {
     })
 
     if (!error) {
-      persistPendingVerificationEmail(normalizedEmail, 'signup')
+      persistPendingVerificationEmail(normalizedEmail)
     } else {
       clearPendingVerificationEmail()
     }
@@ -285,6 +282,10 @@ export const AuthProvider = ({ children }) => {
       setUser(signedInUser)
       profileLoadedRef.current = false
       nextProfile = await fetchProfile(signedInUser)
+
+      if (isEmailVerified(signedInUser)) {
+        clearPendingVerificationEmail()
+      }
     }
 
     setLoading(false)
@@ -295,26 +296,6 @@ export const AuthProvider = ({ children }) => {
       },
       error
     }
-  }
-
-  const requestLoginOtp = async (email) => {
-    if (!supabase) throw new Error('Supabase is not configured.')
-
-    setLoading(true)
-    const normalizedEmail = email.trim().toLowerCase()
-    const { data, error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: {
-        shouldCreateUser: false
-      }
-    })
-
-    if (!error) {
-      persistPendingVerificationEmail(normalizedEmail, 'otp-login')
-    }
-
-    setLoading(false)
-    return { data, error }
   }
 
   const signOut = async () => {
@@ -351,54 +332,48 @@ export const AuthProvider = ({ children }) => {
       const nextProfile = await fetchProfile(nextSession.user)
       return {
         session: nextSession,
-        user: nextSession?.user ?? null,
+        user: nextSession.user,
         profile: nextProfile
       }
-    } else {
-      resetProfileState()
-      return {
-        session: null,
-        user: null,
-        profile: null
-      }
+    }
+
+    resetProfileState()
+    return {
+      session: null,
+      user: null,
+      profile: null
     }
   }
 
-  const sendVerificationCode = async (email, flow = 'signup') => {
+  const sendVerificationCode = async (email) => {
     if (!supabase) throw new Error('Supabase is not configured.')
 
     const normalizedEmail = email.trim().toLowerCase()
-
-    if (flow === 'otp-login') {
-      const { data, error } = await requestLoginOtp(normalizedEmail)
-      if (error) throw error
-      return data
-    }
-
     const { data, error } = await supabase.auth.resend({
       type: 'signup',
       email: normalizedEmail
     })
 
     if (error) throw error
-    persistPendingVerificationEmail(normalizedEmail, 'signup')
+    persistPendingVerificationEmail(normalizedEmail)
     return data
   }
 
-  const verifyCode = async (email, code, flow = 'signup') => {
+  const verifyCode = async (email, code) => {
     if (!supabase) throw new Error('Supabase is not configured.')
+
     const normalizedEmail = email.trim().toLowerCase()
-    const verificationType = flow === 'otp-login' ? 'email' : 'signup'
     const { data, error } = await supabase.auth.verifyOtp({
       email: normalizedEmail,
       token: code.trim(),
-      type: verificationType
+      type: 'signup'
     })
 
     if (error) throw error
 
     const verifiedUser = data?.user || data?.session?.user || null
     let verifiedProfile = null
+
     if (verifiedUser) {
       setSession(data?.session ?? null)
       setUser(verifiedUser)
@@ -422,63 +397,41 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Missing user id')
     }
 
-    if (plan === 'trial') {
-      const payload = {
-        id: user.id,
-        email: user.email,
-        onboarding_completed: true,
-        plan: 'trial',
-        subscription_status: 'trial',
-        trial_start: profile?.trial_start || new Date().toISOString(),
-        payment_verified: false,
-        personalization: profile?.personalization ?? null,
-        daily_insight: profile?.daily_insight ?? null,
-        last_insight_date: profile?.last_insight_date ?? null
-      }
-
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('[Auth] selectPlan trial upsert failed', error)
-        throw error
-      }
-      setProfile(data)
-      return data
+    const normalizedPlan = String(plan || '').toLowerCase()
+    if (!['trial', 'premium'].includes(normalizedPlan)) {
+      throw new Error('Invalid plan')
     }
 
-    if (plan === 'premium') {
-      const payload = {
-        id: user.id,
-        email: user.email,
-        onboarding_completed: true,
-        plan: 'premium',
-        subscription_status: profile?.subscription_status || 'free',
-        trial_start: profile?.trial_start || null,
-        payment_verified: profile?.payment_verified || false,
-        personalization: profile?.personalization ?? null,
-        daily_insight: profile?.daily_insight ?? null,
-        last_insight_date: profile?.last_insight_date ?? null
-      }
+    const hasPremiumAccess =
+      profile?.payment_verified === true || profile?.subscription_status === 'premium'
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('[Auth] selectPlan premium upsert failed', error)
-        throw error
-      }
-      setProfile(data)
-      return data
+    const payload = {
+      id: user.id,
+      email: user.email,
+      onboarding_completed: true,
+      personalized: profile?.personalized === true || isPersonalized(profile),
+      plan: normalizedPlan,
+      subscription_status: hasPremiumAccess ? 'premium' : 'trial',
+      trial_start: hasPremiumAccess ? profile?.trial_start || null : profile?.trial_start || new Date().toISOString(),
+      payment_verified: profile?.payment_verified || false,
+      personalization: profile?.personalization ?? null,
+      daily_insight: profile?.daily_insight ?? null,
+      last_insight_date: profile?.last_insight_date ?? null
     }
 
-    throw new Error('Invalid plan')
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert(payload, { onConflict: 'id' })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[Auth] selectPlan upsert failed', error)
+      throw error
+    }
+
+    setProfile(data)
+    return data
   }
 
   const updatePersonalization = async (personalization) => {
@@ -493,6 +446,7 @@ export const AuthProvider = ({ children }) => {
           id: user.id,
           email: user.email,
           onboarding_completed: profile?.onboarding_completed || false,
+          personalized: true,
           plan: profile?.plan ?? null,
           subscription_status: profile?.subscription_status || 'free',
           trial_start: profile?.trial_start || null,
@@ -510,6 +464,7 @@ export const AuthProvider = ({ children }) => {
       console.error('[Auth] updatePersonalization upsert failed', error)
       throw error
     }
+
     setProfile(data)
     return data
   }
@@ -526,6 +481,7 @@ export const AuthProvider = ({ children }) => {
           id: user.id,
           email: user.email,
           onboarding_completed: profile?.onboarding_completed || false,
+          personalized: profile?.personalized === true || isPersonalized(profile),
           plan: profile?.plan ?? null,
           subscription_status: profile?.subscription_status || 'free',
           trial_start: profile?.trial_start || null,
@@ -543,6 +499,7 @@ export const AuthProvider = ({ children }) => {
       console.error('[Auth] saveDailyInsight upsert failed', error)
       throw error
     }
+
     setProfile(data)
     return data
   }
@@ -570,7 +527,6 @@ export const AuthProvider = ({ children }) => {
       saveDailyInsight,
       sendVerificationCode,
       verifyCode,
-      requestLoginOtp,
       refreshAuthState,
       signUp,
       signIn,

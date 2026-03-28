@@ -1,4 +1,4 @@
-﻿import { supabase } from '../lib/supabaseClient.js'
+import { supabase } from '../lib/supabaseClient.js'
 
 const ensureUserId = (userId) => {
   if (!userId) {
@@ -28,10 +28,12 @@ export const createProfile = async (userId, email) => {
         id: userId,
         email,
         onboarding_completed: false,
+        personalized: false,
         plan: null,
         subscription_status: 'free',
         trial_start: null,
-        payment_verified: false
+        payment_verified: false,
+        personalization: null
       },
       { onConflict: 'id', ignoreDuplicates: true }
     )

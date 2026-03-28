@@ -17,6 +17,8 @@ export const hasRequiredPersonalization = (personalization) => {
 }
 
 export const isPersonalized = (profile) => {
+  if (profile?.personalized === true) return true
+
   const personalization = profile?.personalization
   if (!personalization || typeof personalization !== 'object') return false
 

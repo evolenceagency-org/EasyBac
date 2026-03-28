@@ -3,9 +3,8 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { CheckCircle2, Circle } from 'lucide-react'
 import { useAuth } from '../context/AuthContext.jsx'
+import { hasSelectedPlan } from '../utils/authFlow.js'
 import { isPersonalized } from '../utils/personalization.js'
-import { normalizeSubscriptionStatus } from '../utils/subscription.js'
-import { hasCompletedOnboarding } from '../utils/authFlow.js'
 
 const steps = [
   { id: 'personalization', label: 'Personalization' },
@@ -19,29 +18,26 @@ const Onboarding = () => {
   const nextRoute = useMemo(() => {
     if (!profile) return null
     if (!isPersonalized(profile)) return '/personalization'
-
-    const currentPlan = String(profile.plan || '').toLowerCase()
-    const currentStatus = normalizeSubscriptionStatus(profile.subscription_status)
-    if (!currentPlan && currentStatus === 'free') return '/choose-plan'
-
-    return hasCompletedOnboarding(profile) ? '/dashboard' : '/choose-plan'
+    if (!hasSelectedPlan(profile)) return '/choose-plan'
+    return '/dashboard'
   }, [profile])
 
   useEffect(() => {
     if (!initialized || loading || profileLoading) return
+
     if (!user) {
       navigate('/login', { replace: true })
       return
     }
+
     if (!nextRoute) return
-    const timer = window.setTimeout(() => navigate(nextRoute, { replace: true }), 240)
+
+    const timer = window.setTimeout(() => navigate(nextRoute, { replace: true }), 220)
     return () => window.clearTimeout(timer)
   }, [initialized, loading, navigate, nextRoute, profileLoading, user])
 
   const completedPersonalization = isPersonalized(profile)
-  const completedPlan = Boolean(
-    profile?.plan || normalizeSubscriptionStatus(profile?.subscription_status) !== 'free'
-  )
+  const completedPlan = hasSelectedPlan(profile)
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#050507] px-4 text-white">
@@ -54,13 +50,12 @@ const Onboarding = () => {
         <p className="text-[11px] uppercase tracking-[0.26em] text-white/45">Onboarding</p>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight">Let&apos;s finish your setup</h1>
         <p className="mt-2 text-sm leading-6 text-white/65">
-          We are taking you to the next required step so your account is fully ready before you land in the dashboard.
+          We&apos;re taking you to the next required step so your workspace is fully ready before you land in the dashboard.
         </p>
 
         <div className="mt-6 space-y-3">
           {steps.map((step) => {
-            const completed =
-              step.id === 'personalization' ? completedPersonalization : completedPlan
+            const completed = step.id === 'personalization' ? completedPersonalization : completedPlan
             return (
               <div
                 key={step.id}
@@ -71,8 +66,8 @@ const Onboarding = () => {
                 ) : (
                   <Circle className="h-4 w-4 text-white/35" />
                 )}
-            <span className="text-sm text-white/82">{step.label}</span>
-          </div>
+                <span className="text-sm text-white/82">{step.label}</span>
+              </div>
             )
           })}
         </div>

@@ -13,7 +13,6 @@ import {
   clearPendingVerificationEmail,
   ensureValidRoute,
   getPendingVerificationEmail,
-  getPendingVerificationFlow,
   isEmailVerified,
   persistPendingVerificationEmail
 } from '../utils/authFlow.js'
@@ -61,10 +60,9 @@ const statusPanelMotion = {
 const Verify = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user, profile, initialized, sendVerificationCode, verifyCode } = useAuth()
+  const { user, profile, profileLoading, initialized, sendVerificationCode, verifyCode } = useAuth()
 
   const [pendingEmail, setPendingEmail] = useState('')
-  const [pendingFlow, setPendingFlow] = useState('signup')
   const [code, setCode] = useState('')
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -84,20 +82,21 @@ const Verify = () => {
   }, [])
 
   useEffect(() => {
-    const emailFromState = location.state?.email || ''
-    const flowFromState = location.state?.flow || ''
-    const emailFromSession = getPendingVerificationEmail()
-    const flowFromSession = getPendingVerificationFlow()
-    const nextEmail = (emailFromState || emailFromSession || user?.email || '').trim().toLowerCase()
-    const nextFlow = flowFromState || flowFromSession || 'signup'
+    const nextEmail = (
+      location.state?.email ||
+      getPendingVerificationEmail() ||
+      user?.email ||
+      ''
+    )
+      .trim()
+      .toLowerCase()
 
     setPendingEmail(nextEmail)
-    setPendingFlow(nextFlow)
     if (nextEmail) {
-      persistPendingVerificationEmail(nextEmail, nextFlow)
+      persistPendingVerificationEmail(nextEmail)
       setAttemptState(readAttemptState(nextEmail))
     }
-  }, [location.state?.email, location.state?.flow, user?.email])
+  }, [location.state?.email, user?.email])
 
   useEffect(() => {
     if (cooldown <= 0) return undefined
@@ -121,12 +120,13 @@ const Verify = () => {
   }, [attemptState.blockedUntil, attemptTick, pendingEmail])
 
   useEffect(() => {
-    if (!initialized || status !== 'idle' || !user || !isEmailVerified(user)) return
+    if (!initialized || profileLoading || status === 'verifying' || !user || !isEmailVerified(user)) return
+
     const safeRoute = ensureValidRoute({ user, profile, currentPath: '/verify' })
     if (safeRoute) {
-      navigate(safeRoute || '/dashboard', { replace: true })
+      navigate(safeRoute, { replace: true })
     }
-  }, [initialized, navigate, profile, status, user])
+  }, [initialized, navigate, profile, profileLoading, status, user])
 
   const blockedForSeconds = useMemo(() => {
     if (!attemptState.blockedUntil) return 0
@@ -162,14 +162,13 @@ const Verify = () => {
     setError('')
 
     const nextAttempts = attemptState.attempts + 1
-    const blockedUntil =
-      nextAttempts >= OTP_MAX_ATTEMPTS ? Date.now() + OTP_ATTEMPT_WINDOW_MS : 0
+    const blockedUntil = nextAttempts >= OTP_MAX_ATTEMPTS ? Date.now() + OTP_ATTEMPT_WINDOW_MS : 0
     const snapshot = { attempts: nextAttempts, blockedUntil, updatedAt: Date.now() }
     saveAttemptState(normalizedEmail, snapshot)
     setAttemptState(snapshot)
 
     try {
-      const verified = await verifyCode(normalizedEmail, fullCode, pendingFlow)
+      const verified = await verifyCode(normalizedEmail, fullCode)
       saveAttemptState(normalizedEmail, { attempts: 0, blockedUntil: 0, updatedAt: Date.now() })
       clearPendingVerificationEmail()
       setStatus('success')
@@ -226,7 +225,7 @@ const Verify = () => {
     submittedCodeRef.current = ''
 
     try {
-      await sendVerificationCode(pendingEmail, pendingFlow)
+      await sendVerificationCode(pendingEmail)
       setResendCount((value) => value + 1)
       setCooldown(OTP_COOLDOWN_SECONDS)
     } catch (resendError) {
@@ -237,7 +236,7 @@ const Verify = () => {
 
   const handleUseAnotherEmail = () => {
     clearPendingVerificationEmail()
-    navigate(pendingFlow === 'otp-login' ? '/login' : '/register', { replace: true })
+    navigate('/register', { replace: true })
   }
 
   if (!pendingEmail && !user?.email) {
@@ -245,9 +244,9 @@ const Verify = () => {
       <AuthCard
         label="Verification"
         title="We need your email first"
-        subtitle="Start from login or register so we know which account to verify."
-        sideTitle="Code verification"
-        sideSubtitle="We keep the verification screen focused: find the email, enter six digits, and continue."
+        subtitle="Start from register so we know which account to verify."
+        sideTitle="Signup verification"
+        sideSubtitle="The verification screen stays focused: one email, one 6-digit code, then straight into onboarding."
         footer={
           <p>
             Need a fresh start?{' '}
@@ -259,24 +258,15 @@ const Verify = () => {
       >
         <div className="space-y-4">
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 text-sm text-white/72">
-            We could not find a pending verification session. Start from login or register and we will send a new code right away.
+            We could not find a pending verification session. Start from registration and we will send a new code right away.
           </div>
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/register', { replace: true })}
-              className="flex-1 rounded-xl bg-[#8b5cf6] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
-            >
-              Create account
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/login', { replace: true })}
-              className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/78 transition hover:bg-white/[0.05]"
-            >
-              Back to login
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/register', { replace: true })}
+            className="w-full rounded-xl bg-[#8b5cf6] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+          >
+            Back to register
+          </button>
         </div>
       </AuthCard>
     )
@@ -284,11 +274,11 @@ const Verify = () => {
 
   return (
     <AuthCard
-      label={pendingFlow === 'otp-login' ? 'Login code' : 'Email verification'}
+      label="Email verification"
       title="Enter your verification code"
-      subtitle="We will verify the code and continue automatically as soon as all six digits are in."
-      sideTitle="Quick, predictable verification"
-      sideSubtitle="The input auto-advances, supports paste, and verifies instantly so users never get stuck in a bulky form."
+      subtitle="We verify automatically as soon as the sixth digit is entered."
+      sideTitle="Fast OTP confirmation"
+      sideSubtitle="The code input auto-advances, supports paste, and handles resend timing so the flow stays frictionless on mobile and desktop."
       footer={
         <div className="flex items-center justify-between gap-3">
           <button
@@ -298,9 +288,7 @@ const Verify = () => {
           >
             Use another email
           </button>
-          <span className="text-xs text-white/40">
-            {pendingFlow === 'otp-login' ? 'OTP login' : 'Signup verification'}
-          </span>
+          <span className="text-xs text-white/40">Signup verification</span>
         </div>
       }
     >
