@@ -50,7 +50,7 @@ export const hasCompletedOnboarding = (profile) => {
 export const getAuthenticatedHomeRoute = ({ user, profile }) => {
   if (!user) return '/login'
   if (!isEmailVerified(user)) return '/verify'
-  if (!profile || !isPersonalized(profile)) return '/personalization'
+  if (!profile || !isPersonalized(profile)) return '/onboarding'
   if (!hasSelectedPlan(profile)) return '/choose-plan'
   return '/dashboard'
 }
@@ -68,7 +68,7 @@ export const ensureValidRoute = ({ user, profile, currentPath = '' }) => {
   const planRoutes = new Set(['/choose-plan', '/checkout'])
 
   if (!isPersonalized(profile)) {
-    return personalizationRoutes.has(currentPath) ? null : '/personalization'
+    return personalizationRoutes.has(currentPath) ? null : '/onboarding'
   }
 
   if (!hasSelectedPlan(profile)) {

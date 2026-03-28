@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useAuth } from '../context/AuthContext.jsx'
 import { hasPremiumAccess, normalizeSubscriptionStatus } from '../utils/subscription.js'
@@ -61,3 +61,4 @@ const Navbar = () => {
 }
 
 export default Navbar
+

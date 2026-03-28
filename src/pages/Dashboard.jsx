@@ -1,204 +1,72 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ArrowRight, CheckCircle2, ListTodo, Sparkles, TimerReset } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { CheckCircle2, GraduationCap, SlidersHorizontal } from 'lucide-react'
-import Countdown from '../components/Countdown.jsx'
-import DashboardCards from '../components/DashboardCards.jsx'
-import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
-import SubjectFocusChart from '../components/Charts/SubjectFocusChart.jsx'
-import WeeklySummary from '../components/WeeklySummary.jsx'
-import DashboardTaskSummary from '../components/DashboardTaskSummary.jsx'
-import AIInsights from '../components/AIInsights.jsx'
 import { useData } from '../context/DataContext.jsx'
-import {
-  calculateCurrentStreak,
-  calculateLongestStreak
-} from '../utils/streak.js'
-import { toDateKey } from '../utils/dateUtils.js'
-import {
-  detectWeakSubjects,
-  getDailyStudyData,
-  getSubjectFocus
-} from '../utils/analytics.js'
-import {
-  getTasksCompletedToday,
-  isOverdueTask
-} from '../utils/taskStats.js'
-import GlassCard from '../components/GlassCard.jsx'
-import { useAuth } from '../context/AuthContext.jsx'
-import {
-  buildAutopilotPlan,
-  queueAutopilotLaunch
-} from '../utils/autopilotEngine.ts'
-import { buildExamSimulationPlan } from '../utils/examEngine.ts'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 }
+  exit: { opacity: 0, y: -10 }
 }
 
-const getTodayKey = () => toDateKey(new Date())
+const formatDueLabel = (task) => {
+  if (!task?.due_date) return 'No due date'
+  const due = new Date(task.due_date)
+  if (Number.isNaN(due.getTime())) return 'No due date'
+  const today = new Date()
+  const dueKey = due.toDateString()
+  const todayKey = today.toDateString()
+  if (dueKey === todayKey) return 'Due today'
+  return `Due ${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+}
 
 const Dashboard = () => {
-  const { tasks, studySessions, loading, errors } = useData()
-  const { profile } = useAuth()
-  const location = useLocation()
+  const { tasks, studySessions } = useData()
   const navigate = useNavigate()
+  const location = useLocation()
   const [showOnboardingToast, setShowOnboardingToast] = useState(false)
 
   useEffect(() => {
     const fromState = Boolean(location.state?.fromOnboarding)
-    const fromSessionStorage =
-      typeof window !== 'undefined' &&
-      window.sessionStorage.getItem('onboarding-complete-toast') === '1'
-
-    if (!fromState && !fromSessionStorage) return
+    if (!fromState) return
 
     setShowOnboardingToast(true)
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem('onboarding-complete-toast')
-    }
-
-    if (fromState) {
-      navigate(location.pathname, { replace: true, state: {} })
-    }
-
-    const timer = setTimeout(() => setShowOnboardingToast(false), 3200)
-    return () => clearTimeout(timer)
+    navigate(location.pathname, { replace: true, state: {} })
+    const timer = window.setTimeout(() => setShowOnboardingToast(false), 3200)
+    return () => window.clearTimeout(timer)
   }, [location.pathname, location.state, navigate])
 
-  const todayMinutes = useMemo(() => {
-    const todayKey = getTodayKey()
+  const incompleteTasks = useMemo(
+    () => tasks.filter((task) => !task.completed),
+    [tasks]
+  )
+
+  const nextTask = useMemo(() => {
+    const sorted = [...incompleteTasks].sort((a, b) => {
+      if (a.status === 'active' && b.status !== 'active') return -1
+      if (b.status === 'active' && a.status !== 'active') return 1
+      if (!a.due_date && !b.due_date) return 0
+      if (!a.due_date) return 1
+      if (!b.due_date) return -1
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
+    })
+
+    return sorted[0] || null
+  }, [incompleteTasks])
+
+  const todaysMinutes = useMemo(() => {
+    const todayKey = new Date().toDateString()
     return studySessions.reduce((total, session) => {
-      if (toDateKey(session.date) === todayKey) {
+      const sessionDate = session?.date ? new Date(session.date) : null
+      if (sessionDate && sessionDate.toDateString() === todayKey) {
         return total + (session.duration_minutes || 0)
       }
       return total
     }, 0)
   }, [studySessions])
 
-  const totalMinutes = useMemo(
-    () =>
-      studySessions.reduce(
-        (total, session) => total + (session.duration_minutes || 0),
-        0
-      ),
-    [studySessions]
-  )
-
-  const currentStreak = useMemo(
-    () => calculateCurrentStreak(studySessions),
-    [studySessions]
-  )
-
-  const longestStreak = useMemo(
-    () => calculateLongestStreak(studySessions),
-    [studySessions]
-  )
-
-  const streakInfo = useMemo(
-    () => ({ current: currentStreak, longest: longestStreak }),
-    [currentStreak, longestStreak]
-  )
-
-  const weakSubjects = useMemo(() => detectWeakSubjects(tasks), [tasks])
-
-  const taskSummary = useMemo(() => {
-    const completedToday = getTasksCompletedToday(tasks)
-    const pending = tasks.filter((task) => !task.completed).length
-    const overdue = tasks.filter((task) => isOverdueTask(task)).length
-    return { completedToday, pending, overdue }
-  }, [tasks])
-
-  const autopilotPlan = useMemo(
-    () =>
-      buildAutopilotPlan({
-        user: profile?.personalization || profile,
-        tasks,
-        studySessions
-      }),
-    [profile, studySessions, tasks]
-  )
-
-  const examPlan = useMemo(
-    () =>
-      buildExamSimulationPlan(profile?.personalization || profile, tasks, {
-        studySessions,
-        subject: 'auto',
-        durationMinutes: null,
-        difficulty: 'auto'
-      }),
-    [profile, studySessions, tasks]
-  )
-
-  const dailyStudyData = useMemo(
-    () => getDailyStudyData(studySessions),
-    [studySessions]
-  )
-
-  const subjectFocusData = useMemo(() => getSubjectFocus(tasks), [tasks])
-
-  const handleStartAutopilot = () => {
-    const payload = queueAutopilotLaunch({
-      userId: profile?.id,
-      plan: autopilotPlan
-    })
-
-    navigate('/study', {
-      state: {
-        ...payload,
-        autopilot: true
-      }
-    })
-  }
-
-  const handleStartExamSimulation = () => {
-    navigate('/exam-simulation', {
-      state: {
-        ...examPlan,
-        autoStart: true
-      }
-    })
-  }
-
-  const quickInsights = useMemo(() => {
-    const labels = dailyStudyData.labels || []
-    const values = dailyStudyData.datasets?.[0]?.data || []
-    if (!labels.length || !values.length) {
-      return {
-        bestDay: '-',
-        worstDay: '-',
-        avg: '-',
-        topSubject: '-',
-        consistency: 0
-      }
-    }
-
-    const maxValue = Math.max(...values)
-    const minValue = Math.min(...values)
-    const bestIndex = values.indexOf(maxValue)
-    const worstIndex = values.indexOf(minValue)
-    const total = values.reduce((sum, v) => sum + v, 0)
-    const avg = Math.round(total / values.length)
-
-    const topSubject =
-      subjectFocusData.breakdown?.reduce((top, item) => {
-        if (!top || item.value > top.value) return item
-        return top
-      }, null)?.label || '-'
-
-    const consistencyDays = values.filter((v) => v >= 40).length
-    const consistency = Math.round((consistencyDays / values.length) * 100)
-
-    return {
-      bestDay: labels[bestIndex] || '-',
-      worstDay: labels[worstIndex] || '-',
-      avg: `${avg} min`,
-      topSubject,
-      consistency
-    }
-  }, [dailyStudyData, subjectFocusData])
+  const todaysPlan = useMemo(() => incompleteTasks.slice(0, 3), [incompleteTasks])
 
   return (
     <motion.div
@@ -206,222 +74,119 @@ const Dashboard = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.18 }}
-      className="relative flex max-w-full flex-col gap-4 md:gap-6"
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="mx-auto flex w-full max-w-5xl flex-col gap-5"
     >
       <AnimatePresence>
-        {showOnboardingToast && (
+        {showOnboardingToast ? (
           <motion.div
-            initial={{ opacity: 0, y: -24, scale: 0.96 }}
+            initial={{ opacity: 0, y: -18, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-            className="fixed left-1/2 top-4 z-[90] w-[calc(100%-2rem)] max-w-[430px] -translate-x-1/2 rounded-2xl border border-emerald-400/25 bg-emerald-500/12 px-4 py-3 shadow-[0_0_30px_rgba(16,185,129,0.22)] backdrop-blur-xl md:left-auto md:right-6 md:top-6 md:w-[430px] md:translate-x-0"
+            exit={{ opacity: 0, y: -14, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
           >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-200">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-emerald-100">
-                  Setup complete
-                </p>
-                <p className="mt-1 text-xs text-emerald-100/85 md:text-sm">
-                  Your workspace is ready with personalized AI insights.
-                </p>
-              </div>
-            </div>
+            Setup complete — your workspace is ready.
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
 
-      <div className="grid gap-4 md:gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <Countdown />
-        <WeeklySummary sessions={studySessions} />
+      <section className="rounded-3xl border border-white/[0.08] bg-[#0b0b0f] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-[11px] uppercase tracking-[0.26em] text-white/45">Assistant</p>
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
+              {nextTask ? nextTask.title : 'Your next move is ready'}
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-white/65">
+              {nextTask
+                ? `${formatDueLabel(nextTask)} • ${nextTask.status || 'Ready'}. Start a focused block and keep momentum.`
+                : 'You’re clear to start a new focus session or plan the next task.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate('/study', { state: nextTask ? { suggestedTaskId: nextTask.id } : undefined })}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+          >
+            Start focus
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </section>
+
+      <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Today’s plan</p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <p className="text-xs text-white/50">Focus today</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{todaysMinutes} min</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <p className="text-xs text-white/50">Tasks open</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{incompleteTasks.length}</p>
+            </div>
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <p className="text-xs text-white/50">Next task</p>
+              <p className="mt-2 text-sm font-medium text-white">{nextTask?.title || 'Nothing queued'}</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Start session</p>
+          <h2 className="mt-3 text-xl font-semibold">Keep your momentum going</h2>
+          <p className="mt-2 text-sm leading-6 text-white/65">
+            Open study mode and start a focused block with the next task already in mind.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/study', { state: nextTask ? { suggestedTaskId: nextTask.id } : undefined })}
+            className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+          >
+            <TimerReset className="h-4 w-4 text-[#c084fc]" />
+            Start a session
+          </button>
+        </section>
       </div>
 
-      <DashboardTaskSummary
-        completedToday={taskSummary.completedToday}
-        pending={taskSummary.pending}
-        overdue={taskSummary.overdue}
-      />
-
-      <GlassCard className="p-4 md:p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.24em] text-purple-200/75">
-              Focus Autopilot
-            </p>
-            <p className="mt-1 text-lg font-semibold text-white">
-              {autopilotPlan.active
-                ? `Autopilot will start ${autopilotPlan.title}`
-                : 'No task ready, start a free focus block'}
-            </p>
-            <p className="mt-1 text-sm text-white/65">{autopilotPlan.reason}</p>
+      <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Tasks</p>
+            <h2 className="mt-2 text-xl font-semibold">What’s on deck</h2>
           </div>
-          <motion.button
+          <button
             type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={handleStartAutopilot}
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-purple-500 to-cyan-400 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.28)]"
+            onClick={() => navigate('/tasks')}
+            className="text-sm font-medium text-white/65 transition hover:text-white"
           >
-            Start Autopilot
-          </motion.button>
+            Open tasks
+          </button>
         </div>
-      </GlassCard>
 
-      {examPlan && !loading.tasks && (
-        <GlassCard className="p-4 md:p-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs uppercase tracking-[0.24em] text-cyan-200/75">
-                Exam Simulation
-              </p>
-              <p className="mt-1 text-lg font-semibold text-white">
-                {examPlan.subjectLabel} â€¢ {examPlan.durationMinutes} min
-              </p>
-              <p className="mt-1 text-sm text-white/65">{examPlan.reason}</p>
-            </div>
-            <motion.button
-              type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={handleStartExamSimulation}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.28)]"
-            >
-              <GraduationCap className="h-4 w-4" />
-              Start Exam Simulation
-            </motion.button>
-          </div>
-        </GlassCard>
-      )}
-
-      <GlassCard className="p-4 md:p-6">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs uppercase tracking-[0.24em] text-violet-200/75">
-              AI Control Center
-            </p>
-            <p className="mt-1 text-lg font-semibold text-white">
-              Tune voice, assistant, and autopilot behavior
-            </p>
-            <p className="mt-1 text-sm text-white/65">
-              Keep AI helpful without letting it take over.
-            </p>
-          </div>
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => navigate('/ai-control-center')}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_18px_rgba(139,92,246,0.14)]"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            Open Control Center
-          </motion.button>
-        </div>
-      </GlassCard>
-
-      {(errors.tasks || errors.sessions) && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
-          {errors.tasks || errors.sessions}
-        </div>
-      )}
-
-      {weakSubjects.length > 0 && (
-        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
-          {weakSubjects[0]}
-        </div>
-      )}
-
-      <DashboardCards
-        todayMinutes={todayMinutes}
-        currentStreak={currentStreak}
-        longestStreak={longestStreak}
-        totalHours={Math.round(totalMinutes / 60)}
-        loading={loading.tasks || loading.sessions}
-      />
-
-      <AIInsights
-        studySessions={studySessions}
-        tasks={tasks}
-        streak={streakInfo}
-      />
-
-      <div className="relative max-w-full">
-        <div className="pointer-events-none absolute -top-16 left-1/2 hidden h-52 w-52 -translate-x-1/2 rounded-full bg-purple-500/20 blur-3xl md:block" />
-        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-          <StudyTimeChart
-            data={dailyStudyData}
-            title="Daily Study Time"
-            subtitle="Last 30 days"
-          />
-          <div className="flex flex-col gap-4 md:gap-6">
-            <SubjectFocusChart
-              data={subjectFocusData}
-              breakdown={subjectFocusData.breakdown}
-            />
-            <GlassCard className="p-4 md:p-5">
-              <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
-                Progress Score
-              </p>
-              <div className="flex items-center gap-6">
-                <div
-                  className="relative flex h-20 w-20 items-center justify-center rounded-full"
-                  style={{
-                    background: `conic-gradient(#8b5cf6 ${quickInsights.consistency}%, rgba(255,255,255,0.08) 0)`
-                  }}
-                >
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-sm font-semibold text-white">
-                    {quickInsights.consistency}%
-                  </div>
+        <div className="mt-5 space-y-3">
+          {todaysPlan.length > 0 ? (
+            todaysPlan.map((task) => (
+              <div key={task.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-white">{task.title}</p>
+                  <p className="mt-1 text-xs text-white/50">{formatDueLabel(task)} • {task.status || 'Ready'}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-white/80">Consistency</p>
-                  <p className="mt-1 text-xs text-white/60">
-                    Days with 40+ min focus
-                  </p>
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-white/75">
+                  <ListTodo className="h-4 w-4" />
                 </div>
               </div>
-            </GlassCard>
-          </div>
-        </div>
-
-        <div className="mt-4 md:mt-6">
-          <GlassCard className="p-4 md:p-6">
-            <p className="mb-4 text-xs uppercase tracking-wide text-white/70">
-              Quick Insights Panel
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
-                <p className="text-xs text-white/60">Best day</p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {quickInsights.bestDay}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
-                <p className="text-xs text-white/60">Worst day</p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {quickInsights.worstDay}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
-                <p className="text-xs text-white/60">Average study</p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {quickInsights.avg}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/10 px-4 py-3 backdrop-blur-xl">
-                <p className="text-xs text-white/60">Top subject</p>
-                <p className="mt-2 text-lg font-semibold text-white">
-                  {quickInsights.topSubject}
-                </p>
-              </div>
+            ))
+          ) : (
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 text-sm text-white/65">
+              No tasks yet. Add one in Tasks and we’ll bring it back here as your next move.
             </div>
-          </GlassCard>
+          )}
         </div>
-      </div>
+      </section>
     </motion.div>
   )
 }

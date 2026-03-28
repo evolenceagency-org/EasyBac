@@ -13,7 +13,8 @@ const MainLayout = () => {
   const isAuthenticated = Boolean(user || session)
   const hasSidebar = Boolean(loading || isAuthenticated)
   const onboardingPersonalization =
-    location.pathname === '/personalization' && !isPersonalized(profile)
+    (location.pathname === '/personalization' || location.pathname === '/onboarding') &&
+    !isPersonalized(profile)
   const controlCenterSettings = useMemo(
     () => readAiControlCenterSettings(profile?.id || user?.id),
     [profile?.id, user?.id]
@@ -22,14 +23,18 @@ const MainLayout = () => {
     isAuthenticated &&
     profile &&
     !isPersonalized(profile) &&
+    location.pathname !== '/onboarding' &&
     location.pathname !== '/personalization'
 
   if (shouldForceOnboarding) {
-    return <Navigate to="/personalization" replace />
+    return <Navigate to="/onboarding" replace />
   }
 
   const hideSidebar =
+    location.pathname === '/onboarding' ||
     location.pathname === '/choose-plan' ||
+    location.pathname === '/checkout' ||
+    location.pathname === '/payment-pending' ||
     location.pathname === '/ai-result' ||
     location.pathname === '/welcome-ai' ||
     onboardingPersonalization

@@ -1,323 +1,163 @@
-﻿import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+﻿import { motion } from 'framer-motion'
+import { ArrowRight, BrainCircuit, CalendarRange, Sparkles, TimerReset } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Brain, Timer, LineChart, Target, Sparkles, Flame, ChevronDown } from 'lucide-react'
-import Hero from '../components/Hero.jsx'
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 18 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } }
+const steps = [
+  {
+    title: 'Plan',
+    description: 'Set your subjects, goal, and exam date in one guided setup.',
+    icon: CalendarRange
+  },
+  {
+    title: 'Focus',
+    description: 'See the next thing to do and start a session without friction.',
+    icon: TimerReset
+  },
+  {
+    title: 'Improve',
+    description: 'Let the assistant surface what matters and keep you moving.',
+    icon: BrainCircuit
+  }
+]
+
+const motionProps = {
+  initial: { opacity: 0, y: 18 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.35 },
+  transition: { duration: 0.22, ease: 'easeOut' }
 }
-
-const features = [
-  { title: 'Deep Study Tracking', desc: 'Capture focused sessions with clarity.', icon: Timer },
-  { title: 'Pomodoro Focus', desc: 'Stay in rhythm with smart cycles.', icon: Target },
-  { title: 'Productivity Analytics', desc: 'See trends and momentum at a glance.', icon: LineChart },
-  { title: 'Subject Focus', desc: 'Rebalance weak subjects quickly.', icon: Brain },
-  { title: 'AI Guidance', desc: 'Suggestions tailored to your behavior.', icon: Sparkles },
-  { title: 'Streak Engine', desc: 'Build consistency with daily goals.', icon: Flame }
-]
-
-const insightLines = [
-  'You focused more on Math this week.',
-  'Your study time dropped yesterday.',
-  'Try adding a 45min Physics session.'
-]
-
-const tabs = [
-  { id: 'dashboard', title: 'Dashboard', desc: 'Daily focus, streaks, and totals.' },
-  { id: 'tasks', title: 'Tasks', desc: 'Plan, execute, and close tasks fast.' },
-  { id: 'analytics', title: 'Analytics', desc: 'Insights across subjects and time.' }
-]
-
-const faqs = [
-  { q: 'Is it free?', a: 'Yes, you get a 3-day full access trial.' },
-  { q: 'Do I need payment?', a: 'Only after the trial ends. Upgrade anytime.' },
-  { q: 'Does it work on phone?', a: 'Yes, BacTracker is mobile optimized.' }
-]
-
-const GlassButton = ({ to, children }) => (
-  <Link
-    to={to}
-    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 px-6 py-3 text-sm font-semibold text-black shadow-[0_0_30px_rgba(34,211,238,0.35)] transition-all duration-300 hover:scale-[1.03] hover:shadow-[0_0_40px_rgba(34,211,238,0.5)]"
-  >
-    {children}
-  </Link>
-)
-
-const FeaturesSection = () => (
-  <section id="features" className="relative py-16 md:py-24">
-    <div className="mx-auto max-w-6xl px-4 md:px-6">
-      <motion.div
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.4 }}
-        className="mx-auto max-w-2xl text-center"
-      >
-        <p className="text-xs uppercase tracking-[0.3em] text-white/50">Features</p>
-        <h2 className="mt-4 text-2xl font-semibold sm:text-4xl">Built for serious focus</h2>
-        <p className="mt-3 text-sm text-white/70 sm:text-base">
-          The tools you need to plan, execute, and reflect on every session.
-        </p>
-      </motion.div>
-
-      <div className="mt-10 grid gap-4 md:mt-12 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {features.map((feature, index) => {
-          const Icon = feature.icon
-          return (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.18, delay: index * 0.05 }}
-              whileHover={{ scale: 1.04 }}
-              className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-[0_0_25px_rgba(124,58,237,0.18)] backdrop-blur-xl md:p-6"
-            >
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500/30 to-blue-500/30 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)]">
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-sm text-white/70">{feature.desc}</p>
-            </motion.div>
-          )
-        })}
-      </div>
-    </div>
-  </section>
-)
-
-const InsightsSection = () => (
-  <section id="insights" className="relative py-16 md:py-24">
-    <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 via-blue-600/10 to-cyan-500/10" />
-    <div className="relative mx-auto grid max-w-6xl gap-8 px-4 md:gap-10 md:px-6 lg:grid-cols-2 lg:items-center">
-      <motion.div
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.4 }}
-        className="space-y-6"
-      >
-        <p className="text-xs uppercase tracking-[0.3em] text-white/60">Insights</p>
-        <h2 className="text-2xl font-semibold sm:text-4xl">Smart study insights</h2>
-        <p className="text-sm text-white/70 sm:text-base">
-          BacTracker surfaces patterns you might miss and suggests what to do next.
-        </p>
-      </motion.div>
-
-      <motion.div
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.4 }}
-        className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-[0_0_35px_rgba(59,130,246,0.25)] backdrop-blur-xl md:p-6"
-      >
-        <div className="text-xs uppercase tracking-[0.3em] text-white/50">Insight feed</div>
-        <div className="mt-4 space-y-3">
-          {insightLines.map((line) => (
-            <motion.div
-              key={line}
-              initial={{ opacity: 0, y: 10 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.5 }}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80"
-            >
-              {line}
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  </section>
-)
-
-const ProductPreview = () => {
-  const [active, setActive] = useState(tabs[0])
-
-  return (
-    <section className="py-16 md:py-24">
-      <div className="mx-auto max-w-6xl px-4 md:px-6">
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, amount: 0.4 }}
-          className="mx-auto max-w-3xl text-center"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">Product preview</p>
-          <h2 className="mt-4 text-2xl font-semibold sm:text-4xl">Your command center</h2>
-          <p className="mt-3 text-sm text-white/70">
-            Switch between key surfaces for a quick look.
-          </p>
-        </motion.div>
-
-        <div className="mt-8 flex flex-wrap justify-center gap-2 md:mt-10">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActive(tab)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition-all duration-300 ${
-                active.id === tab.id
-                  ? 'bg-white text-black'
-                  : 'border border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
-              }`}
-            >
-              {tab.title}
-            </button>
-          ))}
-        </div>
-
-        <div className="relative mt-8 md:mt-10">
-          <div className="pointer-events-none absolute inset-0 hidden bg-purple-500/10 blur-[80px] md:block" />
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={active.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="relative mx-auto grid max-w-3xl gap-4 md:gap-6"
-            >
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:p-6">
-                <h3 className="text-xl font-semibold">{active.title}</h3>
-                <p className="mt-2 text-sm text-white/70">{active.desc}</p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3 md:gap-4">
-                {['Dashboard', 'Tasks', 'Analytics'].map((label) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-white/70 shadow-[0_0_20px_rgba(255,255,255,0.08)] backdrop-blur-xl md:p-4"
-                  >
-                    <p className="text-xs uppercase tracking-[0.2em] text-white/50">{label}</p>
-                    <div className="mt-4 space-y-2">
-                      <div className="h-2 w-3/4 rounded-full bg-white/10" />
-                      <div className="h-2 w-full rounded-full bg-white/10" />
-                      <div className="h-8 rounded-xl bg-white/5" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
-    </section>
-  )
-}
-
-const FAQSection = () => {
-  const [openIndex, setOpenIndex] = useState(null)
-
-  return (
-    <section id="faq" className="py-16 md:py-24">
-      <div className="mx-auto max-w-4xl px-4 md:px-6">
-        <motion.div
-          variants={fadeUp}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, amount: 0.4 }}
-          className="text-center"
-        >
-          <p className="text-xs uppercase tracking-[0.3em] text-white/50">FAQ</p>
-          <h2 className="mt-4 text-2xl font-semibold sm:text-4xl">Frequently asked questions</h2>
-        </motion.div>
-
-        <div className="mt-8 space-y-3 md:mt-10 md:space-y-4">
-          {faqs.map((item, index) => {
-            const open = openIndex === index
-            return (
-              <motion.div
-                key={item.q}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.18, delay: index * 0.05 }}
-                className="rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl md:p-5"
-              >
-                <button
-                  type="button"
-                  onClick={() => setOpenIndex(open ? null : index)}
-                  className="flex w-full items-center justify-between text-left text-sm font-semibold text-white"
-                >
-                  {item.q}
-                  <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.18 }}>
-                    <ChevronDown className="h-4 w-4 text-white/60" />
-                  </motion.span>
-                </button>
-                <AnimatePresence>
-                  {open && (
-                    <motion.p
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.18 }}
-                      className="mt-3 text-sm text-white/70"
-                    >
-                      {item.a}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )
-          })}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-const CTASection = () => (
-  <section className="py-16 md:py-24">
-    <div className="mx-auto max-w-5xl px-4 md:px-6">
-      <motion.div
-        variants={fadeUp}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, amount: 0.4 }}
-        className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-purple-600/30 via-blue-600/20 to-transparent p-6 text-center md:p-10"
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.18),_transparent_60%)]" />
-        <div className="relative space-y-6">
-          <h2 className="text-2xl font-semibold sm:text-4xl">Your highest score starts today.</h2>
-          <p className="text-sm text-white/70 sm:text-base">
-            Join BacTracker and build the habits that drive success.
-          </p>
-          <GlassButton to="/register">Start Free Trial</GlassButton>
-        </div>
-      </motion.div>
-    </div>
-  </section>
-)
-
-const Footer = () => (
-  <footer className="border-t border-white/10 py-12">
-    <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-4 text-center text-sm text-white/60 md:flex-row md:justify-between md:px-6 md:text-left">
-      <div>
-        <p className="text-lg font-semibold text-white">BacTracker</p>
-        <p className="mt-2 text-xs text-white/50">Built for premium Bac performance.</p>
-      </div>
-      <div className="flex flex-wrap items-center justify-center gap-4 text-xs uppercase tracking-[0.2em] text-white/50">
-        <span>Features</span>
-        <span>Pricing</span>
-        <span>Contact</span>
-      </div>
-      <p className="text-xs text-white/40">© 2026 BacTracker</p>
-    </div>
-  </footer>
-)
 
 const LandingPage = () => {
   return (
-    <div className="overflow-x-hidden bg-black text-white">
-      <Hero />
-      <FeaturesSection />
-      <InsightsSection />
-      <ProductPreview />
-      <FAQSection />
-      <CTASection />
-      <Footer />
+    <div className="min-h-screen bg-[#050507] text-white">
+      <section className="relative overflow-hidden border-b border-white/[0.06]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(700px_at_20%_0%,rgba(120,100,255,0.12),transparent),radial-gradient(520px_at_80%_100%,rgba(80,60,200,0.08),transparent)]" />
+
+        <div className="relative mx-auto flex min-h-screen w-full max-w-6xl flex-col justify-between px-4 pb-12 pt-6 md:px-8 md:pb-16 md:pt-8">
+          <header className="flex items-center justify-between gap-4">
+            <Link to="/" className="text-sm font-semibold tracking-[0.16em] text-white/88">
+              EasyBac
+            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                to="/login"
+                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2 text-sm text-white/78 transition hover:border-white/[0.14] hover:bg-white/[0.05] hover:text-white"
+              >
+                Login
+              </Link>
+              <Link
+                to="/register"
+                className="rounded-xl bg-[#8b5cf6] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+              >
+                Start free
+              </Link>
+            </div>
+          </header>
+
+          <div className="grid gap-10 py-14 md:grid-cols-[1.15fr_0.85fr] md:items-end md:py-20">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.24, ease: 'easeOut' }}
+              className="max-w-2xl"
+            >
+              <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">Study smarter</p>
+              <h1 className="mt-4 text-4xl font-semibold tracking-tight sm:text-5xl md:text-6xl">
+                Study smarter for Bac with AI
+              </h1>
+              <p className="mt-5 max-w-xl text-base leading-7 text-white/68">
+                EasyBac turns the path from signup to study session into one clear flow: set up, choose a plan, start focusing.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  to="/register"
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+                >
+                  Start free
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  to="/login"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-3.5 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
+                >
+                  I already have an account
+                </Link>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.26, ease: 'easeOut', delay: 0.06 }}
+              className="rounded-[2rem] border border-white/[0.08] bg-[#0b0b0f] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)] backdrop-blur-[20px]"
+            >
+              <div className="rounded-[1.5rem] border border-white/[0.06] bg-white/[0.02] p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#8b5cf6]/12 text-[#d8b4fe]">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-white/45">Assistant</p>
+                    <p className="mt-1 text-sm font-medium text-white">Start Math focus now</p>
+                  </div>
+                </div>
+                <div className="mt-4 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
+                  <p className="text-xs uppercase tracking-[0.2em] text-white/45">Next step</p>
+                  <p className="mt-2 text-lg font-semibold text-white">45 min focus block</p>
+                  <p className="mt-1 text-sm text-white/65">One calm flow from setup to studying.</p>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-6xl px-4 py-16 md:px-8 md:py-20">
+        <motion.div {...motionProps} className="max-w-xl">
+          <p className="text-[11px] uppercase tracking-[0.28em] text-white/45">How it works</p>
+          <h2 className="mt-4 text-3xl font-semibold tracking-tight md:text-4xl">Three steps, then you’re in</h2>
+        </motion.div>
+
+        <div className="mt-8 grid gap-4 md:mt-10 md:grid-cols-3">
+          {steps.map((step, index) => {
+            const Icon = step.icon
+            return (
+              <motion.article
+                key={step.title}
+                {...motionProps}
+                transition={{ duration: 0.22, ease: 'easeOut', delay: index * 0.05 }}
+                className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]"
+              >
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/[0.04] text-[#d8b4fe]">
+                  <Icon className="h-5 w-5" />
+                </div>
+                <p className="mt-5 text-xs uppercase tracking-[0.24em] text-white/45">0{index + 1}</p>
+                <h3 className="mt-2 text-xl font-semibold">{step.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/65">{step.description}</p>
+              </motion.article>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-4xl px-4 pb-16 md:px-8 md:pb-20">
+        <motion.div
+          {...motionProps}
+          className="rounded-[2rem] border border-white/[0.08] bg-[#0b0b0f] p-8 text-center shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
+        >
+          <h2 className="text-3xl font-semibold tracking-tight md:text-4xl">Start with one clear next step</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/65 md:text-base">
+            Register, verify your email, answer three setup questions, and land in a dashboard that tells you what to do next.
+          </p>
+          <Link
+            to="/register"
+            className="mt-8 inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+          >
+            Start free
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </motion.div>
+      </section>
     </div>
   )
 }
