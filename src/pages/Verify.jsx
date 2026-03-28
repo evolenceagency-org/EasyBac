@@ -244,8 +244,16 @@ const Verify = () => {
         label="Verification"
         title="We need your email first"
         subtitle="Start from register so we know which account to verify."
-        sideTitle="Signup verification"
-        sideSubtitle="The verification screen stays focused: one email, one 6-digit code, then straight into onboarding."
+        sideEyebrow="Step 2"
+        sideTitle="Verification needs a pending signup"
+        sideSubtitle="Start from register and we’ll bring you right back here with the correct email."
+        supportPoints={[
+          'This screen only handles account verification.',
+          'Once verified, we move you straight into onboarding.'
+        ]}
+        backTo="/register"
+        backLabel="Register"
+        progressText="Step 2 / 2"
         footer={
           <p>
             Need a fresh start?{' '}
@@ -276,8 +284,16 @@ const Verify = () => {
       label="Email verification"
       title="Enter your verification code"
       subtitle="We verify automatically as soon as the sixth digit is entered."
-      sideTitle="Fast OTP confirmation"
-      sideSubtitle="The code input auto-advances, supports paste, and handles resend timing so the flow stays frictionless on mobile and desktop."
+      sideEyebrow="Step 2"
+      sideTitle="Confirm the account"
+      sideSubtitle="Paste or type the 6-digit code and we’ll move you directly into onboarding."
+      supportPoints={[
+        'Auto-focus, paste support, and auto-submit are built in.',
+        'Need another code? Resend unlocks after 30 seconds.'
+      ]}
+      backTo="/register"
+      backLabel="Back"
+      progressText="Step 2 / 2"
       footer={
         <div className="flex items-center justify-between gap-3">
           <button

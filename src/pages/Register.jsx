@@ -96,8 +96,16 @@ const Register = () => {
       label="Create account"
       title="Create your EasyBac account"
       subtitle="Start with your email and password, then confirm the account with a 6-digit code."
-      sideTitle="Register, verify, continue"
-      sideSubtitle="This flow creates the account first, verifies ownership with OTP, then moves directly into personalization and plan selection."
+      sideEyebrow="Step 1"
+      sideTitle="Create the account first"
+      sideSubtitle="We create the account here, then guide you into verification, onboarding, and plan selection."
+      supportPoints={[
+        'One email, one password, one next step.',
+        'Verification starts right after signup.'
+      ]}
+      backTo="/"
+      backLabel="Home"
+      progressText="Step 1 / 2"
       footer={
         <p>
           Already have an account?{' '}

@@ -105,9 +105,17 @@ const Login = () => {
     <AuthCard
       label="Welcome back"
       title="Log in to EasyBac"
-      subtitle="Use your email and password to continue exactly where you left off."
-      sideTitle="One clear login path"
-      sideSubtitle="Login never creates an account. If the email is verified, we route straight into onboarding or the dashboard."
+      subtitle="Use your email and password to continue from exactly the right next step."
+      sideEyebrow="Login"
+      sideTitle="No mixed auth flow"
+      sideSubtitle="Login only signs you in. If setup is incomplete, we guide you to the next required screen automatically."
+      supportPoints={[
+        'Wrong password? We tell you clearly.',
+        'Email not verified? We send you straight to code verification.'
+      ]}
+      backTo="/"
+      backLabel="Home"
+      progressText="Existing account"
       footer={
         <p>
           Need an account first?{' '}
