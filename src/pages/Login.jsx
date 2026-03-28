@@ -17,7 +17,7 @@ import {
 } from '../utils/authValidation.js'
 
 const Login = () => {
-  const { signIn, requestLoginOtp, signOut, user, profile, initialized, refreshAuthState } = useAuth()
+  const { signIn, requestLoginOtp, signOut, user, profile, initialized } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -95,16 +95,18 @@ const Login = () => {
         return
       }
 
-      const refreshed = await refreshAuthState()
-      if (!refreshed?.user || refreshed.user.email?.trim().toLowerCase() !== normalizedEmail) {
+      const hydratedUser = data?.user || data?.session?.user || null
+      const hydratedProfile = data?.profile || profile
+
+      if (!hydratedUser || hydratedUser.email?.trim().toLowerCase() !== normalizedEmail) {
         await signOut()
         throw new Error('Invalid login credentials')
       }
 
       const redirectTo =
         ensureValidRoute({
-          user: refreshed.user,
-          profile: refreshed.profile || profile,
+          user: hydratedUser,
+          profile: hydratedProfile,
           currentPath: location.state?.from?.pathname || '/login'
         }) ||
         location.state?.from?.pathname ||

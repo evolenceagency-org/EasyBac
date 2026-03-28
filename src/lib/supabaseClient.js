@@ -13,4 +13,8 @@ export const supabaseConfigError = missing.length
 
 export const supabase = supabaseConfigError
   ? null
-  : createClient(supabaseUrl, supabaseAnonKey)
+  : createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        detectSessionInUrl: false
+      }
+    })

@@ -5,6 +5,19 @@
 begin;
 
 -- 1) Profiles schema expected by the app
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  onboarding_completed boolean not null default false,
+  plan text,
+  subscription_status text not null default 'free',
+  trial_start timestamptz,
+  payment_verified boolean not null default false,
+  personalization jsonb default '{}'::jsonb,
+  last_insight_date date,
+  daily_insight jsonb
+);
+
 alter table public.profiles
   add column if not exists email text,
   add column if not exists onboarding_completed boolean not null default false,
@@ -15,6 +28,21 @@ alter table public.profiles
   add column if not exists personalization jsonb default '{}'::jsonb,
   add column if not exists last_insight_date date,
   add column if not exists daily_insight jsonb;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conrelid = 'public.profiles'::regclass
+      and contype = 'p'
+  ) then
+    alter table public.profiles
+      add constraint profiles_pkey primary key (id);
+  end if;
+exception
+  when duplicate_table or duplicate_object then null;
+end $$;
 
 update public.profiles
 set subscription_status = 'trial'

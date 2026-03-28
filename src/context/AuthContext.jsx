@@ -40,6 +40,10 @@ const stripLegacyAuthParamsFromUrl = () => {
 
 const AuthContext = createContext(null)
 
+const isInvalidRefreshTokenError = (error) =>
+  /Invalid Refresh Token/i.test(error?.message || '') ||
+  /Refresh Token Not Found/i.test(error?.message || '')
+
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null)
   const [user, setUser] = useState(null)
@@ -50,6 +54,7 @@ export const AuthProvider = ({ children }) => {
   const [initialized, setInitialized] = useState(false)
   const profileLoadedRef = useRef(false)
   const profileUserRef = useRef(null)
+  const profileRequestRef = useRef({ userId: null, promise: null })
 
   const resetProfileState = () => {
     setProfile(null)
@@ -57,6 +62,7 @@ export const AuthProvider = ({ children }) => {
     setProfileLoading(false)
     profileLoadedRef.current = false
     profileUserRef.current = null
+    profileRequestRef.current = { userId: null, promise: null }
   }
 
   const fetchProfile = async (authUser) => {
@@ -65,54 +71,90 @@ export const AuthProvider = ({ children }) => {
       return null
     }
 
-    setProfileError('')
-    setProfileLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .maybeSingle()
+    if (
+      profileRequestRef.current.promise &&
+      profileRequestRef.current.userId === authUser.id
+    ) {
+      return profileRequestRef.current.promise
+    }
 
-      if (error) {
-        setProfileError('Unable to verify subscription.')
-        setProfile(null)
-        return null
-      }
-
-      if (!data) {
-        const { data: created, error: createError } = await supabase
+    const request = (async () => {
+      setProfileError('')
+      setProfileLoading(true)
+      try {
+        const { data, error } = await supabase
           .from('profiles')
-          .insert({
-            id: authUser.id,
-            email: authUser.email,
-            onboarding_completed: false,
-            plan: null,
-            subscription_status: 'free',
-            trial_start: null,
-            payment_verified: false,
-            personalization: null
-          })
-          .select()
-          .single()
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle()
 
-        if (createError) {
+        if (error) {
+          console.error('[Auth] profiles select failed', error)
           setProfileError('Unable to verify subscription.')
           setProfile(null)
           return null
         }
 
-        setProfile(created)
-        return created
-      }
+        if (!data) {
+          const { data: created, error: createError } = await supabase
+            .from('profiles')
+            .upsert(
+              {
+                id: authUser.id,
+                email: authUser.email,
+                onboarding_completed: false,
+                plan: null,
+                subscription_status: 'free',
+                trial_start: null,
+                payment_verified: false,
+                personalization: null
+              },
+              { onConflict: 'id' }
+            )
+            .select()
+            .single()
 
-      setProfile(data)
-      return data
-    } finally {
-      setProfileLoading(false)
-      profileLoadedRef.current = true
-      profileUserRef.current = authUser.id
+          if (createError) {
+            console.error('[Auth] profiles bootstrap upsert failed', createError)
+            setProfileError('Unable to verify subscription.')
+            setProfile(null)
+            return null
+          }
+
+          setProfile(created)
+          return created
+        }
+
+        setProfile(data)
+        return data
+      } finally {
+        setProfileLoading(false)
+        profileLoadedRef.current = true
+        profileUserRef.current = authUser.id
+        if (profileRequestRef.current.userId === authUser.id) {
+          profileRequestRef.current = { userId: null, promise: null }
+        }
+      }
+    })()
+
+    profileRequestRef.current = { userId: authUser.id, promise: request }
+    return request
+  }
+
+  const clearInvalidSession = async (error) => {
+    if (!supabase || !isInvalidRefreshTokenError(error)) return false
+
+    try {
+      await supabase.auth.signOut({ scope: 'local' })
+    } catch {
+      // Ignore cleanup failures and still reset local state below.
     }
+
+    setSession(null)
+    setUser(null)
+    resetProfileState()
+    clearPendingVerificationEmail()
+    return true
   }
 
   useEffect(() => {
@@ -150,6 +192,12 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (err) {
         if (!mounted) return
+        const recovered = await clearInvalidSession(err)
+        if (recovered) {
+          setLoading(false)
+          setInitialized(true)
+          return
+        }
         setProfileError('Unable to verify subscription.')
         setSession(null)
         setUser(null)
@@ -172,7 +220,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      (_event, newSession) => {
         if (!mounted) return
         setLoading(true)
         setSession(newSession)
@@ -229,8 +277,24 @@ export const AuthProvider = ({ children }) => {
       email: normalizedEmail,
       password
     })
+
+    let nextProfile = null
+    const signedInUser = data?.user || data?.session?.user || null
+    if (!error && signedInUser) {
+      setSession(data?.session ?? null)
+      setUser(signedInUser)
+      profileLoadedRef.current = false
+      nextProfile = await fetchProfile(signedInUser)
+    }
+
     setLoading(false)
-    return { data, error }
+    return {
+      data: {
+        ...data,
+        profile: nextProfile
+      },
+      error
+    }
   }
 
   const requestLoginOtp = async (email) => {
@@ -270,7 +334,13 @@ export const AuthProvider = ({ children }) => {
     }
 
     const { data, error } = await supabase.auth.getSession()
-    if (error) throw error
+    if (error) {
+      const recovered = await clearInvalidSession(error)
+      if (recovered) {
+        return { session: null, user: null, profile: null }
+      }
+      throw error
+    }
 
     const nextSession = data?.session ?? null
     setSession(nextSession)
@@ -372,7 +442,10 @@ export const AuthProvider = ({ children }) => {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('[Auth] selectPlan trial upsert failed', error)
+        throw error
+      }
       setProfile(data)
       return data
     }
@@ -397,7 +470,10 @@ export const AuthProvider = ({ children }) => {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('[Auth] selectPlan premium upsert failed', error)
+        throw error
+      }
       setProfile(data)
       return data
     }
@@ -430,7 +506,10 @@ export const AuthProvider = ({ children }) => {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('[Auth] updatePersonalization upsert failed', error)
+      throw error
+    }
     setProfile(data)
     return data
   }
@@ -460,7 +539,10 @@ export const AuthProvider = ({ children }) => {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('[Auth] saveDailyInsight upsert failed', error)
+      throw error
+    }
     setProfile(data)
     return data
   }
