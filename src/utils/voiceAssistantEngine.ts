@@ -293,7 +293,9 @@ const FILLER_WORDS = [
 
 const DANGEROUS_INTENTS = new Set(['delete_task', 'clear_overdue'])
 const RANGE_LIMITS = { min: 10, max: 120 }
+const AUDIO_GESTURE_EVENTS = ['click', 'touchstart', 'mousedown']
 let audioContextRef = null
+let audioUnlockBound = false
 
 const delay = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
@@ -309,6 +311,77 @@ const sanitize = (value = '') =>
 const getSpeechRecognitionConstructor = () => {
   if (typeof window === 'undefined') return null
   return window.SpeechRecognition || window.webkitSpeechRecognition || null
+}
+
+const getAudioContextConstructor = () => {
+  if (typeof window === 'undefined') return null
+  return window.AudioContext || window.webkitAudioContext || null
+}
+
+const getOrCreateAudioContext = () => {
+  const AudioContextClass = getAudioContextConstructor()
+  if (!AudioContextClass) return null
+
+  try {
+    if (!audioContextRef || audioContextRef.state === 'closed') {
+      audioContextRef = new AudioContextClass()
+    }
+    return audioContextRef
+  } catch {
+    return null
+  }
+}
+
+const removeAudioUnlockListeners = () => {
+  if (typeof window === 'undefined' || !audioUnlockBound) return
+  AUDIO_GESTURE_EVENTS.forEach((eventName) => {
+    window.removeEventListener(eventName, handleDeferredAudioUnlock, true)
+  })
+  audioUnlockBound = false
+}
+
+async function handleDeferredAudioUnlock() {
+  try {
+    await resumeAudioContext()
+  } finally {
+    removeAudioUnlockListeners()
+  }
+}
+
+const bindDeferredAudioUnlock = () => {
+  if (typeof window === 'undefined' || audioUnlockBound) return
+  AUDIO_GESTURE_EVENTS.forEach((eventName) => {
+    window.addEventListener(eventName, handleDeferredAudioUnlock, true)
+  })
+  audioUnlockBound = true
+}
+
+export const getAudioContextState = () => {
+  const ctx = getOrCreateAudioContext()
+  return ctx?.state || 'unsupported'
+}
+
+export const resumeAudioContext = async () => {
+  const ctx = getOrCreateAudioContext()
+  if (!ctx) return false
+
+  if (ctx.state === 'running') {
+    removeAudioUnlockListeners()
+    return true
+  }
+
+  if (ctx.state !== 'suspended') {
+    return ctx.state === 'running'
+  }
+
+  try {
+    await ctx.resume()
+    removeAudioUnlockListeners()
+    return ctx.state === 'running'
+  } catch {
+    bindDeferredAudioUnlock()
+    return false
+  }
 }
 
 const SPEECH_LANGUAGE_FALLBACK = 'fr-FR'
@@ -918,14 +991,16 @@ const getRecommendedTask = (tasks = [], user) => {
 
 const playTones = (tones = []) => {
   if (typeof window === 'undefined') return
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext
-  if (!AudioContextClass) return
 
   try {
-    if (!audioContextRef || audioContextRef.state === 'closed') {
-      audioContextRef = new AudioContextClass()
+    const ctx = getOrCreateAudioContext()
+    if (!ctx) return
+    if (ctx.state === 'suspended') {
+      bindDeferredAudioUnlock()
+      return
     }
-    const ctx = audioContextRef
+    if (ctx.state !== 'running') return
+
     const now = ctx.currentTime
 
     tones.forEach(([frequency, duration, offset, gain = 0.025]) => {

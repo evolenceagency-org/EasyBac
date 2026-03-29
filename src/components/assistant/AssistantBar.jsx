@@ -30,6 +30,7 @@ import {
 import {
   createVoiceSession,
   playAssistantSound,
+  resumeAudioContext,
   startVoiceListening,
   stopVoiceListening
 } from '../../utils/voiceAssistantEngine.ts'
@@ -842,6 +843,8 @@ const AssistantBar = () => {
       setInteractionStatus('error', 'Voice unavailable', 1100)
       return false
     }
+
+    await resumeAudioContext()
 
     const started = await startVoiceListening(session, {
       continuous: false,
