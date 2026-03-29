@@ -69,6 +69,90 @@ const getExamDaysLeft = (profile = {}, now = Date.now()) => {
   return Math.max(0, Math.floor((examMs - toNowMs(now)) / DAY_MS))
 }
 
+const getTaskDurationMinutes = (task, fallback = 45) => {
+  const candidates = [
+    task?.duration_minutes,
+    task?.durationMinutes,
+    task?.estimated_minutes,
+    task?.estimatedMinutes,
+    task?.planned_minutes,
+    task?.plannedMinutes,
+    task?.focus_minutes,
+    task?.focusMinutes
+  ]
+
+  for (const value of candidates) {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return Math.round(numeric)
+    }
+  }
+
+  return fallback
+}
+
+const getTodayStudyMinutes = (studySessions = [], now = Date.now()) => {
+  const todayKey = toDayKey(now)
+  return studySessions.reduce((total, session) => {
+    const sessionDate =
+      session?.completed_at ||
+      session?.ended_at ||
+      session?.created_at ||
+      session?.date ||
+      session?.started_at
+
+    if (!sessionDate || toDayKey(sessionDate) !== todayKey) return total
+    return total + (Number(session?.duration_minutes ?? session?.durationMinutes ?? session?.duration ?? 0) || 0)
+  }, 0)
+}
+
+const getMostRecentCompletedSession = (studySessions = [], now = Date.now()) => {
+  const recent = [...studySessions]
+    .map((session) => {
+      const endedAt = session?.completed_at || session?.ended_at || session?.updated_at || session?.created_at || null
+      const endedMs = endedAt ? new Date(endedAt).getTime() : Number.NaN
+      return {
+        session,
+        endedMs
+      }
+    })
+    .filter((entry) => Number.isFinite(entry.endedMs) && entry.endedMs <= toNowMs(now))
+    .sort((a, b) => b.endedMs - a.endedMs)[0]
+
+  return recent || null
+}
+
+const formatTaskActionLabel = (action, task, duration = 45) => {
+  const subject = String(task?.subject || 'focus')
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+  const taskTitle = String(task?.title || '').trim()
+
+  if (action === 'overdue') {
+    return `Finish overdue ${subject} task • ${duration}min`
+  }
+
+  if (action === 'first') {
+    return `Start first ${subject} session • ${duration}min`
+  }
+
+  if (taskTitle) {
+    return `Continue ${taskTitle} • ${duration}min`
+  }
+
+  return `Continue ${subject} session • ${duration}min`
+}
+
+const getOverdueTask = (tasks = [], now = Date.now()) =>
+  tasks
+    .filter((task) => !(task?.completed || task?.status === 'completed' || task?.status === 'on_hold'))
+    .filter((task) => getDueDayOffset(task, now) < 0)
+    .sort((a, b) => {
+      const urgencyDelta = getDueDayOffset(a, now) - getDueDayOffset(b, now)
+      if (urgencyDelta !== 0) return urgencyDelta
+      return getTaskPriorityWeight(b?.priority) - getTaskPriorityWeight(a?.priority)
+    })[0] || null
+
 const getWeakSubjects = (profile = {}, studySessions = []) => {
   const profileWeak = Array.isArray(profile?.weakSubjects)
     ? profile.weakSubjects.map((item) => String(item).trim().toLowerCase())
@@ -243,8 +327,8 @@ const getTaskSuggestion = ({
   const subjectLabel = String(selected.task?.subject || 'focus')
     .replace(/[_-]/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase())
-
-  const shortTitle = selected.task?.title || `Study ${subjectLabel}`
+  const durationMinutes = getTaskDurationMinutes(selected.task, 45)
+  const shortTitle = formatTaskActionLabel('continue', selected.task, durationMinutes)
   const examDaysLeft = getExamDaysLeft(profile, now)
   const loadState = String(cognitiveLoad?.state || '').toLowerCase()
   const extraReason =
@@ -273,15 +357,30 @@ const getTaskSuggestion = ({
     action: {
       kind: 'focus_task',
       taskId: selected.task.id,
+      durationMinutes,
       path: '/study',
       state: {
         suggestedTaskId: selected.task.id,
         taskId: selected.task.id,
-        action: 'start'
+        action: 'start',
+        duration: durationMinutes
       }
     }
   }
 }
+
+const buildSimpleDecision = ({ key, title, detail, tone = 'suggestion', status = 'AI', type = 'system', action }) => ({
+  key,
+  state: 'suggesting',
+  origin: 'engine',
+  type,
+  status,
+  tone,
+  title,
+  shortMessage: title,
+  detail,
+  action
+})
 
 const sanitize = (value = '') =>
   String(value)
@@ -439,6 +538,9 @@ export const buildAssistantDecision = (context = {}) => {
   const now = toNowMs(context.now)
   const memory = context.memory || readAssistantDecisionMemory(context.userId)
   const currentPage = String(context.currentPage || '').replace(/^\//, '')
+  const activeTasks = Array.isArray(context.tasks)
+    ? context.tasks.filter((task) => !(task?.completed || task?.status === 'completed' || task?.status === 'on_hold'))
+    : []
 
   if (context.pendingVoiceDecision) {
     return context.pendingVoiceDecision
@@ -448,16 +550,101 @@ export const buildAssistantDecision = (context = {}) => {
     return null
   }
 
-  const urgentOverdueExists = Array.isArray(context.tasks)
-    ? context.tasks.some((task) => !task.completed && getDueDayOffset(task, now) < 0)
-    : false
+  const urgentOverdueTask = getOverdueTask(activeTasks, now)
 
-  if (memory.cooldownUntil > now && !urgentOverdueExists) {
+  if (memory.cooldownUntil > now && !urgentOverdueTask) {
     return null
   }
 
+  if (!activeTasks.length) {
+    return buildSimpleDecision({
+      key: 'system:add-first-task',
+      title: 'Add your first task • 2min',
+      detail: 'Create one task so I can suggest the right next session.',
+      tone: 'neutral',
+      type: 'setup',
+      action: {
+        kind: 'navigate',
+        path: '/tasks'
+      }
+    })
+  }
+
+  const todayStudyMinutes = getTodayStudyMinutes(context.studySessions, now)
+  const recentSessionEntry = getMostRecentCompletedSession(context.studySessions, now)
+  const recentSessionDuration = Number(
+    recentSessionEntry?.session?.duration_minutes ??
+      recentSessionEntry?.session?.durationMinutes ??
+      recentSessionEntry?.session?.duration ??
+      0
+  ) || 0
+  const recentSessionAgeMs = recentSessionEntry ? now - recentSessionEntry.endedMs : Number.POSITIVE_INFINITY
+
+  if (todayStudyMinutes <= 0) {
+    const firstTask = getTaskSuggestion({
+      tasks: activeTasks,
+      profile: context.profile,
+      studySessions: context.studySessions,
+      cognitiveLoad: context.cognitiveLoad,
+      memory,
+      now
+    })
+
+    if (firstTask) {
+      return {
+        ...firstTask,
+        key: `first:${firstTask.task?.id || 'task'}`,
+        title: formatTaskActionLabel('first', firstTask.task, getTaskDurationMinutes(firstTask.task, 45)),
+        shortMessage: formatTaskActionLabel('first', firstTask.task, getTaskDurationMinutes(firstTask.task, 45)),
+        detail: 'Start your first study block for today.'
+      }
+    }
+  }
+
+  if (recentSessionDuration >= 25 && recentSessionAgeMs <= 25 * 60 * 1000) {
+    return buildSimpleDecision({
+      key: 'system:break',
+      title: 'Take a break • Reset • 5min',
+      detail: 'You just finished a solid session. A short reset will help your next block.',
+      tone: 'neutral',
+      type: 'break',
+      action: {
+        kind: 'break',
+        durationMinutes: 5
+      }
+    })
+  }
+
+  if (urgentOverdueTask) {
+    const durationMinutes = getTaskDurationMinutes(urgentOverdueTask, 45)
+    return {
+      key: `overdue:${urgentOverdueTask.id}`,
+      state: 'suggesting',
+      origin: 'engine',
+      type: 'task',
+      task: urgentOverdueTask,
+      status: 'AI',
+      tone: 'warning',
+      title: formatTaskActionLabel('overdue', urgentOverdueTask, durationMinutes),
+      shortMessage: formatTaskActionLabel('overdue', urgentOverdueTask, durationMinutes),
+      detail: 'This task is already overdue and should be cleared first.',
+      action: {
+        kind: 'focus_task',
+        taskId: urgentOverdueTask.id,
+        durationMinutes,
+        path: '/study',
+        state: {
+          suggestedTaskId: urgentOverdueTask.id,
+          taskId: urgentOverdueTask.id,
+          action: 'start',
+          duration: durationMinutes
+        }
+      }
+    }
+  }
+
   return getTaskSuggestion({
-    tasks: context.tasks,
+    tasks: activeTasks,
     profile: context.profile,
     studySessions: context.studySessions,
     cognitiveLoad: context.cognitiveLoad,
@@ -515,7 +702,7 @@ export const resolveVoiceDecision = ({ transcript, tasks = [], studySessions = [
       ok: true,
       decision: buildVoiceProposal({
         key: `voice:recommend:${decision.key}`,
-        title: `Do you want me to start ${decision.task?.title || 'this task'}?`,
+        title: formatTaskActionLabel('continue', decision.task, getTaskDurationMinutes(decision.task, 45)),
         detail: decision.detail,
         task: decision.task,
         intent: {
@@ -534,7 +721,7 @@ export const resolveVoiceDecision = ({ transcript, tasks = [], studySessions = [
         ok: true,
         decision: buildVoiceProposal({
           key: 'voice:break',
-          title: 'Do you want me to suggest a short break?',
+          title: 'Take a break • Reset • 5min',
           detail: 'You sound tired. A short reset may help before the next session.',
           intent: { type: 'navigate', data: { route: '/dashboard' } },
           tone: 'warning',
@@ -547,7 +734,7 @@ export const resolveVoiceDecision = ({ transcript, tasks = [], studySessions = [
       ok: true,
       decision: buildVoiceProposal({
         key: `voice:easy:${easierTask.id}`,
-        title: `Do you want an easier ${String(easierTask.subject || 'focus')} session?`,
+        title: `Start an easier ${String(easierTask.subject || 'focus')} session • ${getTaskDurationMinutes(easierTask, 25)}min`,
         detail: `I can start ${easierTask.title} as a lighter next step.`,
         task: easierTask,
         intent: {
@@ -572,10 +759,10 @@ export const resolveVoiceDecision = ({ transcript, tasks = [], studySessions = [
   let matchedTask = null
 
   if (intent.type === 'pause') {
-    title = 'Do you want me to pause the current session?'
+    title = 'Pause current session'
     detail = 'I will pause the active timer immediately.'
   } else if (intent.type === 'resume') {
-    title = 'Do you want me to resume your session?'
+    title = 'Resume focus session'
     detail = 'I will reopen study mode and continue the current timer.'
   } else if (intent.type === 'start_focus' || intent.type === 'start_pomodoro' || intent.type === 'start_recommended_task') {
     matchedTask = tasks.find((task) => {
@@ -585,21 +772,21 @@ export const resolveVoiceDecision = ({ transcript, tasks = [], studySessions = [
     }) || null
     const subject = intent.data?.subject || matchedTask?.subject || 'focus'
     const duration = intent.data?.duration || (intent.type === 'start_pomodoro' ? 45 : 30)
-    title = `Do you want me to start a ${duration}min ${subject} session?`
+    title = `Start a ${duration}min ${subject} session`
     detail = matchedTask
       ? `This will start focus on ${matchedTask.title}.`
       : 'This will open study mode with your requested session.'
   } else if (intent.type === 'navigate') {
-    title = 'Do you want me to open that page?'
+    title = 'Open requested page'
     detail = `I will navigate to ${intent.data?.route || '/dashboard'}.`
   } else if (intent.type === 'complete_task') {
-    title = `Do you want me to mark ${intent.data?.query || 'that task'} as done?`
+    title = `Mark ${intent.data?.query || 'task'} complete`
     detail = 'I will update the task immediately.'
   } else if (intent.type === 'delete_task') {
-    title = `Do you want me to delete ${intent.data?.query || 'that task'}?`
+    title = `Delete ${intent.data?.query || 'task'}`
     detail = 'This action can be undone only by recreating the task.'
   } else {
-    title = 'Do you want me to do that now?'
+    title = 'Run requested action'
     detail = 'Swipe right to confirm or left to cancel.'
   }
 
@@ -633,6 +820,25 @@ export const executeAssistantDecision = async (decision, deps = {}) => {
       status: 'success',
       message: 'Focus started',
       fullMessage: decision.task?.title ? `Opening study for ${decision.task.title}.` : 'Opening study mode.'
+    }
+  }
+
+  if (decision.action.kind === 'break') {
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Break suggested',
+      fullMessage: `Take ${decision.action.durationMinutes || 5} minutes to reset before the next session.`
+    }
+  }
+
+  if (decision.action.kind === 'navigate') {
+    deps.navigate?.(decision.action.path || '/dashboard')
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Opening',
+      fullMessage: 'Opening the next step.'
     }
   }
 

@@ -234,7 +234,7 @@ const AssistantDynamicIsland = ({
   const tone = page?.tone || 'neutral'
   const Icon = page?.icon || Sparkles
   const text = page?.message || 'Ready'
-  const openState = isExpanded || isHolding || statusMode !== 'idle'
+  const expandedState = isExpanded || isHolding || statusMode !== 'idle'
 
   const shellToneClass = shellToneClasses[tone] || shellToneClasses.neutral
   const shellGlowClass = isEngaged || isHolding || statusMode === 'listening'
@@ -251,14 +251,12 @@ const AssistantDynamicIsland = ({
     value < 0 ? clamp(Math.abs(value) / gestureMotion.swipeMax, 0, 1) : 0
   )
 
-  const compactWidth = isMobile ? Math.min(176, Math.max(140, Math.round(width * 0.36))) : 156
   const mobileExpandedWidth = width <= 380 ? width - 40 : width - 56
   const expandedWidth = isMobile
     ? Math.min(Math.max(280, mobileExpandedWidth), 400)
     : Math.min(Math.max(420, Math.round(width * 0.32)), 520)
-  const compactHeight = 44
-  const expandedHeight = 60
-  const shellWidth = openState ? expandedWidth : compactWidth
+  const restHeight = 56
+  const shellWidth = expandedWidth
   const feedbackWidth = Math.max(36, Math.round(shellWidth * 0.5))
   const swipeFeedbackDirection =
     gestureDirection === 'left' || gestureDirection === 'right' ? gestureDirection : null
@@ -291,9 +289,9 @@ const AssistantDynamicIsland = ({
           : 'idle'
 
   const containerMotion = {
-    width: openState ? expandedWidth : compactWidth,
-    height: openState ? expandedHeight : compactHeight,
-    borderRadius: openState ? 28 : 999,
+    width: expandedWidth,
+    height: expandedState ? 'auto' : restHeight,
+    borderRadius: expandedState ? 28 : 999,
     scale: isEngaged || isHolding ? 1.02 : 1
   }
 
@@ -327,7 +325,8 @@ const AssistantDynamicIsland = ({
         )}
         style={{
           ...gestureStyle,
-          cursor: 'grab'
+          cursor: 'grab',
+          minHeight: restHeight
         }}
         {...gestureHandlers}
       >
@@ -466,7 +465,7 @@ const AssistantDynamicIsland = ({
             y: contentResistanceY
           }}
           animate={{
-            opacity: openState ? 1 : 0.96
+            opacity: expandedState ? 1 : 0.96
           }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
         >
@@ -480,42 +479,28 @@ const AssistantDynamicIsland = ({
           </span>
 
           <AnimatePresence mode="wait" initial={false}>
-            {openState ? (
-              <motion.div
-                key={`${page?.key || 'page'}-${page?.message || 'ready'}`}
-                initial={{ opacity: 0, y: pageDirection > 0 ? 4 : -4, filter: 'blur(2px)' }}
-                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, y: pageDirection > 0 ? -3 : 3, filter: 'blur(2px)' }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="min-w-0 flex-1"
-                style={NO_SELECT_STYLE}
+            <motion.div
+              key={`${page?.key || 'page'}-${page?.message || 'ready'}-${expandedState ? 'expanded' : 'rest'}`}
+              initial={{ opacity: 0, y: pageDirection > 0 ? 4 : -4, filter: 'blur(2px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: pageDirection > 0 ? -3 : 3, filter: 'blur(2px)' }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="min-w-0 flex-1"
+              style={NO_SELECT_STYLE}
+            >
+              <p
+                className={cn(
+                  'text-[13px] font-medium text-white md:text-sm',
+                  expandedState ? 'whitespace-normal leading-5' : 'whitespace-normal leading-4'
+                )}
               >
-                <p className="truncate text-[13px] font-medium leading-none text-white md:text-sm">
-                  {text}
-                </p>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="compact-dots"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.16, ease: 'easeOut' }}
-                className="min-w-0 flex-1"
-              >
-                <div className="flex items-center justify-center">
-                  <motion.div
-                    className="h-1 w-6 rounded-full bg-white/30"
-                    animate={{ opacity: [0.6, 1, 0.6], scaleX: [0.95, 1.05, 0.95] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-                  />
-                </div>
-              </motion.div>
-            )}
+                {text}
+              </p>
+            </motion.div>
           </AnimatePresence>
 
           <AnimatePresence mode="wait" initial={false}>
-            {openState ? (
+            {expandedState ? (
               <motion.span
                 key={`${statusMode}-${statusLabel}`}
                 initial={{ opacity: 0, scale: 0.96 }}

@@ -52,6 +52,134 @@ const formatTime = (totalSeconds) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+
+const toDayKey = (value = Date.now()) => {
+  const parsed = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(parsed.getTime())) return new Date().toISOString().slice(0, 10)
+  return parsed.toISOString().slice(0, 10)
+}
+
+const getTaskDurationMinutes = (task, fallback = 45) => {
+  const candidates = [
+    task?.duration_minutes,
+    task?.durationMinutes,
+    task?.estimated_minutes,
+    task?.estimatedMinutes,
+    task?.planned_minutes,
+    task?.plannedMinutes,
+    task?.focus_minutes,
+    task?.focusMinutes
+  ]
+
+  for (const value of candidates) {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) return Math.round(numeric)
+  }
+
+  return fallback
+}
+
+const formatSubjectLabel = (value) =>
+  String(value || 'focus')
+    .replace(/[_-]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+
+const formatDirectTaskAction = (task, mode = 'continue', fallbackMinutes = 45) => {
+  const duration = getTaskDurationMinutes(task, fallbackMinutes)
+  const subject = formatSubjectLabel(task?.subject)
+  const title = String(task?.title || '').trim()
+
+  if (mode === 'first') return `Start first ${subject} session • ${duration}min`
+  if (mode === 'overdue') return `Finish overdue ${subject} task • ${duration}min`
+  if (!title) return `Continue ${subject} session • ${duration}min`
+  return `Continue ${title} • ${duration}min`
+}
+
+const getDueDayOffset = (task, now = Date.now()) => {
+  if (!task?.due_date) return Number.POSITIVE_INFINITY
+  const todayKey = toDayKey(now)
+  const todayMs = new Date(`${todayKey}T00:00:00`).getTime()
+  const dueMs = new Date(`${task.due_date}T00:00:00`).getTime()
+  if (Number.isNaN(dueMs)) return Number.POSITIVE_INFINITY
+  return Math.round((dueMs - todayMs) / DAY_MS)
+}
+
+const getActiveTasks = (tasks = []) =>
+  tasks.filter((task) => !(task?.completed || task?.status === 'completed' || task?.status === 'on_hold'))
+
+const getOverdueTask = (tasks = [], now = Date.now()) =>
+  getActiveTasks(tasks)
+    .filter((task) => getDueDayOffset(task, now) < 0)
+    .sort((a, b) => {
+      const dueDelta = getDueDayOffset(a, now) - getDueDayOffset(b, now)
+      if (dueDelta !== 0) return dueDelta
+      const aPriority = String(a?.priority || '').toLowerCase()
+      const bPriority = String(b?.priority || '').toLowerCase()
+      const score = { high: 3, medium: 2, low: 1 }
+      return (score[bPriority] || 0) - (score[aPriority] || 0)
+    })[0] || null
+
+const getTodayStudyMinutes = (studySessions = [], now = Date.now()) => {
+  const todayKey = toDayKey(now)
+  return studySessions.reduce((total, session) => {
+    const dateValue =
+      session?.completed_at ||
+      session?.ended_at ||
+      session?.created_at ||
+      session?.updated_at ||
+      session?.date ||
+      session?.started_at
+
+    if (!dateValue || toDayKey(dateValue) !== todayKey) return total
+    return total + (Number(session?.duration_minutes ?? session?.durationMinutes ?? session?.duration ?? 0) || 0)
+  }, 0)
+}
+
+const getMostRecentCompletedSession = (studySessions = [], now = Date.now()) =>
+  [...studySessions]
+    .map((session) => {
+      const endedAt = session?.completed_at || session?.ended_at || session?.updated_at || session?.created_at || null
+      const endedMs = endedAt ? new Date(endedAt).getTime() : Number.NaN
+      return { session, endedMs }
+    })
+    .filter((entry) => Number.isFinite(entry.endedMs) && entry.endedMs <= now)
+    .sort((a, b) => b.endedMs - a.endedMs)[0] || null
+
+const buildRestRecommendationMessage = ({ tasks = [], studySessions = [], decision, now = Date.now() }) => {
+  const activeTasks = getActiveTasks(tasks)
+  if (!activeTasks.length) {
+    return 'Add your first task • Plan today • 2min'
+  }
+
+  const todayStudyMinutes = getTodayStudyMinutes(studySessions, now)
+  if (todayStudyMinutes <= 0) {
+    const starterTask = decision?.task || activeTasks[0]
+    return formatDirectTaskAction(starterTask, 'first', 45)
+  }
+
+  const recentSessionEntry = getMostRecentCompletedSession(studySessions, now)
+  const recentMinutes = Number(
+    recentSessionEntry?.session?.duration_minutes ??
+      recentSessionEntry?.session?.durationMinutes ??
+      recentSessionEntry?.session?.duration ??
+      0
+  ) || 0
+  const recentAgeMs = recentSessionEntry ? now - recentSessionEntry.endedMs : Number.POSITIVE_INFINITY
+
+  if (recentMinutes >= 25 && recentAgeMs <= 25 * 60 * 1000) {
+    return 'Take a break • Reset • 5min'
+  }
+
+  const overdueTask = getOverdueTask(activeTasks, now)
+  if (overdueTask) {
+    return formatDirectTaskAction(overdueTask, 'overdue', 45)
+  }
+
+  const nextTask = decision?.task || activeTasks[0]
+  return formatDirectTaskAction(nextTask, 'continue', 45)
+}
+
 const mapTimerState = (session, now = Date.now()) => {
   if (!session || session.phase === 'completed') return null
 
@@ -74,28 +202,38 @@ const mapTimerState = (session, now = Date.now()) => {
   return { isRunning, seconds, formatted: formatTime(seconds), mode, phase: session.phase || 'focus' }
 }
 
-const buildIslandPages = ({ snapshot, decision, currentPath }) => {
+const buildIslandPages = ({ snapshot, decision, currentPath, timerState, tasks, studySessions, now }) => {
   const bestTask = decision?.task || snapshot?.metadata?.bestTask || snapshot?.recommendation?.task || snapshot?.recommendation?.bestTask || null
   const timerMessage =
-    snapshot?.autopilotActive
-      ? getShortMessage(`Autopilot ${Number(snapshot?.metadata?.autopilotPlan?.duration || snapshot?.suggestedDuration || 30)}m`, 24)
-      : snapshot?.assistantState === 'timer'
-        ? getShortMessage(snapshot?.primaryMessage || 'Focus active', 24)
+    timerState?.isRunning
+      ? `Focus running • ${timerState.formatted}`
+      : snapshot?.autopilotActive
+        ? `Autopilot running • ${Number(snapshot?.metadata?.autopilotPlan?.duration || snapshot?.suggestedDuration || 30)}min`
         : snapshot?.suggestedDuration
-          ? getShortMessage(`${snapshot.suggestedDuration}m focus`, 24)
-          : 'Focus now'
+          ? `Start focus • ${snapshot.suggestedDuration}min`
+          : 'Start focus session • 30min'
 
-  const taskMessage = getShortMessage(
-    bestTask?.title || snapshot?.desktopTitle || snapshot?.primaryMessage || 'Task',
-    24
-  )
+  const taskMessage = bestTask
+    ? formatDirectTaskAction(bestTask, 'continue', 45)
+    : 'Continue next task • 45min'
 
-  const suggestionMessage = getShortMessage(
-    decision?.shortMessage || snapshot?.desktopTitle || snapshot?.primaryMessage || 'Suggested next step',
-    24
-  )
+  const suggestionMessage =
+    decision?.title ||
+    buildRestRecommendationMessage({
+      tasks,
+      studySessions,
+      decision,
+      now
+    })
 
-  const idleMessage = getShortMessage(snapshot?.primaryMessage || 'Ready', 24)
+  const idleMessage = timerState?.isRunning
+    ? `Focus running • ${timerState.formatted}`
+    : buildRestRecommendationMessage({
+        tasks,
+        studySessions,
+        decision,
+        now
+      })
 
   const suggestionTone =
     decision?.tone ||
@@ -138,10 +276,10 @@ const buildIslandPages = ({ snapshot, decision, currentPath }) => {
 const resolveDefaultViewIndex = ({ snapshot, decision, currentPath }) => {
   const page = String(currentPath || '').replace(/^\//, '')
 
+  if (snapshot?.autopilotActive || snapshot?.assistantState === 'timer') return 2
   if (decision) return 1
   if (page === 'study') return 2
   if (page === 'tasks') return 3
-  if (snapshot?.autopilotActive || snapshot?.assistantState === 'timer') return 2
   if (snapshot?.assistantState === 'exam' || snapshot?.assistantState === 'warning') return 1
   return 0
 }
@@ -606,7 +744,11 @@ const AssistantBar = () => {
   const pages = buildIslandPages({
     snapshot: assistantSnapshot,
     decision: actionableDecision,
-    currentPath: location.pathname
+    currentPath: location.pathname,
+    timerState,
+    tasks,
+    studySessions,
+    now
   })
   const currentPage = pages[clamp(viewIndex, 0, pages.length - 1)] || pages[0]
   const displayStatusMode =
