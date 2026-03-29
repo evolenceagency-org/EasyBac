@@ -1,31 +1,22 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo } from 'react'
 import { CheckCircle2, CreditCard, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import GuidedFlowShell from '../components/flow/GuidedFlowShell.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { getAuthenticatedHomeRoute, isEmailVerified } from '../utils/authFlow.js'
+import { isEmailVerified } from '../utils/authFlow.js'
 import { getPremiumTrialHoursLeft, hasPremiumAccess, isPremiumTrialActive } from '../utils/subscription.js'
 import { isPersonalized } from '../utils/personalization.js'
 
 const premiumDetails = [
-  'Immediate premium trial access',
+  'Premium trial opens right after your screenshot handoff',
   'Priority AI suggestions',
   'Advanced study controls',
-  'No waiting for review before you can start'
+  'A clean review flow with no blocked waiting state'
 ]
 
 const Checkout = () => {
   const navigate = useNavigate()
-  const {
-    user,
-    profile,
-    initialized,
-    loading,
-    profileLoading,
-    startPremiumTrialCheckout
-  } = useAuth()
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const { user, profile, initialized, loading, profileLoading } = useAuth()
 
   const premiumTrialHours = useMemo(
     () => getPremiumTrialHoursLeft(profile),
@@ -55,34 +46,12 @@ const Checkout = () => {
     }
   }, [initialized, loading, navigate, profile, profileLoading, user])
 
-  const handlePayNow = async () => {
-    setError('')
-
-    try {
-      setSubmitting(true)
-      const nextProfile = await startPremiumTrialCheckout()
-      const nextRoute =
-        isPremiumTrialActive(nextProfile) || nextProfile?.plan === 'premium_trial'
-          ? '/payment-pending'
-          : getAuthenticatedHomeRoute({ user, profile: nextProfile }) || '/dashboard'
-
-      navigate(nextRoute, { replace: true })
-    } catch (checkoutError) {
-      setError(
-        checkoutError?.message ||
-          'We could not start checkout right now. Please try again in a moment.'
-      )
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   return (
     <GuidedFlowShell
       step={3}
       eyebrow="Checkout"
       title="Confirm Premium"
-      description="One last step. As soon as you continue, Premium starts in trial mode while payment review finishes in the background."
+      description="Review the plan, then continue to a simple payment handoff with the RIB and screenshot instructions."
       onBack={() => navigate('/choose-plan', { replace: true })}
     >
       <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
@@ -90,7 +59,7 @@ const Checkout = () => {
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-white/45">Plan summary</p>
             <h2 className="mt-2 text-2xl font-semibold">EasyBac Premium</h2>
-            <p className="mt-2 text-sm text-white/65">Premium starts now in trial mode so you never hit a blocked state.</p>
+            <p className="mt-2 text-sm text-white/65">We'll guide the user through the bank transfer details first, then open Premium trial right after they confirm the screenshot handoff.</p>
           </div>
           <div className="text-right">
             <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/12 text-[#d8b4fe]">
@@ -111,7 +80,7 @@ const Checkout = () => {
         </div>
 
         <div className="mt-5 rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/8 px-4 py-3 text-sm text-white/74">
-          Tap <span className="font-medium text-white">Pay now</span> and we’ll move you to payment review while giving you premium access immediately.
+          Continue to payment to copy the RIB, send the proof screenshot, and then move into review with Premium trial already unlocked.
         </div>
 
         {premiumTrialHours > 0 ? (
@@ -121,26 +90,18 @@ const Checkout = () => {
           </div>
         ) : null}
 
-        {error ? (
-          <div className="mt-5 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-            {error}
-          </div>
-        ) : null}
-
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            onClick={handlePayNow}
-            disabled={submitting}
-            className="inline-flex flex-1 items-center justify-center rounded-2xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
+            onClick={() => navigate('/payment', { replace: true })}
+            className="inline-flex flex-1 items-center justify-center rounded-2xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
           >
-            {submitting ? 'Starting Premium...' : 'Pay now'}
+            Continue to payment
           </button>
           <button
             type="button"
             onClick={() => navigate('/choose-plan', { replace: true })}
-            disabled={submitting}
-            className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
           >
             Back
           </button>
@@ -151,4 +112,3 @@ const Checkout = () => {
 }
 
 export default Checkout
-

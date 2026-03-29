@@ -12,6 +12,7 @@ import Pricing from './pages/Pricing.jsx'
 import ChoosePlan from './pages/ChoosePlan.jsx'
 import DonatePage from './pages/DonatePage.jsx'
 import Checkout from './pages/Checkout.jsx'
+import Payment from './pages/Payment.jsx'
 import PaymentPending from './pages/PaymentPending.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import { useAuth } from './context/AuthContext.jsx'
@@ -111,8 +112,8 @@ function App() {
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/choose-plan" element={<ChoosePlan />} />
             <Route path="/checkout" element={<Checkout />} />
+            <Route path="/payment" element={<Payment />} />
             <Route path="/payment-pending" element={<PaymentPending />} />
-            <Route path="/payment" element={<Navigate to="/checkout" replace />} />
             <Route path="/exam-simulation" element={<ExamSimulation />} />
             <Route path="/exam-result" element={<ExamResult />} />
             <Route element={<MainLayout />}>

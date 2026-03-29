@@ -1,4 +1,4 @@
-﻿import { useEffect } from 'react'
+import { useEffect } from 'react'
 import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import GuidedFlowShell from '../components/flow/GuidedFlowShell.jsx'
@@ -18,7 +18,7 @@ const PaymentPending = () => {
     }
 
     if (!isPremiumTrialActive(profile) && !hasPremiumAccess(profile)) {
-      navigate('/checkout', { replace: true })
+      navigate('/payment', { replace: true })
     }
   }, [initialized, loading, navigate, profile, profileLoading, user])
 
@@ -29,8 +29,8 @@ const PaymentPending = () => {
       step={3}
       eyebrow="Payment review"
       title="You're almost in"
-      description="We’re reviewing your payment. This takes less than 12h."
-      onBack={() => navigate('/checkout', { replace: true })}
+      description="We're reviewing your payment screenshot now. This usually takes less than 12h."
+      onBack={() => navigate('/payment', { replace: true })}
     >
       <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-6 backdrop-blur-[20px]">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/12 text-[#d8b4fe]">
@@ -39,7 +39,7 @@ const PaymentPending = () => {
 
         <div className="mt-5 text-center">
           <h2 className="text-2xl font-semibold tracking-tight">Payment received</h2>
-          <p className="mt-2 text-sm text-white/68">We are reviewing your payment and will confirm it as quickly as possible.</p>
+          <p className="mt-2 text-sm text-white/68">We are reviewing your screenshot and will confirm the payment as quickly as possible.</p>
         </div>
       </section>
 
@@ -71,7 +71,7 @@ const PaymentPending = () => {
         </button>
         <button
           type="button"
-          onClick={() => navigate('/checkout', { replace: true })}
+          onClick={() => navigate('/payment', { replace: true })}
           className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
         >
           Back
@@ -82,4 +82,3 @@ const PaymentPending = () => {
 }
 
 export default PaymentPending
-

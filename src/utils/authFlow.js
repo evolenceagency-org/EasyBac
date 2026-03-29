@@ -65,7 +65,7 @@ export const ensureValidRoute = ({ user, profile, currentPath = '' }) => {
   if (!profile) return null
 
   const personalizationRoutes = new Set(['/onboarding', '/personalization'])
-  const planRoutes = new Set(['/choose-plan', '/checkout'])
+  const planRoutes = new Set(['/choose-plan', '/checkout', '/payment'])
 
   if (!isPersonalized(profile)) {
     return personalizationRoutes.has(currentPath) ? null : '/onboarding'

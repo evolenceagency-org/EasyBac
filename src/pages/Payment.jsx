@@ -1,30 +1,88 @@
-﻿import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Navigate } from 'react-router-dom'
+import {
+  ArrowRight,
+  Copy,
+  Landmark,
+  MessageCircleMore,
+  ShieldCheck
+} from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import GuidedFlowShell from '../components/flow/GuidedFlowShell.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { normalizeSubscriptionStatus } from '../utils/subscription.js'
-import { paymentPhone, rib } from '../config/paymentConfig.js'
+import { paymentPhone, paymentText, rib, whatsappLink } from '../config/paymentConfig.js'
+import { getAuthenticatedHomeRoute, hasSelectedPlan, isEmailVerified } from '../utils/authFlow.js'
+import { isPersonalized } from '../utils/personalization.js'
+import { hasPremiumAccess, isPremiumTrialActive } from '../utils/subscription.js'
+
+const paymentSteps = [
+  'Copy the RIB and complete the bank transfer.',
+  'Take a screenshot of the transfer confirmation.',
+  'Send that screenshot so we can verify the payment quickly.'
+]
 
 const Payment = () => {
-  const { profile } = useAuth()
+  const navigate = useNavigate()
+  const {
+    user,
+    profile,
+    initialized,
+    loading,
+    profileLoading,
+    startPremiumTrialCheckout
+  } = useAuth()
   const [copied, setCopied] = useState(false)
-
-  const status = normalizeSubscriptionStatus(profile?.subscription_status)
+  const [sending, setSending] = useState(false)
+  const [actionError, setActionError] = useState('')
 
   const normalizedPhone = paymentPhone.replace(/[^\d]/g, '')
-  const whatsappMessage = encodeURIComponent(
-    'Hello, I have completed the payment. Here is my receipt.'
-  )
-  const whatsappUrl = normalizedPhone
-    ? `https://wa.me/${normalizedPhone}?text=${whatsappMessage}`
-    : '#'
+  const contactHref = useMemo(() => {
+    if (whatsappLink) return whatsappLink
+    if (!normalizedPhone) return ''
 
-  if (profile && (profile.payment_verified || status === 'premium')) {
-    return <Navigate to="/dashboard" replace />
-  }
+    const message =
+      paymentText ||
+      'Hello, I completed the bank transfer and I am sending my payment screenshot for verification.'
+
+    return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`
+  }, [normalizedPhone])
+
+  useEffect(() => {
+    if (!initialized || loading || profileLoading) return
+
+    if (!user) {
+      navigate('/login', { replace: true })
+      return
+    }
+
+    if (!isEmailVerified(user)) {
+      navigate('/verify', { replace: true, state: { email: user.email } })
+      return
+    }
+
+    if (!isPersonalized(profile)) {
+      navigate('/onboarding', { replace: true })
+      return
+    }
+
+    if (hasPremiumAccess(profile) && !isPremiumTrialActive(profile)) {
+      navigate('/dashboard', { replace: true })
+      return
+    }
+
+    if (isPremiumTrialActive(profile) || profile?.plan === 'premium_trial') {
+      navigate('/payment-pending', { replace: true })
+      return
+    }
+
+    if (hasSelectedPlan(profile) && profile?.plan !== 'premium') {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [initialized, loading, navigate, profile, profileLoading, user])
 
   const handleCopyRib = async () => {
     if (!rib) return
+
     try {
       await navigator.clipboard.writeText(rib)
       setCopied(true)
@@ -34,89 +92,162 @@ const Payment = () => {
     }
   }
 
-  const steps = [
-    'Copy the RIB',
-    'Send payment via bank transfer',
-    'Take a screenshot of the payment',
-    'Send the screenshot via WhatsApp',
-    'Wait for account activation'
-  ]
+  const handleConfirmProofSent = async () => {
+    setActionError('')
+
+    try {
+      setSending(true)
+      const nextProfile = await startPremiumTrialCheckout()
+      const nextRoute =
+        isPremiumTrialActive(nextProfile) || nextProfile?.plan === 'premium_trial'
+          ? '/payment-pending'
+          : getAuthenticatedHomeRoute({ user, profile: nextProfile }) || '/dashboard'
+
+      navigate(nextRoute, { replace: true })
+    } catch (error) {
+      setActionError(
+        error?.message ||
+          'We could not open Premium right now. Please try again once your screenshot is sent.'
+      )
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-black via-[#090913] to-[#05050a] px-4 py-8 md:px-6 md:py-10">
-      <div className="pointer-events-none absolute -left-20 top-0 hidden h-72 w-72 rounded-full bg-purple-500/20 blur-3xl md:block" />
-      <div className="pointer-events-none absolute -right-20 bottom-0 hidden h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl md:block" />
-
-      <motion.div
+    <GuidedFlowShell
+      step={3}
+      eyebrow="Payment instructions"
+      title="Send your payment screenshot"
+      description="Use the RIB below for the transfer, then send the screenshot so we can verify your payment. As soon as you confirm that step here, Premium trial opens right away."
+      onBack={() => navigate('/checkout', { replace: true })}
+    >
+      <motion.section
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="relative w-full max-w-[440px] rounded-2xl border border-white/10 bg-white/5 p-5 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl md:p-7"
+        transition={{ duration: 0.22, ease: 'easeOut' }}
+        className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]"
       >
-        <div className="pointer-events-none absolute inset-0 rounded-2xl border border-white/5" />
-        <div className="pointer-events-none absolute -inset-8 -z-10 hidden rounded-[40px] bg-gradient-to-tr from-purple-500/25 via-blue-400/10 to-cyan-400/15 blur-3xl md:block" />
-
-        <h1 className="text-xl font-semibold tracking-tight text-white md:text-2xl">Unlock Premium Access</h1>
-        <p className="mt-2 text-sm text-white/70">
-          Complete your payment to activate your account.
-        </p>
-
-        <div className="mt-6 rounded-xl border border-white/10 bg-black/30 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">RIB</p>
-              <p className="mt-1 break-all text-sm font-medium text-white">{rib || 'RIB not configured'}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleCopyRib}
-              disabled={!rib}
-              className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white transition-all duration-300 hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {copied ? 'Copied!' : 'Copy RIB'}
-            </button>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-xs uppercase tracking-[0.2em] text-white/45">Bank transfer</p>
+            <h2 className="mt-2 text-2xl font-semibold">Copy the RIB</h2>
+            <p className="mt-2 text-sm text-white/65">
+              This is the account to pay into before you send your screenshot for review.
+            </p>
+          </div>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/12 text-[#d8b4fe]">
+            <Landmark className="h-5 w-5" />
           </div>
         </div>
 
-        <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Payment Steps</p>
-          <ol className="mt-3 space-y-2 text-sm text-white/75">
-            {steps.map((step, index) => (
-              <li key={step} className="flex items-start gap-2">
-                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-[11px] text-white/80">
-                  {index + 1}
-                </span>
-                <span>{step}</span>
-              </li>
-            ))}
-          </ol>
+        <div className="mt-5 rounded-2xl border border-white/[0.08] bg-[#0b0b0f] p-4">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-white/45">RIB</p>
+          <p className="mt-3 break-all text-sm font-medium leading-6 text-white">
+            {rib || 'RIB is not configured yet. Please add VITE_RIB in the environment before using this flow.'}
+          </p>
         </div>
 
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={`mt-6 inline-flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold transition-all duration-300 ${
-            normalizedPhone
-              ? 'bg-emerald-500 text-zinc-900 hover:scale-[1.02] hover:bg-emerald-400 hover:shadow-[0_0_28px_rgba(16,185,129,0.45)]'
-              : 'cursor-not-allowed bg-white/10 text-white/40'
-          }`}
-        >
-          Send Receipt via WhatsApp
-        </a>
-        {!normalizedPhone && (
-          <p className="mt-3 text-center text-xs text-white/50">
-            WhatsApp contact is not configured yet.
-          </p>
-        )}
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={handleCopyRib}
+            disabled={!rib}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white transition hover:border-white/[0.14] hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            <Copy className="h-4 w-4" />
+            {copied ? 'RIB copied' : 'Copy RIB'}
+          </button>
 
-        <p className="mt-4 text-center text-xs text-white/50">
-          Access is activated manually within a few hours.
-        </p>
-      </motion.div>
-    </div>
+          <a
+            href={contactHref || undefined}
+            target={contactHref ? '_blank' : undefined}
+            rel={contactHref ? 'noreferrer' : undefined}
+            className={`inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition ${
+              contactHref
+                ? 'bg-[#8b5cf6] text-white hover:bg-[#7c3aed]'
+                : 'pointer-events-none border border-white/[0.08] bg-white/[0.04] text-white/40'
+            }`}
+          >
+            <MessageCircleMore className="h-4 w-4" />
+            Send screenshot
+          </a>
+        </div>
+
+        {!contactHref ? (
+          <p className="mt-3 text-sm text-amber-200/85">
+            Add `VITE_PAYMENT_PHONE` or `VITE_WHATSAPP_LINK` in your environment so users know exactly where to send the screenshot.
+          </p>
+        ) : null}
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, delay: 0.05, ease: 'easeOut' }}
+        className="rounded-3xl border border-white/[0.08] bg-[#0b0b0f] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
+      >
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-[#d8b4fe]">
+            <ShieldCheck className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-white">Make the handoff once</p>
+            <p className="mt-1 text-sm text-white/65">
+              The flow is simple: transfer, screenshot, send. Then we move you into Premium review while keeping access open.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3">
+          {paymentSteps.map((step, index) => (
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.2, delay: 0.08 + index * 0.05, ease: 'easeOut' }}
+              className="flex items-start gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.02] px-4 py-3 text-sm text-white/78"
+            >
+              <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04] text-xs font-semibold text-white/70">
+                {index + 1}
+              </span>
+              <span>{step}</span>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/8 px-4 py-3 text-sm text-white/74">
+          Once you send the screenshot, tap the confirmation button below. We'll move you to payment review and unlock Premium trial immediately.
+        </div>
+
+        {actionError ? (
+          <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {actionError}
+          </div>
+        ) : null}
+
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={handleConfirmProofSent}
+            disabled={sending || !rib || !contactHref}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {sending ? 'Opening Premium...' : "I've sent the screenshot"}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/checkout', { replace: true })}
+            disabled={sending}
+            className="inline-flex flex-1 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-5 py-3 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Back
+          </button>
+        </div>
+      </motion.section>
+    </GuidedFlowShell>
   )
 }
 
 export default Payment
-
