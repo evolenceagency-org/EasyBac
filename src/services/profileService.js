@@ -36,7 +36,8 @@ export const createProfile = async (userId, email) => {
         trial_ends_at: null,
         exam_date: null,
         payment_verified: false,
-        personalization: null
+        personalization: null,
+        assistant_memory: {}
       },
       { onConflict: 'id', ignoreDuplicates: true }
     )

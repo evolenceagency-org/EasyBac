@@ -203,7 +203,7 @@ const AIControlCenter = () => {
     playAssistantSound('success')
   }, [clearVoiceTimer, voiceTranscript])
 
-  const startTestVoice = useCallback(() => {
+  const startTestVoice = useCallback(async () => {
     if (!settings.voice.enabled) {
       setVoiceStatus('error')
       setVoiceMessage('Voice control is disabled. Enable it first.')
@@ -224,6 +224,18 @@ const AIControlCenter = () => {
         setVoiceTranscript(transcript)
         setVoiceMessage('Keep speaking. The assistant is still listening.')
       },
+      onStateChange: (nextState) => {
+        if (nextState === 'listening') {
+          setVoiceStatus('listening')
+          setVoiceMessage('Listening for a sample command...')
+          return
+        }
+
+        if (nextState === 'processing') {
+          setVoiceStatus('processing')
+          setVoiceMessage('Processing the sample...')
+        }
+      },
       onFinalTranscript: (transcript) => {
         setVoiceTranscript(transcript)
         setVoiceStatus('success')
@@ -236,9 +248,17 @@ const AIControlCenter = () => {
           setVoiceMessage('Processing the sample...')
         }
       },
-      onError: () => {
+      onError: (message, meta) => {
         setVoiceStatus('error')
-        setVoiceMessage('Voice test failed. Check microphone permissions.')
+        if (meta?.code === 'not-allowed') {
+          setVoiceMessage('Microphone access was denied.')
+        } else if (meta?.code === 'no-speech') {
+          setVoiceMessage('No speech was detected. Try again.')
+        } else if (meta?.code === 'network') {
+          setVoiceMessage('Network issue while processing voice.')
+        } else {
+          setVoiceMessage(message || 'Voice test failed. Check microphone permissions.')
+        }
         playAssistantSound('error')
       }
     })
@@ -252,15 +272,12 @@ const AIControlCenter = () => {
       return
     }
 
-    const started = nextSession.startListening({
+    const started = await nextSession.startListening({
       continuous: settings.voice.alwaysListening && !settings.voice.pushToTalkOnly,
       silenceMs: settings.voice.pushToTalkOnly ? 1350 : 1900
     })
 
     if (!started) {
-      setVoiceStatus('error')
-      setVoiceMessage('Could not start the microphone test.')
-      playAssistantSound('error')
       return
     }
 

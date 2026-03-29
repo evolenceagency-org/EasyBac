@@ -148,7 +148,8 @@ export const AuthProvider = ({ children }) => {
               trial_ends_at: null,
               exam_date: null,
               payment_verified: false,
-              personalization: null
+              personalization: null,
+              assistant_memory: {}
             },
             '[Auth] profiles bootstrap upsert failed'
           )
@@ -456,6 +457,7 @@ export const AuthProvider = ({ children }) => {
       exam_date: profile?.exam_date || profile?.personalization?.examDate || null,
       payment_verified: profile?.payment_verified || false,
       personalization: profile?.personalization ?? null,
+      assistant_memory: profile?.assistant_memory ?? {},
       daily_insight: profile?.daily_insight ?? null,
       last_insight_date: profile?.last_insight_date ?? null
     }
@@ -518,6 +520,7 @@ export const AuthProvider = ({ children }) => {
         exam_date: personalization?.examDate || profile?.exam_date || null,
         payment_verified: profile?.payment_verified || false,
         personalization,
+        assistant_memory: profile?.assistant_memory ?? {},
         daily_insight: profile?.daily_insight ?? null,
         last_insight_date: profile?.last_insight_date ?? null
       },
@@ -551,10 +554,45 @@ export const AuthProvider = ({ children }) => {
         exam_date: profile?.exam_date || profile?.personalization?.examDate || null,
         payment_verified: profile?.payment_verified || false,
         personalization: profile?.personalization ?? null,
+        assistant_memory: profile?.assistant_memory ?? {},
         last_insight_date: insightDate,
         daily_insight: insightPayload
       },
       '[Auth] saveDailyInsight upsert failed'
+    )
+
+    if (error) {
+      throw error
+    }
+
+    setProfile(data)
+    return data
+  }
+
+  const saveAssistantMemory = async (assistantMemory) => {
+    if (!user?.id) {
+      throw new Error('Missing user id')
+    }
+
+    const { data, error } = await upsertProfileRecord(
+      {
+        id: user.id,
+        email: user.email,
+        onboarding_completed: profile?.onboarding_completed || false,
+        personalized: profile?.personalized === true || isPersonalized(profile),
+        plan: profile?.plan ?? null,
+        subscription_status: profile?.subscription_status || 'free',
+        trial_start: profile?.trial_start || null,
+        trial_active: profile?.trial_active || false,
+        trial_ends_at: profile?.trial_ends_at || null,
+        exam_date: profile?.exam_date || profile?.personalization?.examDate || null,
+        payment_verified: profile?.payment_verified || false,
+        personalization: profile?.personalization ?? null,
+        assistant_memory: assistantMemory ?? {},
+        last_insight_date: profile?.last_insight_date ?? null,
+        daily_insight: profile?.daily_insight ?? null
+      },
+      '[Auth] saveAssistantMemory upsert failed'
     )
 
     if (error) {
@@ -586,6 +624,7 @@ export const AuthProvider = ({ children }) => {
       startPremiumTrialCheckout,
       selectPlan,
       updatePersonalization,
+      saveAssistantMemory,
       saveDailyInsight,
       sendVerificationCode,
       verifyCode,

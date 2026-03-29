@@ -20,6 +20,9 @@ import {
   buildConfirmationDecision,
   executeAssistantDecision,
   getAssistantIgnoreThreshold,
+  mergeAssistantDecisionMemory,
+  normalizeAssistantDecisionMemory,
+  persistAssistantDecisionMemory,
   readAssistantDecisionMemory,
   recordAssistantDecisionOutcome
 } from '../../utils/assistantDecisionEngine.ts'
@@ -34,6 +37,7 @@ import AssistantDynamicIsland from './AssistantDynamicIsland.jsx'
 
 const ACTIVE_SESSION_KEY = 'active_session'
 const VIEW_ORDER = ['idle', 'suggestion', 'focus', 'task']
+const ASSISTANT_MEMORY_SYNC_MS = 900
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -289,8 +293,37 @@ const resolveDefaultViewIndex = ({ snapshot, decision, currentPath }) => {
   return 0
 }
 
+const AssistantDebugPanel = ({
+  aiContext,
+  decision,
+  fallbackDecision,
+  aiDecision,
+  memory
+}) => {
+  if (!import.meta.env.DEV) return null
+
+  return (
+    <div className="fixed left-1/2 top-[calc(env(safe-area-inset-top)+5.5rem)] z-[70] w-[min(92vw,28rem)] -translate-x-1/2 rounded-2xl border border-white/10 bg-[rgba(8,8,12,0.94)] p-3 text-[11px] text-white/80 shadow-[0_12px_32px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-semibold text-white/90">Assistant Debug</span>
+        <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-white/55">
+          {decision?.origin || 'fallback'}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1">
+        <div><span className="text-white/45">active:</span> {decision?.title || 'none'}</div>
+        <div><span className="text-white/45">ai:</span> {aiDecision?.title || 'none'}</div>
+        <div><span className="text-white/45">fallback:</span> {fallbackDecision?.title || 'none'}</div>
+        <div><span className="text-white/45">last action:</span> {memory?.lastAction?.type || 'none'}</div>
+        <div><span className="text-white/45">last task:</span> {memory?.lastTaskId || 'none'}</div>
+        <div><span className="text-white/45">context:</span> {JSON.stringify(aiContext?.payload || {})}</div>
+      </div>
+    </div>
+  )
+}
+
 const AssistantBar = () => {
-  const { user, profile } = useAuth()
+  const { user, profile, saveAssistantMemory } = useAuth()
   const { tasks, studySessions, addTask, updateTaskById, toggleTask, removeTask } = useData()
   const location = useLocation()
   const navigate = useNavigate()
@@ -315,6 +348,8 @@ const AssistantBar = () => {
   const visibleDecisionRef = useRef(null)
   const forceAiRefreshRef = useRef(false)
   const previousTimerRunningRef = useRef(false)
+  const memorySyncTimerRef = useRef(null)
+  const lastSyncedMemoryRef = useRef('')
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -322,8 +357,54 @@ const AssistantBar = () => {
   }, [])
 
   useEffect(() => {
-    setDecisionMemory(readAssistantDecisionMemory(user?.id))
-  }, [user?.id])
+    if (!user?.id) {
+      setDecisionMemory(readAssistantDecisionMemory(null))
+      lastSyncedMemoryRef.current = ''
+      return
+    }
+
+    const localMemory = readAssistantDecisionMemory(user.id)
+    const remoteMemory = normalizeAssistantDecisionMemory(profile?.assistant_memory || {})
+    const mergedMemory = mergeAssistantDecisionMemory(localMemory, remoteMemory)
+    persistAssistantDecisionMemory(user.id, mergedMemory)
+    setDecisionMemory(mergedMemory)
+  }, [user?.id, profile?.assistant_memory])
+
+  useEffect(() => {
+    if (!user?.id || !saveAssistantMemory) return undefined
+
+    const normalizedMemory = normalizeAssistantDecisionMemory(decisionMemory)
+    const serialized = JSON.stringify(normalizedMemory)
+    const remoteSerialized = JSON.stringify(normalizeAssistantDecisionMemory(profile?.assistant_memory || {}))
+
+    if (serialized === remoteSerialized || serialized === lastSyncedMemoryRef.current) {
+      return undefined
+    }
+
+    if (memorySyncTimerRef.current) {
+      window.clearTimeout(memorySyncTimerRef.current)
+    }
+
+    memorySyncTimerRef.current = window.setTimeout(() => {
+      saveAssistantMemory(normalizedMemory)
+        .then(() => {
+          lastSyncedMemoryRef.current = serialized
+        })
+        .catch(() => {
+          // Keep local memory even if remote sync fails.
+        })
+        .finally(() => {
+          memorySyncTimerRef.current = null
+        })
+    }, ASSISTANT_MEMORY_SYNC_MS)
+
+    return () => {
+      if (memorySyncTimerRef.current) {
+        window.clearTimeout(memorySyncTimerRef.current)
+        memorySyncTimerRef.current = null
+      }
+    }
+  }, [decisionMemory, profile?.assistant_memory, saveAssistantMemory, user?.id])
 
   useEffect(() => {
     voiceDepsRef.current = {
@@ -607,6 +688,7 @@ const AssistantBar = () => {
   useEffect(() => {
     return () => {
       if (statusTimerRef.current) window.clearTimeout(statusTimerRef.current)
+      if (memorySyncTimerRef.current) window.clearTimeout(memorySyncTimerRef.current)
       stopVoiceListening(voiceSessionRef.current)
     }
   }, [])
@@ -657,6 +739,23 @@ const AssistantBar = () => {
 
     const session = createVoiceSession({
       onTranscript: () => {},
+      onStateChange: (nextState) => {
+        if (nextState === 'listening') {
+          setInteractionStatus('listening', 'Listening')
+          return
+        }
+
+        if (nextState === 'processing') {
+          setInteractionStatus('processing', 'Processing')
+          return
+        }
+
+        if (interactionModeRef.current === 'listening' || interactionModeRef.current === 'processing') {
+          interactionModeRef.current = 'idle'
+          setStatusMode('idle')
+          setStatusLabel('')
+        }
+      },
       onListeningChange: (listening) => {
         if (listening) {
           setInteractionStatus('listening', 'Listening')
@@ -710,10 +809,10 @@ const AssistantBar = () => {
           })
 
           if (!nextDecision) {
-            playAssistantSound('error')
-            setInteractionStatus('error', 'Try again', 1100)
-            return
-          }
+          playAssistantSound('error')
+          setInteractionStatus('error', 'Try again', 1100)
+          return
+        }
 
           setPendingVoiceDecision(nextDecision)
           setViewIndex(1)
@@ -727,9 +826,17 @@ const AssistantBar = () => {
           setInteractionStatus('error', 'Voice unavailable', 1100)
         }
       },
-      onError: () => {
+      onError: (message, meta) => {
         playAssistantSound('error')
-        setInteractionStatus('error', 'Voice unavailable', 1100)
+        const label =
+          meta?.code === 'not-allowed'
+            ? 'Microphone blocked'
+            : meta?.code === 'no-speech'
+              ? 'No speech detected'
+              : meta?.code === 'network'
+                ? 'Voice network issue'
+                : message || 'Voice unavailable'
+        setInteractionStatus('error', label, 1400)
       }
     })
 
@@ -737,7 +844,7 @@ const AssistantBar = () => {
     return session
   }, [assistantProfile, decisionMemory, location.pathname, setInteractionStatus, tasks, studySessions, timerState, user?.id])
 
-  const triggerAI = useCallback(() => {
+  const triggerAI = useCallback(async () => {
     const session = ensureVoiceSession()
     if (!session?.supported) {
       playAssistantSound('error')
@@ -745,10 +852,8 @@ const AssistantBar = () => {
       return false
     }
 
-    const started = startVoiceListening(session, { continuous: true, silenceMs: 1900 })
+    const started = await startVoiceListening(session, { continuous: true, silenceMs: 1900 })
     if (!started) {
-      playAssistantSound('error')
-      setInteractionStatus('error', 'Voice blocked', 1100)
       return false
     }
 
@@ -895,20 +1000,29 @@ const AssistantBar = () => {
   const displayStatusLabel = statusLabel || currentPage?.status || 'Ready'
 
   return (
-    <AssistantDynamicIsland
-      page={currentPage}
-      pageDirection={pageDirection}
-      statusMode={displayStatusMode}
-      statusLabel={displayStatusLabel}
-      isExpanded={isIslandExpanded}
-      holdProgress={gesture.holdProgress}
-      isHolding={gesture.isHolding}
-      gestureDirection={gesture.gestureDirection}
-      dragX={gesture.dragX}
-      dragY={gesture.dragY}
-      gestureProps={gesture.gestureProps}
-      containerRef={islandRef}
-    />
+    <>
+      <AssistantDynamicIsland
+        page={currentPage}
+        pageDirection={pageDirection}
+        statusMode={displayStatusMode}
+        statusLabel={displayStatusLabel}
+        isExpanded={isIslandExpanded}
+        holdProgress={gesture.holdProgress}
+        isHolding={gesture.isHolding}
+        gestureDirection={gesture.gestureDirection}
+        dragX={gesture.dragX}
+        dragY={gesture.dragY}
+        gestureProps={gesture.gestureProps}
+        containerRef={islandRef}
+      />
+      <AssistantDebugPanel
+        aiContext={aiContext}
+        decision={decision}
+        fallbackDecision={fallbackDecision}
+        aiDecision={aiDecision}
+        memory={decisionMemory}
+      />
+    </>
   )
 }
 

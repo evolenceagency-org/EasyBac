@@ -1237,14 +1237,18 @@ export const createVoiceSession = ({
   onTranscript,
   onFinalTranscript,
   onListeningChange,
-  onError
+  onError,
+  onStateChange,
+  onPermissionChange
 } = {}) => {
   const SpeechRecognition = getSpeechRecognitionConstructor()
   if (!SpeechRecognition) {
     return {
       supported: false,
-      startListening: () => false,
-      stopListening: () => {}
+      state: 'idle',
+      startListening: async () => false,
+      stopListening: () => {},
+      requestPermission: async () => 'unsupported'
     }
   }
 
@@ -1264,6 +1268,56 @@ export const createVoiceSession = ({
   let finalTranscriptBuffer = ''
   let liveTranscriptBuffer = ''
   let finalizationTimer = null
+  let state = 'idle'
+  let permissionState = 'unknown'
+  let isRecognitionActive = false
+  let isProcessingResult = false
+  let startAttemptId = 0
+
+  const setVoiceState = (nextState) => {
+    if (state === nextState) return
+    state = nextState
+    onStateChange?.(nextState)
+    onListeningChange?.(nextState === 'listening')
+  }
+
+  const emitPermissionState = (nextState) => {
+    permissionState = nextState
+    onPermissionChange?.(nextState)
+  }
+
+  const mapVoiceError = (code) => {
+    switch (code) {
+      case 'not-allowed':
+      case 'service-not-allowed':
+      case 'denied':
+      case 'permission-denied':
+        return { code: 'not-allowed', message: 'Microphone access denied' }
+      case 'audio-capture':
+      case 'not-found':
+      case 'device-not-found':
+      case 'NotFoundError':
+        return { code: 'audio-capture', message: 'Microphone unavailable' }
+      case 'not-readable':
+      case 'NotReadableError':
+        return { code: 'audio-capture', message: 'Microphone busy' }
+      case 'no-speech':
+        return { code: 'no-speech', message: 'No speech detected' }
+      case 'network':
+        return { code: 'network', message: 'Voice network error' }
+      case 'aborted':
+        return { code: 'aborted', message: 'Voice capture cancelled' }
+      default:
+        return { code: code || 'voice-unavailable', message: 'Voice unavailable' }
+    }
+  }
+
+  const reportVoiceError = (code) => {
+    const mapped = mapVoiceError(code)
+    if (mapped.code === 'not-allowed') emitPermissionState('denied')
+    onError?.(mapped.message, mapped)
+    return mapped
+  }
 
   const clearFinalizationTimer = () => {
     if (finalizationTimer) {
@@ -1272,25 +1326,72 @@ export const createVoiceSession = ({
     }
   }
 
-  const flushFinalTranscript = () => {
+  const flushFinalTranscript = async () => {
     const finalText = finalTranscriptBuffer.trim()
     clearFinalizationTimer()
     finalTranscriptBuffer = ''
     liveTranscriptBuffer = ''
-    if (finalText) {
-      onFinalTranscript?.(finalText)
+    if (!finalText) {
+      if (!isRecognitionActive && !isProcessingResult) {
+        setVoiceState('idle')
+      }
+      return ''
+    }
+
+    isProcessingResult = true
+    setVoiceState('processing')
+
+    try {
+      await Promise.resolve(onFinalTranscript?.(finalText))
+      return finalText
+    } finally {
+      isProcessingResult = false
+      if (!isRecognitionActive) {
+        setVoiceState('idle')
+      }
     }
   }
 
   const scheduleFinalization = () => {
     clearFinalizationTimer()
     finalizationTimer = window.setTimeout(() => {
-      flushFinalTranscript()
+      void flushFinalTranscript()
     }, silenceMs)
   }
 
+  const requestMicrophonePermission = async () => {
+    if (typeof navigator === 'undefined') {
+      reportVoiceError('voice-unavailable')
+      return 'unsupported'
+    }
+
+    const mediaDevices = navigator.mediaDevices
+    if (!mediaDevices?.getUserMedia) {
+      emitPermissionState('unknown')
+      return 'unknown'
+    }
+
+    try {
+      const stream = await mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach((track) => {
+        try {
+          track.stop()
+        } catch {
+          // Ignore track shutdown issues.
+        }
+      })
+      emitPermissionState('granted')
+      return 'granted'
+    } catch (error) {
+      const code = error?.name || error?.code || 'not-allowed'
+      reportVoiceError(code)
+      return mapVoiceError(code).code === 'not-allowed' ? 'denied' : 'unknown'
+    }
+  }
+
   recognition.onstart = () => {
-    onListeningChange?.(true)
+    isRecognitionActive = true
+    setVoiceState('listening')
   }
 
   recognition.onresult = (event) => {
@@ -1323,12 +1424,20 @@ export const createVoiceSession = ({
 
   recognition.onerror = (event) => {
     clearFinalizationTimer()
-    onListeningChange?.(false)
-    onError?.(event?.error || 'Voice unavailable')
+    isRecognitionActive = false
+    isProcessingResult = false
+    setVoiceState('idle')
+    reportVoiceError(event?.error || 'voice-unavailable')
   }
 
   recognition.onend = () => {
-    onListeningChange?.(false)
+    isRecognitionActive = false
+
+    if (finalTranscriptBuffer.trim()) {
+      void flushFinalTranscript()
+      return
+    }
+
     if (!manualStop && continuousMode && !isCoolingDown) {
       isCoolingDown = true
       window.setTimeout(() => {
@@ -1339,12 +1448,23 @@ export const createVoiceSession = ({
           // Ignore restart collisions.
         }
       }, 260)
+      return
+    }
+
+    if (!isProcessingResult) {
+      setVoiceState('idle')
     }
   }
 
   return {
     supported: true,
-    startListening: ({ continuous = true, silenceMs: nextSilenceMs = 1800 } = {}) => {
+    get state() {
+      return state
+    },
+    requestPermission: requestMicrophonePermission,
+    startListening: async ({ continuous = true, silenceMs: nextSilenceMs = 1800 } = {}) => {
+      const attemptId = startAttemptId + 1
+      startAttemptId = attemptId
       continuousMode = continuous
       manualStop = false
       silenceMs = Math.max(900, Number(nextSilenceMs) || 1800)
@@ -1352,10 +1472,21 @@ export const createVoiceSession = ({
       liveTranscriptBuffer = ''
       clearFinalizationTimer()
       recognition.continuous = continuous
+
+      setVoiceState('processing')
+      const permission = await requestMicrophonePermission()
+      if (attemptId !== startAttemptId) return false
+      if (permission === 'denied' || permission === 'unsupported') {
+        setVoiceState('idle')
+        return false
+      }
+
       try {
         recognition.start()
         return true
       } catch {
+        setVoiceState('idle')
+        reportVoiceError('aborted')
         return false
       }
     },
@@ -1363,13 +1494,18 @@ export const createVoiceSession = ({
       manualStop = true
       continuousMode = false
       clearFinalizationTimer()
-      recognition.stop()
+      startAttemptId += 1
+      try {
+        recognition.stop()
+      } catch {
+        setVoiceState('idle')
+      }
     }
   }
 }
 
-export const startVoiceListening = (session, options = {}) =>
-  session?.startListening?.(options) || false
+export const startVoiceListening = async (session, options = {}) =>
+  (await session?.startListening?.(options)) || false
 
 export const stopVoiceListening = (session) => {
   session?.stopListening?.()

@@ -502,6 +502,81 @@ export const readAssistantDecisionMemory = (userId) => {
   }
 }
 
+export const normalizeAssistantDecisionMemory = (memory = {}) => ({
+  tasks: memory?.tasks || {},
+  subjects: memory?.subjects || {},
+  lastAction: memory?.lastAction || null,
+  lastAcceptedTaskId: memory?.lastAcceptedTaskId || null,
+  lastTaskId: memory?.lastTaskId || memory?.lastAcceptedTaskId || null,
+  lastAcceptedKey: memory?.lastAcceptedKey || null,
+  lastAcceptedAt: Number(memory?.lastAcceptedAt || 0) || 0,
+  lastRejectedKey: memory?.lastRejectedKey || null,
+  lastRejectedAt: Number(memory?.lastRejectedAt || 0) || 0,
+  acceptedCounts: {
+    start_focus: Number(memory?.acceptedCounts?.start_focus || 0) || 0,
+    break: Number(memory?.acceptedCounts?.break || 0) || 0,
+    reschedule: Number(memory?.acceptedCounts?.reschedule || 0) || 0,
+    continue: Number(memory?.acceptedCounts?.continue || 0) || 0,
+    idle: Number(memory?.acceptedCounts?.idle || 0) || 0
+  },
+  rejectedCounts: {
+    start_focus: Number(memory?.rejectedCounts?.start_focus || 0) || 0,
+    break: Number(memory?.rejectedCounts?.break || 0) || 0,
+    reschedule: Number(memory?.rejectedCounts?.reschedule || 0) || 0,
+    continue: Number(memory?.rejectedCounts?.continue || 0) || 0,
+    idle: Number(memory?.rejectedCounts?.idle || 0) || 0
+  },
+  cooldownUntil: Number(memory?.cooldownUntil || 0) || 0
+})
+
+const mergeNumericRecords = (left = {}, right = {}) => {
+  const merged = { ...left }
+  for (const [key, value] of Object.entries(right || {})) {
+    merged[key] = Math.max(Number(merged[key] || 0) || 0, Number(value || 0) || 0)
+  }
+  return merged
+}
+
+const mergeNestedMemoryMaps = (left = {}, right = {}) => {
+  const merged = { ...left }
+
+  for (const [key, value] of Object.entries(right || {})) {
+    const current = merged[key] || {}
+    merged[key] = mergeNumericRecords(current, value || {})
+  }
+
+  return merged
+}
+
+export const mergeAssistantDecisionMemory = (localMemory = {}, remoteMemory = {}) => {
+  const local = normalizeAssistantDecisionMemory(localMemory)
+  const remote = normalizeAssistantDecisionMemory(remoteMemory)
+
+  return {
+    tasks: mergeNestedMemoryMaps(local.tasks, remote.tasks),
+    subjects: mergeNestedMemoryMaps(local.subjects, remote.subjects),
+    lastAction:
+      (Number(remote?.lastAction?.at || 0) || 0) > (Number(local?.lastAction?.at || 0) || 0)
+        ? remote.lastAction
+        : local.lastAction,
+    lastAcceptedTaskId: remote.lastAcceptedAt > local.lastAcceptedAt ? remote.lastAcceptedTaskId : local.lastAcceptedTaskId,
+    lastTaskId: remote.lastAcceptedAt > local.lastAcceptedAt ? remote.lastTaskId : local.lastTaskId,
+    lastAcceptedKey: remote.lastAcceptedAt > local.lastAcceptedAt ? remote.lastAcceptedKey : local.lastAcceptedKey,
+    lastAcceptedAt: Math.max(local.lastAcceptedAt, remote.lastAcceptedAt),
+    lastRejectedKey: remote.lastRejectedAt > local.lastRejectedAt ? remote.lastRejectedKey : local.lastRejectedKey,
+    lastRejectedAt: Math.max(local.lastRejectedAt, remote.lastRejectedAt),
+    acceptedCounts: mergeNumericRecords(local.acceptedCounts, remote.acceptedCounts),
+    rejectedCounts: mergeNumericRecords(local.rejectedCounts, remote.rejectedCounts),
+    cooldownUntil: Math.max(local.cooldownUntil, remote.cooldownUntil)
+  }
+}
+
+export const persistAssistantDecisionMemory = (userId, memory) => {
+  const normalized = normalizeAssistantDecisionMemory(memory)
+  writeAssistantDecisionMemory(userId, normalized)
+  return normalized
+}
+
 const writeAssistantDecisionMemory = (userId, memory) => {
   if (typeof window === 'undefined' || !userId) return
   window.localStorage.setItem(`${MEMORY_PREFIX}:${userId}`, JSON.stringify(memory))
@@ -594,8 +669,7 @@ export const recordAssistantDecisionOutcome = (userId, decision, outcome, now = 
     nextMemory.subjects[subjectKey] = subjectState
   }
 
-  writeAssistantDecisionMemory(userId, nextMemory)
-  return nextMemory
+  return persistAssistantDecisionMemory(userId, nextMemory)
 }
 
 export const buildAssistantDecision = (context = {}) => {

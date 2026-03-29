@@ -16,6 +16,7 @@ create table if not exists public.profiles (
   trial_ends_at timestamptz,
   payment_verified boolean not null default false,
   personalization jsonb default '{}'::jsonb,
+  assistant_memory jsonb default '{}'::jsonb,
   last_insight_date date,
   daily_insight jsonb
 );
@@ -32,6 +33,7 @@ alter table public.profiles
   add column if not exists trial_ends_at timestamptz,
   add column if not exists payment_verified boolean not null default false,
   add column if not exists personalization jsonb default '{}'::jsonb,
+  add column if not exists assistant_memory jsonb default '{}'::jsonb,
   add column if not exists last_insight_date date,
   add column if not exists daily_insight jsonb;
 
@@ -126,7 +128,8 @@ begin
     trial_active,
     trial_ends_at,
     payment_verified,
-    personalization
+    personalization,
+    assistant_memory
   )
   values (
     new.id,
@@ -140,7 +143,8 @@ begin
     false,
     null,
     false,
-    null
+    null,
+    '{}'::jsonb
   )
   on conflict (id) do update
   set email = excluded.email;
