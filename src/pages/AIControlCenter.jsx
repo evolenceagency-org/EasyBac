@@ -219,6 +219,7 @@ const AIControlCenter = () => {
     playAssistantSound('listening')
 
     const nextSession = createVoiceSession({
+      preferredLanguage: 'mixed',
       onTranscript: (transcript) => {
         setVoiceStatus('listening')
         setVoiceTranscript(transcript)
@@ -236,10 +237,15 @@ const AIControlCenter = () => {
           setVoiceMessage('Processing the sample...')
         }
       },
-      onFinalTranscript: (transcript) => {
+      onFinalTranscript: (transcript, result) => {
         setVoiceTranscript(transcript)
         setVoiceStatus('success')
-        setVoiceMessage('Transcript captured successfully.')
+        const confidence = Math.round((Number(result?.confidence) || 0) * 100)
+        setVoiceMessage(
+          confidence > 0
+            ? `Transcript captured successfully (${confidence}% confidence).`
+            : 'Transcript captured successfully.'
+        )
         playAssistantSound('success')
       },
       onListeningChange: (isListening) => {
@@ -273,7 +279,8 @@ const AIControlCenter = () => {
     }
 
     const started = await nextSession.startListening({
-      continuous: settings.voice.alwaysListening && !settings.voice.pushToTalkOnly,
+      continuous: false,
+      preferredLanguage: 'mixed',
       silenceMs: settings.voice.pushToTalkOnly ? 1350 : 1900
     })
 
@@ -284,7 +291,7 @@ const AIControlCenter = () => {
     stopTimerRef.current = window.setTimeout(() => {
       stopTestVoice()
     }, 6500)
-  }, [clearVoiceTimer, settings.voice.alwaysListening, settings.voice.enabled, settings.voice.pushToTalkOnly, stopTestVoice, voiceTranscript])
+  }, [clearVoiceTimer, settings.voice.enabled, settings.voice.pushToTalkOnly, stopTestVoice, voiceTranscript])
 
   const assistantModeLabel = useMemo(
     () => getAssistantModeLabel(settings.assistant.mode),

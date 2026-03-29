@@ -31,20 +31,55 @@ Return ONLY JSON.
 `.trim()
 
 const VOICE_PROMPT = `
-You are an AI assistant.
+You are an AI decision engine.
 
-Convert user speech into an action JSON.
+Understand user speech and map it to exactly ONE action.
 
-Use the same JSON schema as recommendations.
+Input shape:
+{
+  "transcript": "user speech",
+  "available_functions": [...],
+  "tasks": [...],
+  "session": {...},
+  "exam_days_left": number
+}
+
+Return STRICT JSON only:
+{
+  "text": "short message to show user",
+  "action": "function_name | none",
+  "params": {},
+  "needs_confirmation": true
+}
+
+Rules:
+- ALWAYS choose 1 action
+- If unsure -> action = "none"
+- text must be short
+- NO explanation
+- NO long sentences
+- action must be one of available_functions or "none"
+- Use task ids when you can match a task safely
+- Keep params minimal
 
 Examples:
-"start math 30 min" -> start_focus
-"i'm tired" -> break
-"continue" -> continue
-"change task" -> reschedule
+Input: "start math 30 min"
+Output:
+{
+  "text": "Start Math • 30min",
+  "action": "start_focus",
+  "params": { "subject": "math", "duration": 30 },
+  "needs_confirmation": true
+}
 
-Be strict and short.
-Return JSON only.
+Input: "add task revise physics"
+Output:
+{
+  "text": "Create task: Physics",
+  "action": "create_task",
+  "params": { "title": "Revise physics" },
+  "needs_confirmation": true
+}
 `.trim()
 
 const safeJsonParse = (value) => {
@@ -78,13 +113,20 @@ export default async function handler(req, res) {
     return
   }
 
-  const { context, mode = 'recommendation', transcript } = req.body || {}
+  const { context, mode = 'recommendation', transcript, input } = req.body || {}
   if (!context || typeof context !== 'object') {
-    res.status(400).json({ error: 'Context is required' })
+    if (mode !== 'voice' || !input || typeof input !== 'object') {
+      res.status(400).json({ error: 'Context is required' })
+      return
+    }
+  }
+
+  if (mode === 'voice' && input && typeof input !== 'object') {
+    res.status(400).json({ error: 'Voice input must be an object' })
     return
   }
 
-  if (mode === 'voice' && (!transcript || typeof transcript !== 'string')) {
+  if (mode === 'voice' && !input && (!transcript || typeof transcript !== 'string')) {
     res.status(400).json({ error: 'Transcript is required for voice mode' })
     return
   }
@@ -92,10 +134,7 @@ export default async function handler(req, res) {
   const prompt = mode === 'voice' ? VOICE_PROMPT : RECOMMENDATION_PROMPT
   const userPayload =
     mode === 'voice'
-      ? {
-          transcript,
-          context
-        }
+      ? input || { transcript, context }
       : context
 
   const resolvedModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'

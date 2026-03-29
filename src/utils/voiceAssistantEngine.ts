@@ -311,6 +311,50 @@ const getSpeechRecognitionConstructor = () => {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null
 }
 
+const SPEECH_LANGUAGE_FALLBACK = 'fr-FR'
+const SPEECH_LANGUAGE_PRESETS = {
+  fr: ['fr-FR', 'en-US', 'ar-MA'],
+  en: ['en-US', 'fr-FR', 'ar-MA'],
+  ar: ['ar-MA', 'ar-SA', 'fr-FR', 'en-US'],
+  mixed: ['fr-FR', 'ar-MA', 'en-US']
+}
+
+const inferSpeechLocaleGroup = (locale = '') => {
+  const normalized = String(locale || '').toLowerCase()
+  if (normalized.startsWith('ar')) return 'ar'
+  if (normalized.startsWith('en')) return 'en'
+  if (normalized.startsWith('fr')) return 'fr'
+  return 'fr'
+}
+
+const buildSpeechLanguageCandidates = ({
+  preferredLanguage,
+  lastDetectedLanguage,
+  browserLanguages
+} = {}) => {
+  const orderedGroups = [
+    preferredLanguage,
+    lastDetectedLanguage,
+    ...(Array.isArray(browserLanguages) ? browserLanguages : [browserLanguages]).map(inferSpeechLocaleGroup)
+  ].filter(Boolean)
+
+  const candidates = []
+  const pushCandidate = (value) => {
+    if (!value || candidates.includes(value)) return
+    candidates.push(value)
+  }
+
+  orderedGroups.forEach((group) => {
+    const preset = SPEECH_LANGUAGE_PRESETS[group] || SPEECH_LANGUAGE_PRESETS[inferSpeechLocaleGroup(group)]
+    preset?.forEach(pushCandidate)
+  })
+
+  pushCandidate(SPEECH_LANGUAGE_FALLBACK)
+  pushCandidate('en-US')
+  pushCandidate('ar-MA')
+  return candidates
+}
+
 const hasAnyPhrase = (text, phrases = []) => {
   const normalized = sanitize(text)
   return phrases.some((phrase) => normalized.includes(sanitize(phrase)))
@@ -1239,13 +1283,15 @@ export const createVoiceSession = ({
   onListeningChange,
   onError,
   onStateChange,
-  onPermissionChange
+  onPermissionChange,
+  preferredLanguage
 } = {}) => {
   const SpeechRecognition = getSpeechRecognitionConstructor()
   if (!SpeechRecognition) {
     return {
       supported: false,
       state: 'idle',
+      lastResult: { transcript: '', confidence: 0, language: 'unknown', recognitionLang: SPEECH_LANGUAGE_FALLBACK },
       startListening: async () => false,
       stopListening: () => {},
       requestPermission: async () => 'unsupported'
@@ -1253,16 +1299,12 @@ export const createVoiceSession = ({
   }
 
   const recognition = new SpeechRecognition()
-  recognition.lang =
-    (typeof navigator !== 'undefined' &&
-      (navigator.languages?.[0] || navigator.language)) ||
-    'en-US'
-  recognition.interimResults = true
+  recognition.lang = SPEECH_LANGUAGE_FALLBACK
+  recognition.interimResults = false
   recognition.maxAlternatives = 1
   recognition.continuous = false
 
   let manualStop = false
-  let continuousMode = false
   let isCoolingDown = false
   let silenceMs = 1800
   let finalTranscriptBuffer = ''
@@ -1273,6 +1315,22 @@ export const createVoiceSession = ({
   let isRecognitionActive = false
   let isProcessingResult = false
   let startAttemptId = 0
+  let noSpeechRetriesRemaining = 1
+  let recognitionLanguages = buildSpeechLanguageCandidates({
+    preferredLanguage,
+    browserLanguages:
+      typeof navigator !== 'undefined' ? navigator.languages || [navigator.language] : [SPEECH_LANGUAGE_FALLBACK]
+  })
+  let recognitionLanguageIndex = 0
+  let shouldRetryAfterEnd = false
+  let lastDetectedLanguage = inferSpeechLocaleGroup(preferredLanguage || SPEECH_LANGUAGE_FALLBACK)
+  let confidenceValues = []
+  let lastResult = {
+    transcript: '',
+    confidence: 0,
+    language: lastDetectedLanguage,
+    recognitionLang: recognitionLanguages[0] || SPEECH_LANGUAGE_FALLBACK
+  }
 
   const setVoiceState = (nextState) => {
     if (state === nextState) return
@@ -1319,6 +1377,22 @@ export const createVoiceSession = ({
     return mapped
   }
 
+  const getCurrentRecognitionLang = () =>
+    recognitionLanguages[recognitionLanguageIndex] || SPEECH_LANGUAGE_FALLBACK
+
+  const rotateRecognitionLanguage = () => {
+    if (recognitionLanguageIndex < recognitionLanguages.length - 1) {
+      recognitionLanguageIndex += 1
+    }
+    recognition.lang = getCurrentRecognitionLang()
+  }
+
+  const setRecognitionLanguages = (nextLanguages = []) => {
+    recognitionLanguages = nextLanguages.length ? nextLanguages : [SPEECH_LANGUAGE_FALLBACK]
+    recognitionLanguageIndex = 0
+    recognition.lang = getCurrentRecognitionLang()
+  }
+
   const clearFinalizationTimer = () => {
     if (finalizationTimer) {
       window.clearTimeout(finalizationTimer)
@@ -1341,8 +1415,22 @@ export const createVoiceSession = ({
     isProcessingResult = true
     setVoiceState('processing')
 
+    const transcriptLanguage = detectLanguage(finalText)
+    lastDetectedLanguage = transcriptLanguage
+    const confidence =
+      confidenceValues.length > 0
+        ? Math.max(0, Math.min(1, confidenceValues.reduce((sum, value) => sum + value, 0) / confidenceValues.length))
+        : 0.75
+    confidenceValues = []
+    lastResult = {
+      transcript: finalText,
+      confidence,
+      language: transcriptLanguage,
+      recognitionLang: getCurrentRecognitionLang()
+    }
+
     try {
-      await Promise.resolve(onFinalTranscript?.(finalText))
+      await Promise.resolve(onFinalTranscript?.(finalText, lastResult))
       return finalText
     } finally {
       isProcessingResult = false
@@ -1401,7 +1489,13 @@ export const createVoiceSession = ({
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const result = event.results[index]
       const transcript = result[0]?.transcript || ''
-      if (result.isFinal) finalText += `${transcript} `
+      const confidence = Number(result[0]?.confidence)
+      if (result.isFinal) {
+        finalText += `${transcript} `
+        if (Number.isFinite(confidence) && confidence > 0) {
+          confidenceValues.push(confidence)
+        }
+      }
       else interim += `${transcript} `
     }
 
@@ -1413,12 +1507,22 @@ export const createVoiceSession = ({
 
     if (interim.trim()) {
       liveTranscriptBuffer = [finalTranscriptBuffer, interim.trim()].filter(Boolean).join(' ').trim()
-      onTranscript?.(liveTranscriptBuffer)
+      onTranscript?.(liveTranscriptBuffer, {
+        transcript: liveTranscriptBuffer,
+        confidence: confidenceValues.at(-1) || 0,
+        language: lastDetectedLanguage,
+        recognitionLang: getCurrentRecognitionLang()
+      })
       return
     }
 
     if (liveTranscriptBuffer.trim()) {
-      onTranscript?.(liveTranscriptBuffer.trim())
+      onTranscript?.(liveTranscriptBuffer.trim(), {
+        transcript: liveTranscriptBuffer.trim(),
+        confidence: confidenceValues.at(-1) || 0,
+        language: lastDetectedLanguage,
+        recognitionLang: getCurrentRecognitionLang()
+      })
     }
   }
 
@@ -1426,8 +1530,19 @@ export const createVoiceSession = ({
     clearFinalizationTimer()
     isRecognitionActive = false
     isProcessingResult = false
+    const errorCode = event?.error || 'voice-unavailable'
+
+    if (errorCode === 'no-speech' && !manualStop && noSpeechRetriesRemaining > 0) {
+      noSpeechRetriesRemaining -= 1
+      shouldRetryAfterEnd = true
+      rotateRecognitionLanguage()
+      setVoiceState('processing')
+      return
+    }
+
+    shouldRetryAfterEnd = false
     setVoiceState('idle')
-    reportVoiceError(event?.error || 'voice-unavailable')
+    reportVoiceError(errorCode)
   }
 
   recognition.onend = () => {
@@ -1438,14 +1553,17 @@ export const createVoiceSession = ({
       return
     }
 
-    if (!manualStop && continuousMode && !isCoolingDown) {
+    if (!manualStop && shouldRetryAfterEnd && !isCoolingDown) {
       isCoolingDown = true
       window.setTimeout(() => {
         isCoolingDown = false
+        shouldRetryAfterEnd = false
         try {
+          recognition.lang = getCurrentRecognitionLang()
           recognition.start()
         } catch {
-          // Ignore restart collisions.
+          setVoiceState('idle')
+          reportVoiceError('aborted')
         }
       }, 260)
       return
@@ -1461,17 +1579,34 @@ export const createVoiceSession = ({
     get state() {
       return state
     },
+    get lastResult() {
+      return lastResult
+    },
     requestPermission: requestMicrophonePermission,
-    startListening: async ({ continuous = true, silenceMs: nextSilenceMs = 1800 } = {}) => {
+    startListening: async ({
+      continuous = false,
+      silenceMs: nextSilenceMs = 1800,
+      preferredLanguage: nextPreferredLanguage
+    } = {}) => {
       const attemptId = startAttemptId + 1
       startAttemptId = attemptId
-      continuousMode = continuous
       manualStop = false
       silenceMs = Math.max(900, Number(nextSilenceMs) || 1800)
       finalTranscriptBuffer = ''
       liveTranscriptBuffer = ''
+      confidenceValues = []
+      noSpeechRetriesRemaining = 1
+      shouldRetryAfterEnd = false
       clearFinalizationTimer()
-      recognition.continuous = continuous
+      setRecognitionLanguages(
+        buildSpeechLanguageCandidates({
+          preferredLanguage: nextPreferredLanguage || lastDetectedLanguage || preferredLanguage,
+          lastDetectedLanguage,
+          browserLanguages:
+            typeof navigator !== 'undefined' ? navigator.languages || [navigator.language] : [SPEECH_LANGUAGE_FALLBACK]
+        })
+      )
+      recognition.continuous = false
 
       setVoiceState('processing')
       const permission = await requestMicrophonePermission()
@@ -1482,6 +1617,7 @@ export const createVoiceSession = ({
       }
 
       try {
+        recognition.lang = getCurrentRecognitionLang()
         recognition.start()
         return true
       } catch {
@@ -1492,7 +1628,7 @@ export const createVoiceSession = ({
     },
     stopListening: () => {
       manualStop = true
-      continuousMode = false
+      shouldRetryAfterEnd = false
       clearFinalizationTimer()
       startAttemptId += 1
       try {

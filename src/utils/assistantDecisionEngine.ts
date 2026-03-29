@@ -952,6 +952,61 @@ export const executeAssistantDecision = async (decision, deps = {}) => {
     return executeIntent(decision.action.intent, deps)
   }
 
+  if (decision.action.kind === 'create_task') {
+    const created = await deps.addTask?.({
+      title: decision.action.title,
+      subject: decision.action.subject || 'math',
+      due_date: decision.action.dueDate || null
+    })
+
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Task created',
+      fullMessage: created?.title ? `Created "${created.title}".` : 'Created a new task.'
+    }
+  }
+
+  if (decision.action.kind === 'complete_task') {
+    if (deps.toggleTask) {
+      await deps.toggleTask(decision.action.taskId, false)
+    } else {
+      await deps.updateTaskById?.(decision.action.taskId, {
+        completed: true,
+        status: 'completed'
+      })
+    }
+
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Task completed',
+      fullMessage: 'Marked the task as done.'
+    }
+  }
+
+  if (decision.action.kind === 'delete_task') {
+    await deps.removeTask?.(decision.action.taskId)
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Task deleted',
+      fullMessage: 'Deleted the task.'
+    }
+  }
+
+  if (decision.action.kind === 'reschedule_task') {
+    await deps.updateTaskById?.(decision.action.taskId, {
+      due_date: decision.action.date
+    })
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Task rescheduled',
+      fullMessage: `Moved the task to ${decision.action.date}.`
+    }
+  }
+
   if (decision.action.kind === 'focus_task') {
     deps.navigate?.(decision.action.path || '/study', {
       state: decision.action.state || { suggestedTaskId: decision.task?.id }
@@ -1003,6 +1058,29 @@ export const executeAssistantDecision = async (decision, deps = {}) => {
   }
 
   return { ok: false, status: 'error', message: 'Action unavailable' }
+}
+
+export const canExecuteAssistantDecision = (decision) => {
+  const kind = decision?.action?.kind
+  if (!kind) return false
+
+  switch (kind) {
+    case 'voice_intent':
+    case 'focus_task':
+    case 'break':
+    case 'navigate':
+    case 'idle':
+      return true
+    case 'create_task':
+      return Boolean(String(decision?.action?.title || '').trim())
+    case 'complete_task':
+    case 'delete_task':
+      return Boolean(decision?.action?.taskId)
+    case 'reschedule_task':
+      return Boolean(decision?.action?.taskId && decision?.action?.date)
+    default:
+      return false
+  }
 }
 
 export const getAssistantIgnoreThreshold = () => IGNORE_THRESHOLD_MS

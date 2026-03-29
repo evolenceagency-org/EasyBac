@@ -13,11 +13,12 @@ import {
   buildAssistantAiContext,
   buildAssistantDecisionFromAi,
   fetchAssistantAiRecommendation,
-  fetchAssistantVoiceDecision
+  resolveAssistantVoicePipeline
 } from '../../utils/assistantAiEngine.ts'
 import {
   buildAssistantDecision,
   buildConfirmationDecision,
+  canExecuteAssistantDecision,
   executeAssistantDecision,
   getAssistantIgnoreThreshold,
   mergeAssistantDecisionMemory,
@@ -738,6 +739,7 @@ const AssistantBar = () => {
     if (voiceSessionRef.current) return voiceSessionRef.current
 
     const session = createVoiceSession({
+      preferredLanguage: 'mixed',
       onTranscript: () => {},
       onStateChange: (nextState) => {
         if (nextState === 'listening') {
@@ -789,30 +791,19 @@ const AssistantBar = () => {
             now: Date.now()
           })
 
-          const resolved = await fetchAssistantVoiceDecision({
+          const resolved = await resolveAssistantVoicePipeline({
             transcript: text,
-            context: voiceContext
+            context: voiceContext,
+            tasks
           })
 
-          if (!resolved.ok || !resolved.output) {
+          if (!resolved.ok || !resolved.decision) {
             playAssistantSound('error')
             setInteractionStatus('error', 'Voice unavailable', 1100)
             return
           }
 
-          const nextDecision = buildAssistantDecisionFromAi({
-            output: resolved.output,
-            context: voiceContext,
-            tasks,
-            origin: 'voice',
-            confirm: true
-          })
-
-          if (!nextDecision) {
-          playAssistantSound('error')
-          setInteractionStatus('error', 'Try again', 1100)
-          return
-        }
+          const nextDecision = resolved.decision
 
           setPendingVoiceDecision(nextDecision)
           setViewIndex(1)
@@ -852,7 +843,11 @@ const AssistantBar = () => {
       return false
     }
 
-    const started = await startVoiceListening(session, { continuous: true, silenceMs: 1900 })
+    const started = await startVoiceListening(session, {
+      continuous: false,
+      silenceMs: 1900,
+      preferredLanguage: 'mixed'
+    })
     if (!started) {
       return false
     }
@@ -867,6 +862,9 @@ const AssistantBar = () => {
 
   const handleAcceptSuggestion = useCallback(async () => {
     if (!actionableDecision) return false
+    if (!canExecuteAssistantDecision(actionableDecision)) {
+      return false
+    }
 
     openIsland()
     stopVoiceListening(voiceSessionRef.current)
