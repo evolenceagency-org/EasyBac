@@ -428,6 +428,36 @@ const buildSpeechLanguageCandidates = ({
   return candidates
 }
 
+const pickBestRecognitionAlternative = (result) => {
+  if (!result) return { transcript: '', confidence: 0 }
+
+  const alternatives = Array.from({ length: Number(result.length || 0) || 0 }, (_, index) => result[index]).filter(Boolean)
+  if (!alternatives.length) {
+    return {
+      transcript: String(result?.[0]?.transcript || '').trim(),
+      confidence: Number(result?.[0]?.confidence || 0) || 0
+    }
+  }
+
+  const best = alternatives.reduce((winner, candidate) => {
+    const winnerConfidence = Number(winner?.confidence || 0) || 0
+    const candidateConfidence = Number(candidate?.confidence || 0) || 0
+
+    if (candidateConfidence !== winnerConfidence) {
+      return candidateConfidence > winnerConfidence ? candidate : winner
+    }
+
+    return String(candidate?.transcript || '').trim().length > String(winner?.transcript || '').trim().length
+      ? candidate
+      : winner
+  })
+
+  return {
+    transcript: String(best?.transcript || '').trim(),
+    confidence: Number(best?.confidence || 0) || 0
+  }
+}
+
 const hasAnyPhrase = (text, phrases = []) => {
   const normalized = sanitize(text)
   return phrases.some((phrase) => normalized.includes(sanitize(phrase)))
@@ -1376,7 +1406,7 @@ export const createVoiceSession = ({
   const recognition = new SpeechRecognition()
   recognition.lang = SPEECH_LANGUAGE_FALLBACK
   recognition.interimResults = false
-  recognition.maxAlternatives = 1
+  recognition.maxAlternatives = 3
   recognition.continuous = false
 
   let manualStop = false
@@ -1560,18 +1590,23 @@ export const createVoiceSession = ({
   recognition.onresult = (event) => {
     let interim = ''
     let finalText = ''
+    let bestLiveConfidence = 0
 
     for (let index = event.resultIndex; index < event.results.length; index += 1) {
       const result = event.results[index]
-      const transcript = result[0]?.transcript || ''
-      const confidence = Number(result[0]?.confidence)
+      const { transcript, confidence } = pickBestRecognitionAlternative(result)
       if (result.isFinal) {
         finalText += `${transcript} `
         if (Number.isFinite(confidence) && confidence > 0) {
           confidenceValues.push(confidence)
         }
       }
-      else interim += `${transcript} `
+      else {
+        interim += `${transcript} `
+        if (Number.isFinite(confidence) && confidence > bestLiveConfidence) {
+          bestLiveConfidence = confidence
+        }
+      }
     }
 
     if (finalText.trim()) {
@@ -1584,7 +1619,7 @@ export const createVoiceSession = ({
       liveTranscriptBuffer = [finalTranscriptBuffer, interim.trim()].filter(Boolean).join(' ').trim()
       onTranscript?.(liveTranscriptBuffer, {
         transcript: liveTranscriptBuffer,
-        confidence: confidenceValues.at(-1) || 0,
+        confidence: bestLiveConfidence || confidenceValues.at(-1) || 0,
         language: lastDetectedLanguage,
         recognitionLang: getCurrentRecognitionLang()
       })
@@ -1594,7 +1629,7 @@ export const createVoiceSession = ({
     if (liveTranscriptBuffer.trim()) {
       onTranscript?.(liveTranscriptBuffer.trim(), {
         transcript: liveTranscriptBuffer.trim(),
-        confidence: confidenceValues.at(-1) || 0,
+        confidence: bestLiveConfidence || confidenceValues.at(-1) || 0,
         language: lastDetectedLanguage,
         recognitionLang: getCurrentRecognitionLang()
       })

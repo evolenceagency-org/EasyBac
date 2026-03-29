@@ -1,4 +1,5 @@
 ﻿import { getShortMessage } from './aiEngine.ts'
+import { isOverdueTask } from './taskStats.js'
 import { detectIntent, executeIntent } from './voiceAssistantEngine.ts'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -945,6 +946,304 @@ export const resolveVoiceDecision = ({ transcript, tasks = [], studySessions = [
   }
 }
 
+const buildExecutionSuccess = (message, fullMessage = message) => ({
+  ok: true,
+  status: 'success',
+  message,
+  fullMessage
+})
+
+const buildExecutionError = (message, fullMessage = message) => ({
+  ok: false,
+  status: 'error',
+  message,
+  fullMessage
+})
+
+const normalizeTaskUpdates = (updates = {}) => {
+  if (!updates || typeof updates !== 'object' || Array.isArray(updates)) return {}
+
+  const normalized = {}
+  if (updates.title) normalized.title = String(updates.title).trim()
+  if (updates.subject) normalized.subject = String(updates.subject).trim().toLowerCase()
+  if (updates.priority) normalized.priority = String(updates.priority).trim().toLowerCase()
+
+  const dueDate = updates.due_date || updates.dueDate || updates.date || null
+  if (dueDate) normalized.due_date = String(dueDate).trim()
+
+  return normalized
+}
+
+const getActiveTaskPool = (tasks = []) =>
+  tasks.filter((task) => !(task?.completed || task?.status === 'completed' || task?.status === 'on_hold'))
+
+const findTaskById = (tasks = [], taskId) =>
+  tasks.find((task) => String(task?.id) === String(taskId || '')) || null
+
+const findTaskBySubject = (tasks = [], subject = '') => {
+  const target = sanitize(subject)
+  if (!target) return null
+  return (
+    getActiveTaskPool(tasks).find((task) => sanitize(task?.subject).includes(target)) || null
+  )
+}
+
+const getTomorrowDateKey = (base = Date.now(), days = 1) => {
+  const target = new Date(toNowMs(base))
+  target.setDate(target.getDate() + days)
+  return target.toISOString().slice(0, 10)
+}
+
+const getWeakSubjectTask = ({ tasks = [], studySessions = [], profile = {}, now = Date.now() }) => {
+  const weakSubjects = getWeakSubjects(profile, studySessions)
+  if (!weakSubjects.size) return null
+
+  return getActiveTaskPool(tasks)
+    .filter((task) => weakSubjects.has(String(task?.subject || '').trim().toLowerCase()))
+    .sort((a, b) => {
+      const urgencyDelta = getDueDayOffset(a, now) - getDueDayOffset(b, now)
+      if (urgencyDelta !== 0) return urgencyDelta
+      return getTaskPriorityWeight(b?.priority) - getTaskPriorityWeight(a?.priority)
+    })[0] || null
+}
+
+const getRecommendedExecutionTask = ({ tasks = [], studySessions = [], profile = {}, memory = {}, cognitiveLoad = {}, now = Date.now() }) =>
+  getTaskSuggestion({
+    tasks: getActiveTaskPool(tasks),
+    profile,
+    studySessions,
+    memory,
+    cognitiveLoad,
+    now
+  })?.task || getOverdueTask(tasks, now) || getActiveTaskPool(tasks)[0] || null
+
+const dispatchStudyControl = (detail) => {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('assistant:study-control', { detail }))
+}
+
+const actionMap = {
+  async start_focus(params, deps) {
+    const tasks = Array.isArray(deps?.tasks) ? deps.tasks : []
+    const task = findTaskById(tasks, params?.taskId || params?.task_id) || findTaskBySubject(tasks, params?.subject)
+    const duration = Number(params?.duration || params?.durationMinutes || 30) || 30
+
+    return executeIntent(
+      {
+        type: duration ? 'start_pomodoro' : 'start_focus',
+        data: {
+          query: task?.title || String(params?.subject || '').trim(),
+          subject: task?.subject || String(params?.subject || '').trim(),
+          duration
+        }
+      },
+      deps
+    )
+  },
+
+  async start_free_session(params, deps) {
+    const duration = Number(params?.duration || 30) || 30
+    deps.navigate?.('/study', {
+      state: {
+        action: 'start',
+        mode: 'free',
+        duration,
+        taskId: null
+      }
+    })
+    return buildExecutionSuccess('Free session', `Opening a ${duration} minute free session.`)
+  },
+
+  async pause_session(_, deps) {
+    return executeIntent({ type: 'pause', data: {} }, deps)
+  },
+
+  async resume_session(_, deps) {
+    return executeIntent({ type: 'resume', data: {} }, deps)
+  },
+
+  async stop_session(_, deps) {
+    return executeIntent({ type: 'finish_session', data: {} }, deps)
+  },
+
+  async extend_session(params, deps) {
+    const duration = Number(params?.duration || 10) || 10
+    dispatchStudyControl({ action: 'extend', duration })
+    deps.navigate?.('/study', { state: { action: 'extend', duration } })
+    return buildExecutionSuccess('Session extended', `Adding ${duration} minutes to the current session.`)
+  },
+
+  async create_task(params, deps) {
+    const created = await deps.addTask?.({
+      title: String(params?.title || '').trim(),
+      subject: String(params?.subject || 'math').trim() || 'math',
+      due_date: params?.dueDate || params?.due_date || null
+    })
+    return buildExecutionSuccess('Task created', created?.title ? `Created "${created.title}".` : 'Created a new task.')
+  },
+
+  async delete_task(params, deps) {
+    await deps.removeTask?.(params?.taskId || params?.task_id)
+    return buildExecutionSuccess('Task deleted', 'Deleted the selected task.')
+  },
+
+  async complete_task(params, deps) {
+    const taskId = params?.taskId || params?.task_id
+    if (deps.toggleTask) {
+      await deps.toggleTask(taskId, false)
+    } else {
+      await deps.updateTaskById?.(taskId, { completed: true, status: 'completed' })
+    }
+    return buildExecutionSuccess('Task completed', 'Marked the selected task as done.')
+  },
+
+  async edit_task(params, deps) {
+    const taskId = params?.taskId || params?.task_id
+    const updates = normalizeTaskUpdates(params?.updates)
+    if (!taskId || !Object.keys(updates).length) {
+      return buildExecutionError('Edit unavailable', 'No valid task update was provided.')
+    }
+    await deps.updateTaskById?.(taskId, updates)
+    return buildExecutionSuccess('Task updated', 'Saved the task changes.')
+  },
+
+  async reschedule_task(params, deps) {
+    const taskId = params?.taskId || params?.task_id
+    const date = String(params?.date || '').trim()
+    await deps.updateTaskById?.(taskId, { due_date: date })
+    return buildExecutionSuccess('Task rescheduled', `Moved the task to ${date}.`)
+  },
+
+  async select_task(params, deps) {
+    const taskId = params?.taskId || params?.task_id
+    deps.navigate?.('/study', {
+      state: {
+        suggestedTaskId: taskId,
+        taskId
+      }
+    })
+    return buildExecutionSuccess('Task selected', 'Opening Study with the selected task.')
+  },
+
+  async open_dashboard(_, deps) {
+    deps.navigate?.('/dashboard')
+    return buildExecutionSuccess('Opening dashboard', 'Navigating to the dashboard.')
+  },
+
+  async open_tasks(_, deps) {
+    deps.navigate?.('/tasks')
+    return buildExecutionSuccess('Opening tasks', 'Navigating to tasks.')
+  },
+
+  async open_study(_, deps) {
+    deps.navigate?.('/study')
+    return buildExecutionSuccess('Opening study', 'Navigating to study.')
+  },
+
+  async open_analysis(_, deps) {
+    deps.navigate?.('/analytics')
+    return buildExecutionSuccess('Opening analysis', 'Navigating to analysis.')
+  },
+
+  async open_settings(_, deps) {
+    deps.navigate?.('/ai-control-center')
+    return buildExecutionSuccess('Opening settings', 'Navigating to settings.')
+  },
+
+  async start_recommended_task(_, deps) {
+    const task = getRecommendedExecutionTask({
+      tasks: deps?.tasks || [],
+      studySessions: deps?.studySessions || [],
+      profile: deps?.profile || deps?.user || {},
+      memory: deps?.memory || {},
+      cognitiveLoad: deps?.cognitiveLoad || {},
+      now: Date.now()
+    })
+
+    if (!task) {
+      return buildExecutionError('No task found', 'There is no recommended task available right now.')
+    }
+
+    return actionMap.start_focus(
+      {
+        taskId: task.id,
+        subject: task.subject,
+        duration: getTaskDurationMinutes(task, 45)
+      },
+      deps
+    )
+  },
+
+  async focus_on_weak_subject(_, deps) {
+    const task = getWeakSubjectTask({
+      tasks: deps?.tasks || [],
+      studySessions: deps?.studySessions || [],
+      profile: deps?.profile || deps?.user || {},
+      now: Date.now()
+    })
+
+    if (!task) {
+      return buildExecutionError('No weak-subject task', 'There is no weak-subject task ready right now.')
+    }
+
+    return actionMap.start_focus(
+      {
+        taskId: task.id,
+        subject: task.subject,
+        duration: getTaskDurationMinutes(task, 45)
+      },
+      deps
+    )
+  },
+
+  async clear_overdue_tasks(_, deps) {
+    const overdueTasks = (deps?.tasks || []).filter((task) => isOverdueTask(task))
+    if (!overdueTasks.length) {
+      return buildExecutionSuccess('No overdue tasks', 'There are no overdue tasks to clear.')
+    }
+    await Promise.all(overdueTasks.map((task) => deps.removeTask?.(task.id)))
+    return buildExecutionSuccess('Overdue cleared', `Deleted ${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''}.`)
+  },
+
+  async reschedule_all_overdue(params, deps) {
+    const overdueTasks = (deps?.tasks || []).filter((task) => isOverdueTask(task))
+    if (!overdueTasks.length) {
+      return buildExecutionSuccess('No overdue tasks', 'There are no overdue tasks to reschedule.')
+    }
+    const nextDate = String(params?.date || getTomorrowDateKey()).trim()
+    await Promise.all(overdueTasks.map((task) => deps.updateTaskById?.(task.id, { due_date: nextDate })))
+    return buildExecutionSuccess('Overdue rescheduled', `Moved ${overdueTasks.length} overdue task${overdueTasks.length > 1 ? 's' : ''} to ${nextDate}.`)
+  },
+
+  async navigate(params, deps) {
+    deps.navigate?.(params?.path || params?.page || '/dashboard', params?.state ? { state: params.state } : undefined)
+    return buildExecutionSuccess('Opening', 'Opening the requested page.')
+  },
+
+  async focus_task(params, deps) {
+    return actionMap.start_focus(
+      {
+        taskId: params?.taskId,
+        subject: params?.subject,
+        duration: params?.durationMinutes
+      },
+      deps
+    )
+  },
+
+  async break(params) {
+    return buildExecutionSuccess('Break suggested', `Take ${params?.durationMinutes || 5} minutes to reset before the next session.`)
+  },
+
+  async idle() {
+    return buildExecutionSuccess('Ready', 'No immediate action is needed right now.')
+  },
+
+  async do_nothing() {
+    return buildExecutionSuccess('No action', 'No action taken.')
+  }
+}
+
 export const executeAssistantDecision = async (decision, deps = {}) => {
   if (!decision?.action) return { ok: false, status: 'error', message: 'No action' }
 
@@ -952,112 +1251,19 @@ export const executeAssistantDecision = async (decision, deps = {}) => {
     return executeIntent(decision.action.intent, deps)
   }
 
-  if (decision.action.kind === 'create_task') {
-    const created = await deps.addTask?.({
-      title: decision.action.title,
-      subject: decision.action.subject || 'math',
-      due_date: decision.action.dueDate || null
-    })
+  const kind = String(decision.action.kind || '').trim()
+  const handler = actionMap[kind]
 
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Task created',
-      fullMessage: created?.title ? `Created "${created.title}".` : 'Created a new task.'
-    }
+  if (!handler) {
+    return { ok: false, status: 'error', message: 'Action unavailable' }
   }
 
-  if (decision.action.kind === 'complete_task') {
-    if (deps.toggleTask) {
-      await deps.toggleTask(decision.action.taskId, false)
-    } else {
-      await deps.updateTaskById?.(decision.action.taskId, {
-        completed: true,
-        status: 'completed'
-      })
-    }
-
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Task completed',
-      fullMessage: 'Marked the task as done.'
-    }
+  const params = {
+    ...decision.action,
+    ...(decision.task?.id ? { taskId: decision.action.taskId || decision.task.id } : {})
   }
 
-  if (decision.action.kind === 'delete_task') {
-    await deps.removeTask?.(decision.action.taskId)
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Task deleted',
-      fullMessage: 'Deleted the task.'
-    }
-  }
-
-  if (decision.action.kind === 'reschedule_task') {
-    await deps.updateTaskById?.(decision.action.taskId, {
-      due_date: decision.action.date
-    })
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Task rescheduled',
-      fullMessage: `Moved the task to ${decision.action.date}.`
-    }
-  }
-
-  if (decision.action.kind === 'focus_task') {
-    deps.navigate?.(decision.action.path || '/study', {
-      state: decision.action.state || { suggestedTaskId: decision.task?.id }
-    })
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Focus started',
-      fullMessage: decision.task?.title ? `Opening study for ${decision.task.title}.` : 'Opening study mode.'
-    }
-  }
-
-  if (decision.action.kind === 'break') {
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Break suggested',
-      fullMessage: `Take ${decision.action.durationMinutes || 5} minutes to reset before the next session.`
-    }
-  }
-
-  if (decision.action.kind === 'navigate') {
-    deps.navigate?.(decision.action.path || '/dashboard')
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Opening',
-      fullMessage: 'Opening the next step.'
-    }
-  }
-
-  if (decision.action.kind === 'idle') {
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Ready',
-      fullMessage: 'No immediate action is needed right now.'
-    }
-  }
-
-  if (decision.action.path) {
-    deps.navigate?.(decision.action.path, decision.action.state ? { state: decision.action.state } : undefined)
-    return {
-      ok: true,
-      status: 'success',
-      message: 'Opening',
-      fullMessage: 'Opening the next step.'
-    }
-  }
-
-  return { ok: false, status: 'error', message: 'Action unavailable' }
+  return handler(params, deps, decision)
 }
 
 export const canExecuteAssistantDecision = (decision) => {
@@ -1066,16 +1272,37 @@ export const canExecuteAssistantDecision = (decision) => {
 
   switch (kind) {
     case 'voice_intent':
+      return Boolean(decision?.action?.intent)
+    case 'start_focus':
+      return Boolean(decision?.action?.taskId || decision?.action?.subject)
+    case 'start_free_session':
+    case 'pause_session':
+    case 'resume_session':
+    case 'stop_session':
+    case 'extend_session':
+    case 'open_dashboard':
+    case 'open_tasks':
+    case 'open_study':
+    case 'open_analysis':
+    case 'open_settings':
+    case 'start_recommended_task':
+    case 'focus_on_weak_subject':
+    case 'clear_overdue_tasks':
+    case 'reschedule_all_overdue':
     case 'focus_task':
     case 'break':
     case 'navigate':
     case 'idle':
+    case 'do_nothing':
       return true
     case 'create_task':
       return Boolean(String(decision?.action?.title || '').trim())
     case 'complete_task':
     case 'delete_task':
+    case 'select_task':
       return Boolean(decision?.action?.taskId)
+    case 'edit_task':
+      return Boolean(decision?.action?.taskId && Object.keys(normalizeTaskUpdates(decision?.action?.updates)).length)
     case 'reschedule_task':
       return Boolean(decision?.action?.taskId && decision?.action?.date)
     default:

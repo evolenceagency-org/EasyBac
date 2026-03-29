@@ -4,40 +4,36 @@ const REQUEST_THROTTLE_MS = 45 * 1000
 const MAX_CONTEXT_TASKS = 4
 const MAX_CONTEXT_BYTES = 1024
 const VALID_ACTIONS = new Set(['start_focus', 'break', 'continue', 'reschedule', 'idle'])
-const VALID_VOICE_ACTIONS = new Set([
-  'start_focus',
-  'pause_session',
-  'resume_session',
-  'open_tasks',
-  'open_study',
-  'open_dashboard',
-  'create_task',
-  'delete_task',
-  'complete_task',
-  'reschedule_task',
-  'select_task',
-  'start_free_session',
-  'finish_session',
-  'navigate',
-  'none'
-])
 const ASSISTANT_VOICE_FUNCTIONS = [
   'start_focus',
+  'start_free_session',
   'pause_session',
   'resume_session',
-  'open_tasks',
-  'open_study',
-  'open_dashboard',
+  'stop_session',
+  'extend_session',
   'create_task',
   'delete_task',
   'complete_task',
+  'edit_task',
   'reschedule_task',
   'select_task',
-  'start_free_session',
-  'finish_session',
+  'open_dashboard',
+  'open_tasks',
+  'open_study',
+  'open_analysis',
+  'open_settings',
+  'start_recommended_task',
+  'focus_on_weak_subject',
+  'clear_overdue_tasks',
+  'reschedule_all_overdue',
   'navigate',
-  'none'
+  'do_nothing'
 ]
+const VALID_VOICE_ACTIONS = new Set([
+  ...ASSISTANT_VOICE_FUNCTIONS,
+  'finish_session',
+  'none'
+])
 
 const pendingRequests = new Map()
 
@@ -224,6 +220,17 @@ const getSessionElapsedMinutes = (timerState = null) => {
 }
 
 const normalizeTaskTitle = (value = '') => String(value || '').trim()
+
+const normalizeAssistantDate = (value) => {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+
+  const parsed = new Date(raw)
+  if (Number.isNaN(parsed.getTime())) return null
+  return parsed.toISOString().slice(0, 10)
+}
 
 const buildVoiceTaskList = (tasks = [], now = Date.now()) =>
   tasks
@@ -427,6 +434,9 @@ const normalizeAssistantPage = (value = '') => {
   if (normalized === 'study') return '/study'
   if (normalized === 'dashboard') return '/dashboard'
   if (normalized === 'analytics') return '/analytics'
+  if (normalized === 'analysis') return '/analytics'
+  if (normalized === 'settings') return '/ai-control-center'
+  if (normalized === 'ai-control-center') return '/ai-control-center'
   if (normalized === 'personalization') return '/personalization'
   return `/${normalized}`
 }
@@ -455,14 +465,16 @@ const findVoiceTaskMatch = (tasks = [], params = {}) => {
 export const validateAssistantVoiceOutput = (output, input) => {
   if (!output || typeof output !== 'object') return null
 
-  const action = String(output.action || '').trim()
+  const rawAction = String(output.action || '').trim()
+  const action = rawAction === 'do_nothing' ? 'do_nothing' : rawAction === 'none' ? 'do_nothing' : rawAction
   if (!VALID_VOICE_ACTIONS.has(action)) return null
 
   const text = String(output.text || '').trim()
   if (!text || text.length > 80) return null
 
   const params = output.params && typeof output.params === 'object' && !Array.isArray(output.params) ? output.params : {}
-  const needsConfirmation = output.needs_confirmation !== false
+  const confidenceValue = Number(output.confidence)
+  const confidence = Number.isFinite(confidenceValue) ? clamp(confidenceValue, 0, 1) : 0
   const tasks = Array.isArray(input?.tasks) ? input.tasks : []
   const matchedTask = findVoiceTaskMatch(tasks, params)
 
@@ -476,11 +488,16 @@ export const validateAssistantVoiceOutput = (output, input) => {
 
   if (action === 'create_task' && !String(params?.title || '').trim()) return null
 
+  if (action === 'edit_task') {
+    const updates = params?.updates && typeof params.updates === 'object' ? params.updates : null
+    if (!matchedTask || !updates || Object.keys(updates).length === 0) return null
+  }
+
   if ((action === 'complete_task' || action === 'delete_task' || action === 'select_task') && !matchedTask) {
     return null
   }
 
-  if (action === 'reschedule_task' && (!matchedTask || !String(params?.date || '').trim())) {
+  if (action === 'reschedule_task' && (!matchedTask || !normalizeAssistantDate(params?.date || params?.new_date))) {
     return null
   }
 
@@ -490,7 +507,18 @@ export const validateAssistantVoiceOutput = (output, input) => {
     if (!Number.isFinite(durationValue) || durationValue <= 0 || durationValue > 180) return null
   }
 
-  if (action === 'pause_session' || action === 'resume_session' || action === 'open_tasks' || action === 'open_study' || action === 'open_dashboard' || action === 'finish_session' || action === 'none') {
+  if (action === 'extend_session') {
+    const duration = params?.duration == null ? params?.duration_min : params?.duration
+    const durationValue = duration == null ? null : Number(duration)
+    if (!Number.isFinite(durationValue) || durationValue <= 0 || durationValue > 60) return null
+  }
+
+  if (action === 'reschedule_all_overdue') {
+    const nextDate = normalizeAssistantDate(params?.date || params?.new_date)
+    if (!nextDate) return null
+  }
+
+  if (action === 'pause_session' || action === 'resume_session' || action === 'stop_session' || action === 'open_tasks' || action === 'open_study' || action === 'open_dashboard' || action === 'open_analysis' || action === 'open_settings' || action === 'start_recommended_task' || action === 'focus_on_weak_subject' || action === 'clear_overdue_tasks' || action === 'finish_session' || action === 'do_nothing') {
     // No extra params required.
   }
 
@@ -504,14 +532,18 @@ export const validateAssistantVoiceOutput = (output, input) => {
     action,
     params: {
       ...params,
-      task_id: matchedTask?.id || (params?.task_id != null ? String(params.task_id) : null)
+      task_id: matchedTask?.id || (params?.task_id != null ? String(params.task_id) : null),
+      date: normalizeAssistantDate(params?.date || params?.new_date || params?.due_date),
+      new_date: normalizeAssistantDate(params?.new_date || params?.date),
+      due_date: normalizeAssistantDate(params?.due_date || params?.date)
     },
-    needs_confirmation: needsConfirmation
+    confidence
   }
 }
 
 export const buildAssistantFunction = (action, params = {}) => {
-  const safeAction = String(action || '').trim()
+  const rawAction = String(action || '').trim()
+  const safeAction = rawAction === 'finish_session' ? 'stop_session' : rawAction === 'none' ? 'do_nothing' : rawAction
 
   switch (safeAction) {
     case 'start_focus':
@@ -523,13 +555,27 @@ export const buildAssistantFunction = (action, params = {}) => {
           duration: Number(params?.duration ?? params?.duration_min ?? 30) || 30
         }
       }
+    case 'start_recommended_task':
+      return { action: 'start_recommended_task', params: {} }
+    case 'focus_on_weak_subject':
+      return { action: 'focus_on_weak_subject', params: {} }
     case 'pause_session':
     case 'resume_session':
+    case 'stop_session':
     case 'open_tasks':
     case 'open_study':
     case 'open_dashboard':
-    case 'finish_session':
+    case 'open_analysis':
+    case 'open_settings':
+    case 'clear_overdue_tasks':
       return { action: safeAction, params: {} }
+    case 'extend_session':
+      return {
+        action: 'extend_session',
+        params: {
+          duration: Number(params?.duration ?? params?.duration_min ?? 10) || 10
+        }
+      }
     case 'create_task':
       return {
         action: 'create_task',
@@ -548,12 +594,36 @@ export const buildAssistantFunction = (action, params = {}) => {
           task_id: params?.task_id == null ? null : String(params.task_id)
         }
       }
+    case 'edit_task':
+      return {
+        action: 'edit_task',
+        params: {
+          task_id: params?.task_id == null ? null : String(params.task_id),
+          updates: params?.updates && typeof params.updates === 'object'
+            ? {
+                ...(params.updates.title ? { title: String(params.updates.title).trim() } : {}),
+                ...(params.updates.subject ? { subject: String(params.updates.subject).trim() } : {}),
+                ...(normalizeAssistantDate(params.updates.due_date || params.updates.dueDate || params.updates.date)
+                  ? { due_date: normalizeAssistantDate(params.updates.due_date || params.updates.dueDate || params.updates.date) }
+                  : {}),
+                ...(params.updates.priority ? { priority: String(params.updates.priority).trim().toLowerCase() } : {})
+              }
+            : {}
+        }
+      }
     case 'reschedule_task':
       return {
         action: 'reschedule_task',
         params: {
           task_id: params?.task_id == null ? null : String(params.task_id),
-          date: params?.date || null
+          date: normalizeAssistantDate(params?.date || params?.new_date || params?.due_date)
+        }
+      }
+    case 'reschedule_all_overdue':
+      return {
+        action: 'reschedule_all_overdue',
+        params: {
+          date: normalizeAssistantDate(params?.date || params?.new_date || params?.due_date)
         }
       }
     case 'start_free_session':
@@ -570,8 +640,8 @@ export const buildAssistantFunction = (action, params = {}) => {
           page: normalizeAssistantPage(params?.page || params?.route || '')
         }
       }
-    case 'none':
-      return { action: 'none', params: {} }
+    case 'do_nothing':
+      return { action: 'do_nothing', params: {} }
     default:
       return null
   }
@@ -677,6 +747,10 @@ export const fetchAssistantVoiceDecision = async ({ transcript, context, signal 
     context,
     tasks: context?.rawTasks || []
   })
+  const voiceContext = {
+    ...context,
+    signature: JSON.stringify(input)
+  }
 
   const result = await fetchAssistantAi({
     endpoint: '/api/assistant-recommendation',
@@ -684,9 +758,9 @@ export const fetchAssistantVoiceDecision = async ({ transcript, context, signal 
       mode: 'voice',
       input
     },
-    context,
+    context: voiceContext,
     signal,
-    force: true
+    force: false
   })
 
   if (!result.ok) return result
@@ -699,9 +773,9 @@ export const fetchAssistantVoiceDecision = async ({ transcript, context, signal 
 
 export const buildAssistantNoneVoiceOutput = (text = 'No action') => ({
   text,
-  action: 'none',
+  action: 'do_nothing',
   params: {},
-  needs_confirmation: true
+  confidence: 0
 })
 
 const buildVoiceDecisionFromOutput = ({ output, tasks = [] }) => {
@@ -710,11 +784,9 @@ const buildVoiceDecisionFromOutput = ({ output, tasks = [] }) => {
 
   const params = functionCall.params || {}
   const matchedTask = findVoiceTaskMatch(tasks, params)
-  const detail = output?.needs_confirmation
-    ? 'Swipe right to confirm or left to cancel.'
-    : 'Ready to run.'
+  const detail = 'Swipe right to confirm or left to cancel.'
 
-  const buildVoiceIntentDecision = ({ key, type, title, tone = 'suggestion', task = matchedTask, intent }) => ({
+  const buildVoiceActionDecision = ({ key, type, title, tone = 'suggestion', task = matchedTask, action }) => ({
     key,
     state: 'suggesting',
     origin: 'voice',
@@ -723,256 +795,222 @@ const buildVoiceDecisionFromOutput = ({ output, tasks = [] }) => {
     tone,
     title,
     shortMessage: title,
+    confidence: Number(output?.confidence || 0) || 0,
     detail,
     task,
-    voiceIntent: intent,
-    action: {
-      kind: 'voice_intent',
-      intent
-    }
+    action
   })
 
   switch (functionCall.action) {
     case 'start_focus': {
       const subject = String(params?.subject || matchedTask?.subject || '').trim()
-      const query = normalizeTaskTitle(matchedTask?.title || params?.title || params?.query || subject)
-      return buildVoiceIntentDecision({
+      return buildVoiceActionDecision({
         key: `voice-ai:start_focus:${matchedTask?.id || subject || 'task'}`,
         type: 'start_focus',
         title: output.text,
         task: matchedTask,
-        intent: {
-          type: 'start_focus',
-          data: {
-            query,
-            subject,
-            duration: Number(params?.duration ?? params?.duration_min ?? 30) || 30
-          }
+        action: {
+          kind: 'start_focus',
+          taskId: matchedTask?.id || null,
+          subject: subject || null,
+          duration: Number(params?.duration ?? params?.duration_min ?? 30) || 30
         }
       })
     }
 
     case 'create_task':
-      return {
+      return buildVoiceActionDecision({
         key: `voice-ai:create_task:${sanitizeTaskLookup(params?.title || 'task') || 'task'}`,
-        state: 'suggesting',
-        origin: 'voice',
         type: 'create_task',
-        status: 'VOICE',
-        tone: 'suggestion',
         title: output.text,
-        shortMessage: output.text,
-        detail,
-        task: null,
         action: {
           kind: 'create_task',
           title: String(params?.title || '').trim(),
           subject: String(params?.subject || '').trim() || 'math',
           dueDate: params?.due_date || params?.dueDate || null
         }
-      }
+      })
+
+    case 'start_free_session':
+      return buildVoiceActionDecision({
+        key: `voice-ai:start_free_session:${Number(params?.duration ?? params?.duration_min ?? 30) || 30}`,
+        type: 'start_free_session',
+        title: output.text,
+        task: null,
+        action: {
+          kind: 'start_free_session',
+          duration: Number(params?.duration ?? params?.duration_min ?? 30) || 30
+        }
+      })
+
+    case 'start_recommended_task':
+      return buildVoiceActionDecision({
+        key: 'voice-ai:start_recommended_task',
+        type: 'start_recommended_task',
+        title: output.text,
+        task: null,
+        action: {
+          kind: 'start_recommended_task'
+        }
+      })
+
+    case 'focus_on_weak_subject':
+      return buildVoiceActionDecision({
+        key: 'voice-ai:focus_on_weak_subject',
+        type: 'focus_on_weak_subject',
+        title: output.text,
+        task: null,
+        action: {
+          kind: 'focus_on_weak_subject'
+        }
+      })
 
     case 'pause_session':
     case 'resume_session':
-    case 'finish_session':
-      return buildVoiceIntentDecision({
+    case 'stop_session':
+      return buildVoiceActionDecision({
         key: `voice-ai:${functionCall.action}`,
         type: functionCall.action,
         title: output.text,
         tone: 'suggestion',
         task: null,
-        intent:
-          functionCall.action === 'pause_session'
-            ? { type: 'pause', data: {} }
-            : functionCall.action === 'resume_session'
-              ? { type: 'resume', data: {} }
-              : { type: 'finish_session', data: {} }
+        action: {
+          kind: functionCall.action
+        }
+      })
+
+    case 'extend_session':
+      return buildVoiceActionDecision({
+        key: `voice-ai:extend_session:${Number(params?.duration ?? params?.duration_min ?? 10) || 10}`,
+        type: 'extend_session',
+        title: output.text,
+        action: {
+          kind: 'extend_session',
+          duration: Number(params?.duration ?? params?.duration_min ?? 10) || 10
+        }
       })
 
     case 'open_tasks':
-      return {
-        key: 'voice-ai:open_tasks',
-        state: 'suggesting',
-        origin: 'voice',
-        type: 'open_tasks',
-        status: 'VOICE',
-        tone: 'suggestion',
-        title: output.text,
-        shortMessage: output.text,
-        detail,
-        action: {
-          kind: 'navigate',
-          path: '/tasks'
-        }
-      }
-
     case 'open_study':
-      return {
-        key: 'voice-ai:open_study',
-        state: 'suggesting',
-        origin: 'voice',
-        type: 'open_study',
-        status: 'VOICE',
-        tone: 'suggestion',
-        title: output.text,
-        shortMessage: output.text,
-        detail,
-        action: {
-          kind: 'navigate',
-          path: '/study'
-        }
-      }
-
     case 'open_dashboard':
-      return {
-        key: 'voice-ai:open_dashboard',
-        state: 'suggesting',
-        origin: 'voice',
-        type: 'open_dashboard',
-        status: 'VOICE',
-        tone: 'suggestion',
+    case 'open_analysis':
+    case 'open_settings':
+      return buildVoiceActionDecision({
+        key: `voice-ai:${functionCall.action}`,
+        type: functionCall.action,
         title: output.text,
-        shortMessage: output.text,
-        detail,
         action: {
-          kind: 'navigate',
-          path: '/dashboard'
+          kind: functionCall.action
         }
-      }
+      })
 
     case 'complete_task':
-      return {
+      return buildVoiceActionDecision({
         key: `voice-ai:complete_task:${matchedTask?.id || params?.task_id || 'task'}`,
-        state: 'suggesting',
-        origin: 'voice',
         type: 'complete_task',
-        status: 'VOICE',
-        tone: 'suggestion',
         title: output.text,
-        shortMessage: output.text,
-        detail,
-        task: matchedTask,
         action: {
           kind: 'complete_task',
           taskId: matchedTask?.id || params?.task_id || null
         }
-      }
+      })
 
     case 'delete_task':
-      return {
+      return buildVoiceActionDecision({
         key: `voice-ai:delete_task:${matchedTask?.id || params?.task_id || 'task'}`,
-        state: 'suggesting',
-        origin: 'voice',
         type: 'delete_task',
-        status: 'VOICE',
         tone: 'warning',
         title: output.text,
-        shortMessage: output.text,
-        detail,
-        task: matchedTask,
         action: {
           kind: 'delete_task',
           taskId: matchedTask?.id || params?.task_id || null
         }
-      }
+      })
+
+    case 'edit_task':
+      return buildVoiceActionDecision({
+        key: `voice-ai:edit_task:${matchedTask?.id || params?.task_id || 'task'}`,
+        type: 'edit_task',
+        title: output.text,
+        task: matchedTask,
+        action: {
+          kind: 'edit_task',
+          taskId: matchedTask?.id || params?.task_id || null,
+          updates: params?.updates || {}
+        }
+      })
 
     case 'navigate':
-      return {
+      return buildVoiceActionDecision({
         key: `voice-ai:navigate:${String(params?.page || '/dashboard')}`,
-        state: 'suggesting',
-        origin: 'voice',
         type: 'navigate',
-        status: 'VOICE',
-        tone: 'suggestion',
         title: output.text,
-        shortMessage: output.text,
-        detail,
-        task: null,
         action: {
           kind: 'navigate',
           path: String(params?.page || '/dashboard')
         }
-      }
-
-    case 'start_free_session':
-      return {
-        key: `voice-ai:start_free_session:${Number(params?.duration ?? params?.duration_min ?? 30) || 30}`,
-        state: 'suggesting',
-        origin: 'voice',
-        type: 'start_free_session',
-        status: 'VOICE',
-        tone: 'suggestion',
-        title: output.text,
-        shortMessage: output.text,
-        detail,
-        action: {
-          kind: 'navigate',
-          path: '/study',
-          state: {
-            action: 'start',
-            mode: 'free',
-            duration: Number(params?.duration ?? params?.duration_min ?? 30) || 30,
-            taskId: null
-          }
-        }
-      }
+      })
 
     case 'select_task':
-      return {
+      return buildVoiceActionDecision({
         key: `voice-ai:select_task:${matchedTask?.id || params?.task_id || 'task'}`,
-        state: 'suggesting',
-        origin: 'voice',
         type: 'select_task',
-        status: 'VOICE',
-        tone: 'suggestion',
         title: output.text,
-        shortMessage: output.text,
-        detail,
-        task: matchedTask,
         action: {
-          kind: 'navigate',
-          path: '/study',
-          state: {
-            suggestedTaskId: matchedTask?.id || params?.task_id || null
-          }
+          kind: 'select_task',
+          taskId: matchedTask?.id || params?.task_id || null
         }
-      }
+      })
 
     case 'reschedule_task':
-      return {
+      return buildVoiceActionDecision({
         key: `voice-ai:reschedule_task:${matchedTask?.id || params?.task_id || 'task'}`,
-        state: 'suggesting',
-        origin: 'voice',
         type: 'reschedule_task',
-        status: 'VOICE',
         tone: 'warning',
         title: output.text,
-        shortMessage: output.text,
-        detail,
-        task: matchedTask,
         action: {
           kind: 'reschedule_task',
           taskId: matchedTask?.id || params?.task_id || null,
           date: params?.date || null
         }
-      }
+      })
 
-    case 'none':
+    case 'clear_overdue_tasks':
+      return buildVoiceActionDecision({
+        key: 'voice-ai:clear_overdue_tasks',
+        type: 'clear_overdue_tasks',
+        title: output.text,
+        tone: 'warning',
+        task: null,
+        action: {
+          kind: 'clear_overdue_tasks'
+        }
+      })
+
+    case 'reschedule_all_overdue':
+      return buildVoiceActionDecision({
+        key: `voice-ai:reschedule_all_overdue:${params?.date || 'tomorrow'}`,
+        type: 'reschedule_all_overdue',
+        title: output.text,
+        tone: 'warning',
+        task: null,
+        action: {
+          kind: 'reschedule_all_overdue',
+          date: params?.date || null
+        }
+      })
+
+    case 'do_nothing':
     default:
-      return {
-        key: 'voice-ai:none',
-        state: 'suggesting',
-        origin: 'voice',
+      return buildVoiceActionDecision({
+        key: 'voice-ai:do_nothing',
         type: 'idle',
-        status: 'VOICE',
         tone: 'neutral',
         title: output?.text || 'No action',
-        shortMessage: output?.text || 'No action',
-        detail,
         action: {
           kind: 'idle'
         }
-      }
+      })
   }
 }
 

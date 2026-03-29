@@ -411,15 +411,18 @@ const AssistantBar = () => {
   useEffect(() => {
     voiceDepsRef.current = {
       user,
+      profile: assistantProfile,
       tasks,
       studySessions,
       addTask,
       updateTaskById,
       toggleTask,
       removeTask,
-      navigate
+      navigate,
+      memory: decisionMemory,
+      cognitiveLoad
     }
-  }, [user, tasks, studySessions, addTask, updateTaskById, toggleTask, removeTask, navigate])
+  }, [user, assistantProfile, tasks, studySessions, addTask, updateTaskById, toggleTask, removeTask, navigate, decisionMemory, cognitiveLoad])
 
   const activeTaskId = useMemo(() => (user?.id ? getActiveFocusTaskId(user.id) : null), [user?.id])
   const activeTask = useMemo(
@@ -776,6 +779,10 @@ const AssistantBar = () => {
         const text = String(transcript || '').trim()
         if (!text) return
 
+        if (import.meta.env.DEV) {
+          console.log('TRANSCRIPT:', text)
+        }
+
         setInteractionStatus('processing', 'Understanding')
         playAssistantSound('processing')
         stopVoiceListening(voiceSessionRef.current)
@@ -802,6 +809,10 @@ const AssistantBar = () => {
             playAssistantSound('error')
             setInteractionStatus('error', 'Voice unavailable', 1100)
             return
+          }
+
+          if (import.meta.env.DEV) {
+            console.log('AI:', resolved.output)
           }
 
           const nextDecision = resolved.decision
@@ -867,6 +878,10 @@ const AssistantBar = () => {
     if (!actionableDecision) return false
     if (!canExecuteAssistantDecision(actionableDecision)) {
       return false
+    }
+
+    if (import.meta.env.DEV) {
+      console.log('EXEC:', actionableDecision?.action?.kind, actionableDecision?.action)
     }
 
     openIsland()

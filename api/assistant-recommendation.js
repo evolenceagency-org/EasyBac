@@ -1,4 +1,4 @@
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+﻿const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 const RECOMMENDATION_PROMPT = `
 You are an AI academic coach.
@@ -20,65 +20,53 @@ Rules:
 - If user often rejects an action -> avoid it
 
 Text format:
-[Verb] [Subject] • [Duration]
+[Verb] [Subject] â€¢ [Duration]
 
 Examples:
-"Start Math • 45min"
-"Continue Physics • 20min"
-"Break • 5min"
+"Start Math â€¢ 45min"
+"Continue Physics â€¢ 20min"
+"Break â€¢ 5min"
 
 Return ONLY JSON.
 `.trim()
 
 const VOICE_PROMPT = `
-You are an AI decision engine.
+You are an AI study assistant.
 
-Understand user speech and map it to exactly ONE action.
-
-Input shape:
-{
-  "transcript": "user speech",
-  "available_functions": [...],
-  "tasks": [...],
-  "session": {...},
-  "exam_days_left": number
-}
+Understand user speech and choose exactly ONE action.
 
 Return STRICT JSON only:
 {
-  "text": "short message to show user",
-  "action": "function_name | none",
+  "text": "short action text",
+  "action": "function_name",
   "params": {},
-  "needs_confirmation": true
+  "confidence": 0.0
 }
 
 Rules:
-- ALWAYS choose 1 action
-- If unsure -> action = "none"
-- text must be short
-- NO explanation
-- NO long sentences
-- action must be one of available_functions or "none"
-- Use task ids when you can match a task safely
+- ALWAYS return JSON
+- NEVER return multiple actions
+- NEVER ask questions
+- NEVER explain
+- text must be short and direct
+- action must be one of available_functions or "do_nothing"
+- If unclear -> action = "do_nothing"
+- Use task_id when you can match a task safely
 - Keep params minimal
 
 Examples:
-Input: "start math 30 min"
-Output:
 {
-  "text": "Start Math • 30min",
+  "text": "Start Math - 30min",
   "action": "start_focus",
   "params": { "subject": "math", "duration": 30 },
-  "needs_confirmation": true
+  "confidence": 0.95
 }
 
-Input: "add task revise physics"
-Output:
 {
   "text": "Create task: Physics",
   "action": "create_task",
   "params": { "title": "Revise physics" },
-  "needs_confirmation": true
+  "confidence": 0.9
 }
 `.trim()
 
@@ -184,3 +172,4 @@ export default async function handler(req, res) {
     })
   }
 }
+
