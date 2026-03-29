@@ -1,130 +1,543 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AnimatePresence, motion, useTransform } from 'framer-motion'
 import {
-  ChevronLeft,
-  ChevronRight,
+  CalendarDays,
+  Check,
+  CheckCircle2,
   Clock3,
-  ListChecks,
   Plus,
   Sparkles,
+  Trash2,
+  X
 } from 'lucide-react'
-import { useData } from '../context/DataContext.jsx'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { toDateKey } from '../utils/dateUtils.js'
-import { getBestTask } from '../utils/aiEngine.ts'
-import {
-  buildAutopilotPlan,
-  queueAutopilotLaunch
-} from '../utils/autopilotEngine.ts'
-import { buildExamSimulationPlan } from '../utils/examEngine.ts'
-import { isSubscriptionActive } from '../utils/subscription.js'
+import { useData } from '../context/DataContext.jsx'
+import useSwipeGesture from '../hooks/useSwipeGesture.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
-import {
-  formatMinutes,
-  getExamCountdown,
-  getStudyTotals,
-  sortTasksByPriorityAndDueDate
-} from '../utils/dashboardMetrics.js'
-import {
-  getTasksCompletedToday,
-  getTasksDueToday,
-  isOverdueTask
-} from '../utils/taskStats.js'
-import { formatFocusSummary } from '../utils/focusTasks.js'
-import ExamCountdownBanner from '../components/dashboard/ExamCountdownBanner.jsx'
-import Header from '../components/Tasks/Header.jsx'
-import RecommendationBlock from '../components/Tasks/RecommendationBlock.jsx'
-import TaskList from '../components/Tasks/TaskList.jsx'
-import GlassDropdown from '../components/Tasks/GlassDropdown.jsx'
-import { GhostButton, IconButton, PrimaryButton } from '../components/ui/index.js'
+import { isSubscriptionActive } from '../utils/subscription.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 }
+  exit: { opacity: 0, y: -10 }
 }
 
-const subjects = [
-  { label: 'All', value: 'all' },
-  { label: 'Math', value: 'math', color: 'bg-blue-500/20 text-blue-200' },
-  { label: 'Physics', value: 'physics', color: 'bg-purple-500/20 text-purple-200' },
-  { label: 'Philosophie', value: 'philosophie', color: 'bg-amber-400/20 text-amber-200' },
-  { label: 'SVT', value: 'svt', color: 'bg-emerald-500/20 text-emerald-200' },
-  { label: 'English', value: 'english', color: 'bg-pink-500/20 text-pink-200' }
+const SUBJECT_OPTIONS = [
+  { value: 'math', label: 'Math' },
+  { value: 'physics', label: 'Physics' },
+  { value: 'philosophie', label: 'Philosophie' },
+  { value: 'svt', label: 'SVT' },
+  { value: 'english', label: 'English' },
+  { value: 'general', label: 'General' }
 ]
 
-const subjectColorMap = subjects.reduce((acc, subject) => {
-  if (subject.value !== 'all') {
-    acc[subject.value] = subject.color
+const PRIORITY_OPTIONS = [
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' }
+]
+
+const FILTER_TABS = [
+  { id: 'all', label: 'All' },
+  { id: 'today', label: 'Today' },
+  { id: 'overdue', label: 'Overdue' }
+]
+
+const priorityRank = {
+  high: 0,
+  medium: 1,
+  low: 2
+}
+
+const getSubjectLabel = (subject) =>
+  SUBJECT_OPTIONS.find((option) => option.value === subject)?.label || 'General'
+
+const getPriorityDotClass = (priority) => {
+  if (priority === 'high') return 'bg-[#f97316]'
+  if (priority === 'medium') return 'bg-[#8b5cf6]'
+  return 'bg-white/40'
+}
+
+const getRecommendedDuration = (priority) => {
+  if (priority === 'high') return 45
+  if (priority === 'medium') return 35
+  return 25
+}
+
+const formatDateInput = (value) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
+
+const addDays = (days) => {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date.toISOString().slice(0, 10)
+}
+
+const getDayKey = (value = new Date()) => {
+  const date = new Date(value)
+  return date.toISOString().slice(0, 10)
+}
+
+const daysUntil = (dueDate) => {
+  if (!dueDate) return Number.POSITIVE_INFINITY
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(`${dueDate}T00:00:00`)
+  const diff = target.getTime() - startOfToday.getTime()
+  return Math.floor(diff / 86400000)
+}
+
+const isTaskOverdue = (task) => {
+  if (!task?.due_date || task.completed) return false
+  return daysUntil(task.due_date) < 0
+}
+
+const isTaskToday = (task) => {
+  if (!task?.due_date || task.completed) return false
+  return daysUntil(task.due_date) === 0
+}
+
+const formatDueLabel = (task) => {
+  if (!task?.due_date) return 'No due date'
+  const diff = daysUntil(task.due_date)
+  if (diff < 0) return `Overdue by ${Math.abs(diff)}d`
+  if (diff === 0) return 'Due today'
+  if (diff === 1) return 'Due tomorrow'
+  if (diff <= 7) return `Due in ${diff}d`
+  const date = new Date(`${task.due_date}T00:00:00`)
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+const getSubjectMinutes = (sessions) => {
+  return sessions.reduce((acc, session) => {
+    const key = session.subject || 'general'
+    const minutes = Number(session.duration_minutes || 0)
+    acc[key] = (acc[key] || 0) + minutes
+    return acc
+  }, {})
+}
+
+const getTaskRecommendationScore = (task, subjectMinutes) => {
+  const priorityScore =
+    task.priority === 'high' ? 42 : task.priority === 'medium' ? 28 : 14
+
+  const dayDiff = daysUntil(task.due_date)
+  let dueScore = 6
+  if (dayDiff < 0) dueScore = 60
+  else if (dayDiff === 0) dueScore = 48
+  else if (dayDiff === 1) dueScore = 36
+  else if (dayDiff <= 3) dueScore = 24
+  else if (dayDiff <= 7) dueScore = 12
+
+  const minutesForSubject = subjectMinutes[task.subject || 'general'] || 0
+  const weaknessScore = Math.max(6, 28 - Math.min(minutesForSubject / 12, 20))
+  const focusPenalty = Math.min((task.totalFocusTime || 0) / 12, 12)
+
+  return priorityScore + dueScore + weaknessScore - focusPenalty
+}
+
+const sortTasksForMobile = (tasks) => {
+  return [...tasks].sort((a, b) => {
+    const aOverdue = isTaskOverdue(a)
+    const bOverdue = isTaskOverdue(b)
+    if (aOverdue !== bOverdue) return aOverdue ? -1 : 1
+
+    const aDays = daysUntil(a.due_date)
+    const bDays = daysUntil(b.due_date)
+    if (aDays !== bDays) return aDays - bDays
+
+    const priorityDelta = (priorityRank[a.priority] ?? 99) - (priorityRank[b.priority] ?? 99)
+    if (priorityDelta !== 0) return priorityDelta
+
+    const aCreated = new Date(a.created_at || 0).getTime()
+    const bCreated = new Date(b.created_at || 0).getTime()
+    return bCreated - aCreated
+  })
+}
+
+const getRecommendedTask = (tasks, studySessions) => {
+  const activeTasks = tasks.filter((task) => !task.completed)
+  if (activeTasks.length === 0) return null
+
+  const subjectMinutes = getSubjectMinutes(studySessions)
+  return [...activeTasks]
+    .sort((a, b) => getTaskRecommendationScore(b, subjectMinutes) - getTaskRecommendationScore(a, subjectMinutes))[0]
+}
+
+const TaskFilterTabs = ({ activeTab, onChange, counts }) => {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      {FILTER_TABS.map((tab) => {
+        const active = tab.id === activeTab
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+            className={`inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium transition ${
+              active
+                ? 'border-[#8b5cf6]/45 bg-[#8b5cf6]/14 text-white'
+                : 'border-white/[0.08] bg-white/[0.03] text-white/65 hover:border-white/[0.12] hover:text-white'
+            }`}
+          >
+            <span>{tab.label}</span>
+            <span className="text-xs text-white/50">{counts[tab.id] || 0}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const RecommendedTaskCard = ({ task, onStart }) => {
+  if (!task) {
+    return (
+      <section className="rounded-3xl border border-white/[0.08] bg-[#0b0b0f] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+        <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">AI recommendation</p>
+        <p className="mt-3 text-lg font-semibold text-white">Add your first task</p>
+        <p className="mt-2 text-sm leading-6 text-white/60">
+          Once you have a few tasks, the assistant will surface the best study target automatically.
+        </p>
+      </section>
+    )
   }
-  return acc
-}, {})
 
-const getSubjectLabel = (value) =>
-  subjects.find((item) => item.value === value)?.label || value
+  const suggestedMinutes = getRecommendedDuration(task.priority)
 
-const getTaskStatus = (task) => {
-  if (task.status) return task.status
-  return task.completed ? 'completed' : 'active'
+  return (
+    <section className="rounded-3xl border border-[#8b5cf6]/18 bg-[#8b5cf6]/[0.08] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+      <div className="flex items-start gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[#d8b4fe]">
+          <Sparkles className="h-5 w-5" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">AI recommendation</p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+            Recommended: Study {getSubjectLabel(task.subject)} - {task.title} ({suggestedMinutes}min)
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-white/65">
+            Priority, deadline, and your weaker subjects all point here as the smartest next session.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3">
+        <div>
+          <p className="text-sm font-medium text-white">{getSubjectLabel(task.subject)}</p>
+          <p className={`mt-1 text-xs ${isTaskOverdue(task) ? 'text-red-300' : 'text-white/50'}`}>{formatDueLabel(task)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => onStart(task)}
+          className="inline-flex min-h-11 items-center justify-center rounded-2xl bg-[#8b5cf6] px-4 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+        >
+          Start Focus
+        </button>
+      </div>
+    </section>
+  )
 }
 
-const getTaskDotClass = (task) => {
-  const overdue = isOverdueTask(task)
-  if (task.completed) return 'bg-emerald-400'
-  if (task.status === 'on_hold') return 'bg-slate-300'
-  if (overdue) return 'bg-rose-400'
-  return 'bg-blue-400'
-}
-
-const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-const buildCalendarDays = (monthDate) => {
-  const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
-  const weekdayIndex = (firstOfMonth.getDay() + 6) % 7
-  const startDate = new Date(firstOfMonth)
-  startDate.setDate(firstOfMonth.getDate() - weekdayIndex)
-
-  return Array.from({ length: 42 }, (_, index) => {
-    const date = new Date(startDate)
-    date.setDate(startDate.getDate() + index)
-    return {
-      date,
-      key: toDateKey(date),
-      inMonth: date.getMonth() === monthDate.getMonth(),
-      isToday: toDateKey(date) === toDateKey(new Date())
-    }
+const TaskRow = ({ task, onComplete, onDelete, onOpen, onReschedule }) => {
+  const swipe = useSwipeGesture({
+    enabled: !task.completed,
+    onComplete: () => onComplete(task),
+    onDelete: () => onDelete(task)
   })
+  const completeReveal = useTransform(swipe.x, [0, 120], [0, 1])
+  const deleteReveal = useTransform(swipe.x, [-120, 0], [1, 0])
+
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-[20px]">
+      <motion.div style={{ opacity: completeReveal }} className="pointer-events-none absolute inset-y-0 left-0 flex w-24 items-center justify-center bg-emerald-500/18 text-emerald-200">
+        <Check className="h-5 w-5" />
+      </motion.div>
+      <motion.div style={{ opacity: deleteReveal }} className="pointer-events-none absolute inset-y-0 right-0 flex w-24 items-center justify-center bg-red-500/18 text-red-200">
+        <Trash2 className="h-5 w-5" />
+      </motion.div>
+
+      <motion.button
+        type="button"
+        {...swipe.dragProps}
+        whileTap={{ scale: 0.992 }}
+        onClick={() => onOpen(task)}
+        className="relative flex w-full items-start justify-between gap-4 bg-[#0f1015]/88 px-4 py-4 text-left"
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${getPriorityDotClass(task.priority)}`} />
+            <p className="truncate text-[15px] font-semibold text-white">{task.title}</p>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/50">
+            <span>{getSubjectLabel(task.subject)}</span>
+            <span className={isTaskOverdue(task) ? 'text-red-300' : ''}>{formatDueLabel(task)}</span>
+          </div>
+        </div>
+
+        {isTaskOverdue(task) ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              swipe.reset()
+              onReschedule(task)
+            }}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-red-400/20 bg-red-500/10 px-3 text-xs font-medium text-red-100 transition hover:bg-red-500/14"
+          >
+            Reschedule
+          </button>
+        ) : null}
+      </motion.button>
+    </div>
+  )
 }
 
-const FILTER_DEFAULTS = {
-  subject: 'all',
-  status: 'all',
-  due: 'all',
-  sort: 'priority',
-  search: ''
+const SheetFrame = ({ open, onClose, title, description, children }) => {
+  return (
+    <AnimatePresence>
+      {open ? (
+        <>
+          <motion.button
+            type="button"
+            aria-label="Close sheet"
+            onClick={onClose}
+            className="fixed inset-0 z-[70] bg-black/55 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
+          <motion.div
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ duration: 0.24, ease: 'easeOut' }}
+            className="fixed inset-x-0 bottom-0 z-[71] rounded-t-[28px] border-t border-white/[0.08] bg-[#0b0b0f]/95 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 shadow-[0_-10px_40px_rgba(0,0,0,0.45)] backdrop-blur-[24px]"
+          >
+            <div className="mx-auto mb-4 h-1.5 w-14 rounded-full bg-white/15" />
+            <div className="mx-auto w-full max-w-xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-semibold text-white">{title}</p>
+                  {description ? <p className="mt-2 text-sm leading-6 text-white/60">{description}</p> : null}
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-white/70 transition hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="mt-5">{children}</div>
+            </div>
+          </motion.div>
+        </>
+      ) : null}
+    </AnimatePresence>
+  )
 }
 
-const sortLabels = {
-  priority: 'Priority + due date',
-  newest: 'Newest',
-  oldest: 'Oldest',
-  'due-nearest': 'Due nearest',
-  'due-latest': 'Due latest',
-  subject: 'Subject A-Z'
-}
+const TaskEditorSheet = ({ open, task, mode = 'create', onClose, onSubmit, onDelete, saving }) => {
+  const [title, setTitle] = useState('')
+  const [subject, setSubject] = useState('math')
+  const [dueDate, setDueDate] = useState('')
+  const [priority, setPriority] = useState('medium')
+  const [localError, setLocalError] = useState('')
 
-const mergeTaskOrder = (taskIds, previousOrder = []) => {
-  const nextOrder = previousOrder.filter((id) => taskIds.includes(id))
-  taskIds.forEach((id) => {
-    if (!nextOrder.includes(id)) {
-      nextOrder.push(id)
+  useEffect(() => {
+    if (!open) return
+    setTitle(task?.title || '')
+    setSubject(task?.subject || 'math')
+    setDueDate(formatDateInput(task?.due_date || ''))
+    setPriority(task?.priority || 'medium')
+    setLocalError('')
+  }, [open, task])
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    if (!title.trim()) {
+      setLocalError('Add a short task title first.')
+      return
     }
-  })
-  return nextOrder
+
+    setLocalError('')
+    const succeeded = await onSubmit({
+      title: title.trim(),
+      subject,
+      due_date: dueDate || null,
+      priority
+    })
+
+    if (succeeded) {
+      onClose()
+    }
+  }
+
+  return (
+    <SheetFrame
+      open={open}
+      onClose={onClose}
+      title={mode === 'edit' ? 'Edit task' : 'Add task'}
+      description={mode === 'edit' ? 'Update the task and keep the list clean.' : 'Capture the next study action in a few seconds.'}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-[0.2em] text-white/45">Title</label>
+          <input
+            type="text"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Study derivatives"
+            className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-[#8b5cf6]/45"
+          />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.2em] text-white/45">Subject</label>
+            <select
+              value={subject}
+              onChange={(event) => setSubject(event.target.value)}
+              className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-[#8b5cf6]/45"
+            >
+              {SUBJECT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.2em] text-white/45">Due date</label>
+            <input
+              type="date"
+              value={dueDate}
+              onChange={(event) => setDueDate(event.target.value)}
+              className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-[#8b5cf6]/45"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-[0.2em] text-white/45">Priority</label>
+          <div className="grid grid-cols-3 gap-2">
+            {PRIORITY_OPTIONS.map((option) => {
+              const active = option.value === priority
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setPriority(option.value)}
+                  className={`min-h-11 rounded-2xl border text-sm font-medium transition ${
+                    active
+                      ? 'border-[#8b5cf6]/45 bg-[#8b5cf6]/14 text-white'
+                      : 'border-white/[0.08] bg-white/[0.03] text-white/65 hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {localError ? <p className="text-sm text-red-300">{localError}</p> : null}
+
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex min-h-12 flex-1 items-center justify-center rounded-2xl bg-[#8b5cf6] px-4 text-sm font-semibold text-white transition hover:bg-[#7c3aed] disabled:opacity-60"
+          >
+            {saving ? 'Saving...' : mode === 'edit' ? 'Save changes' : 'Add task'}
+          </button>
+          {mode === 'edit' ? (
+            <button
+              type="button"
+              onClick={async () => {
+                const succeeded = await onDelete()
+                if (succeeded) onClose()
+              }}
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-red-400/20 bg-red-500/10 px-4 text-sm font-medium text-red-100 transition hover:bg-red-500/14"
+            >
+              Delete
+            </button>
+          ) : null}
+        </div>
+      </form>
+    </SheetFrame>
+  )
+}
+
+const RescheduleSheet = ({ task, open, onClose, onChoose, saving }) => {
+  const [customDate, setCustomDate] = useState('')
+
+  useEffect(() => {
+    if (open) setCustomDate(formatDateInput(task?.due_date || ''))
+  }, [open, task])
+
+  const runChoice = async (dateValue) => {
+    const succeeded = await onChoose(dateValue)
+    if (succeeded) onClose()
+  }
+
+  return (
+    <SheetFrame
+      open={open}
+      onClose={onClose}
+      title="Reschedule task"
+      description={task ? `Move ${task.title} to a better date without losing it.` : ''}
+    >
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => runChoice(addDays(1))}
+          disabled={saving}
+          className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-white transition hover:border-white/[0.14]"
+        >
+          <span>Tomorrow</span>
+          <span className="text-white/45">{addDays(1)}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => runChoice(addDays(3))}
+          disabled={saving}
+          className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-white transition hover:border-white/[0.14]"
+        >
+          <span>+3 days</span>
+          <span className="text-white/45">{addDays(3)}</span>
+        </button>
+
+        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4">
+          <label className="text-xs uppercase tracking-[0.2em] text-white/45">Pick date</label>
+          <input
+            type="date"
+            value={customDate}
+            onChange={(event) => setCustomDate(event.target.value)}
+            className="mt-3 h-12 w-full rounded-2xl border border-white/[0.08] bg-[#0b0b0f] px-4 text-sm text-white outline-none transition focus:border-[#8b5cf6]/45"
+          />
+          <button
+            type="button"
+            onClick={() => runChoice(customDate)}
+            disabled={!customDate || saving}
+            className="mt-3 inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-[#8b5cf6] px-4 text-sm font-semibold text-white transition hover:bg-[#7c3aed] disabled:opacity-60"
+          >
+            Apply date
+          </button>
+        </div>
+      </div>
+    </SheetFrame>
+  )
 }
 
 const Tasks = () => {
+  const navigate = useNavigate()
   const { profile } = useAuth()
   const {
     tasks,
@@ -136,894 +549,150 @@ const Tasks = () => {
     removeTask,
     updateTaskById
   } = useData()
-  const navigate = useNavigate()
 
-  const [title, setTitle] = useState('')
-  const [subject, setSubject] = useState('math')
-  const [dueDate, setDueDate] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const subscriptionActive = useMemo(() => isSubscriptionActive(profile), [profile])
+  const [activeTab, setActiveTab] = useState('all')
+  const [editorState, setEditorState] = useState({ open: false, mode: 'create', task: null })
+  const [rescheduleTask, setRescheduleTask] = useState(null)
+  const [savingTask, setSavingTask] = useState(false)
+  const [pageError, setPageError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  const [subjectFilter, setSubjectFilter] = useState(FILTER_DEFAULTS.subject)
-  const [statusFilter, setStatusFilter] = useState(FILTER_DEFAULTS.status)
-  const [dueFilter, setDueFilter] = useState(FILTER_DEFAULTS.due)
-  const [sortOption, setSortOption] = useState(FILTER_DEFAULTS.sort)
-
-  const [showSwipeHint, setShowSwipeHint] = useState(
-    () => typeof window !== 'undefined' && window.innerWidth < 768
-  )
-  const [showSwipeNudge, setShowSwipeNudge] = useState(() => {
-    if (typeof window === 'undefined' || window.innerWidth >= 768) return false
-    return window.localStorage.getItem('tasks-swipe-nudge-done') !== '1'
-  })
-  const [showCreatePanel, setShowCreatePanel] = useState(false)
-  const [searchTerm, setSearchTerm] = useState(FILTER_DEFAULTS.search)
-  const [viewMode, setViewMode] = useState('list')
-  const [calendarMonth, setCalendarMonth] = useState(() => new Date())
-  const [selectedDate, setSelectedDate] = useState(null)
-  const [draggingTaskId, setDraggingTaskId] = useState(null)
-  const [dragOverDayKey, setDragOverDayKey] = useState(null)
-  const [showCalendarCreateSheet, setShowCalendarCreateSheet] = useState(false)
-  const [activePressDayKey, setActivePressDayKey] = useState(null)
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
-  const [taskOrder, setTaskOrder] = useState(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem('easybac-task-order') || '[]')
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  })
-  const [paletteOpen, setPaletteOpen] = useState(false)
-  const [paletteQuery, setPaletteQuery] = useState('')
-  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0)
-  const [recentCommands, setRecentCommands] = useState(() => {
-    if (typeof window === 'undefined') return []
-    try {
-      const parsed = JSON.parse(window.localStorage.getItem('tasks-recent-commands') || '[]')
-      return Array.isArray(parsed) ? parsed.slice(0, 5) : []
-    } catch {
-      return []
-    }
-  })
-  const longPressTimerRef = useRef(null)
-  const longPressTriggeredRef = useRef(false)
-  const paletteInputRef = useRef(null)
-  const taskCardRefs = useRef({})
-  const lastScrolledTaskRef = useRef(null)
-
-  const todayKey = useMemo(() => toDateKey(new Date()), [])
-  const countdown = useMemo(() => getExamCountdown(profile), [profile])
-  const subscriptionActive = useMemo(
-    () => isSubscriptionActive(profile),
-    [profile]
+  const activeTasks = useMemo(
+    () => tasks.filter((task) => !task.completed),
+    [tasks]
   )
 
-  const lockActions = !subscriptionActive
-  const showExpired = Boolean(profile) && !subscriptionActive
+  const recommendedTask = useMemo(
+    () => getRecommendedTask(activeTasks, studySessions),
+    [activeTasks, studySessions]
+  )
 
-  useEffect(() => {
-    if (!showSwipeHint) return
-    const timer = setTimeout(() => setShowSwipeHint(false), 3000)
-    return () => clearTimeout(timer)
-  }, [showSwipeHint])
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-
-    window.addEventListener('resize', handleResize)
-    return () => window.removeEventListener('resize', handleResize)
-  }, [])
-
-  useEffect(() => {
-    setTaskOrder((prev) => {
-      const next = mergeTaskOrder(
-        tasks.map((task) => task.id),
-        prev
-      )
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('easybac-task-order', JSON.stringify(next))
-      }
-
-      return next
+  const filteredTasks = useMemo(() => {
+    const base = activeTasks.filter((task) => {
+      if (activeTab === 'today') return isTaskToday(task)
+      if (activeTab === 'overdue') return isTaskOverdue(task)
+      return true
     })
-  }, [tasks])
 
-  const handleCreate = useCallback(
-    async (event) => {
-      event.preventDefault()
-      if (!title.trim()) return false
-      if (!checkTrialAndBlock(profile, navigate)) return false
+    return sortTasksForMobile(base).slice(0, 7)
+  }, [activeTab, activeTasks])
 
-      setSaving(true)
-      setError('')
-      try {
-        await addTask({
-          title: title.trim(),
-          subject,
-          due_date: dueDate || null
-        })
-        setTitle('')
-        setDueDate('')
-
-        if (typeof window !== 'undefined' && window.innerWidth < 768) {
-          setShowCreatePanel(false)
-        }
-        return true
-      } catch (err) {
-        setError('Unable to create the task. Please try again.')
-        return false
-      } finally {
-        setSaving(false)
-      }
-    },
-    [title, subject, dueDate, addTask, profile, navigate]
+  const tabCounts = useMemo(
+    () => ({
+      all: activeTasks.length,
+      today: activeTasks.filter((task) => isTaskToday(task)).length,
+      overdue: activeTasks.filter((task) => isTaskOverdue(task)).length
+    }),
+    [activeTasks]
   )
 
-  const handleToggle = useCallback(
-    async (taskId, currentCompleted) => {
-      if (!checkTrialAndBlock(profile, navigate)) return
-      setError('')
-      try {
-        await toggleTask(taskId, currentCompleted)
-      } catch (err) {
-        setError('Unable to update the task status.')
-      }
-    },
-    [toggleTask, profile, navigate]
-  )
+  const handleGuard = useCallback(() => checkTrialAndBlock(profile, navigate), [navigate, profile])
 
-  const handleDelete = useCallback(
-    async (taskId) => {
-      if (!checkTrialAndBlock(profile, navigate)) return
-      setError('')
-      try {
-        await removeTask(taskId)
-      } catch (err) {
-        setError('Unable to delete the task.')
-      }
-    },
-    [removeTask, profile, navigate]
-  )
+  const handleOpenCreate = useCallback(() => {
+    if (!handleGuard()) return
+    setEditorState({ open: true, mode: 'create', task: null })
+  }, [handleGuard])
 
-  const handleReschedule = useCallback(
-    async (taskId, newDate) => {
-      if (!newDate) return
-      const formattedDate = new Date(newDate).toISOString().split('T')[0]
-      if (!checkTrialAndBlock(profile, navigate)) return
-      setError('')
-      try {
-        await updateTaskById(taskId, {
-          due_date: formattedDate,
-          status: 'active',
-          completed: false
-        })
-      } catch (err) {
-        setError('Unable to reschedule the task.')
-      }
+  const handleOpenEdit = useCallback(
+    (task) => {
+      if (!handleGuard()) return
+      setEditorState({ open: true, mode: 'edit', task })
     },
-    [updateTaskById, profile, navigate]
+    [handleGuard]
   )
 
   const handleStartFocus = useCallback(
     (task) => {
-      if (!checkTrialAndBlock(profile, navigate)) return
-      navigate('/study', {
-        state: {
-          taskId: task.id
-        }
-      })
+      if (!handleGuard()) return
+      navigate('/study', { state: { suggestedTaskId: task.id } })
     },
-    [navigate, profile]
+    [handleGuard, navigate]
   )
 
-  const handleStartAutopilot = useCallback(() => {
-    if (!checkTrialAndBlock(profile, navigate)) return
+  const handleSaveTask = useCallback(
+    async (payload) => {
+      if (!handleGuard()) return false
+      setSavingTask(true)
+      setPageError('')
+      setNotice('')
 
-    const plan = buildAutopilotPlan({
-      user: profile?.personalization || profile,
-      tasks,
-      studySessions
-    })
-
-    const payload = queueAutopilotLaunch({
-      userId: profile?.id,
-      plan
-    })
-
-    navigate('/study', {
-      state: {
-        ...payload,
-        autopilot: true
+      try {
+        if (editorState.mode === 'edit' && editorState.task) {
+          await updateTaskById(editorState.task.id, payload)
+          setNotice('Task updated.')
+        } else {
+          await addTask(payload)
+          setNotice('Task added.')
+        }
+        return true
+      } catch (error) {
+        setPageError('We could not save that task. Please try again.')
+        return false
+      } finally {
+        setSavingTask(false)
       }
-    })
-  }, [navigate, profile, studySessions, tasks])
+    },
+    [addTask, editorState.mode, editorState.task, handleGuard, updateTaskById]
+  )
 
-  const handleToggleHold = useCallback(
+  const handleDeleteTask = useCallback(
     async (task) => {
-      if (!checkTrialAndBlock(profile, navigate)) return
-      setError('')
+      if (!handleGuard()) return false
+      setPageError('')
+      setNotice('')
+
+      try {
+        await removeTask(task.id)
+        setNotice('Task deleted.')
+        return true
+      } catch {
+        setPageError('We could not delete that task. Please try again.')
+        return false
+      }
+    },
+    [handleGuard, removeTask]
+  )
+
+  const handleCompleteTask = useCallback(
+    async (task) => {
+      if (!handleGuard()) return false
+      setPageError('')
+      setNotice('')
+
+      try {
+        await toggleTask(task.id, task.completed)
+        setNotice('Task completed.')
+        return true
+      } catch {
+        setPageError('We could not complete that task. Please try again.')
+        return false
+      }
+    },
+    [handleGuard, toggleTask]
+  )
+
+  const handleReschedule = useCallback(
+    async (task, dateValue) => {
+      if (!handleGuard()) return false
+      if (!dateValue) return false
+      setPageError('')
+      setNotice('')
+
       try {
         await updateTaskById(task.id, {
-          status: task.status === 'on_hold' ? 'active' : 'on_hold',
-          completed: false
+          due_date: dateValue,
+          completed: false,
+          status: 'active'
         })
-      } catch (err) {
-        setError('Unable to update the task state.')
+        setNotice('Task rescheduled.')
+        return true
+      } catch {
+        setPageError('We could not reschedule that task. Please try again.')
+        return false
       }
     },
-    [navigate, profile, updateTaskById]
-  )
-
-  const filteredTasks = useMemo(() => {
-    const query = searchTerm.trim().toLowerCase()
-
-    const getCreatedTime = (task) => {
-      const createdAt = task.created_at ? new Date(task.created_at).getTime() : 0
-      return Number.isFinite(createdAt) ? createdAt : 0
-    }
-
-    const getDueTime = (task, fallback) => {
-      if (!task.due_date) return fallback
-      const dueAt = new Date(`${task.due_date}T00:00:00`).getTime()
-      return Number.isFinite(dueAt) ? dueAt : fallback
-    }
-
-    const result = tasks
-      .filter((task) => getTaskStatus(task) !== 'archived_overdue')
-      .filter((task) => subjectFilter === 'all' || task.subject === subjectFilter)
-      .filter((task) => {
-        if (statusFilter === 'all') return true
-        if (statusFilter === 'completed') return getTaskStatus(task) === 'completed'
-        if (statusFilter === 'pending') {
-          return getTaskStatus(task) === 'active' && !isOverdueTask(task)
-        }
-        if (statusFilter === 'overdue') {
-          return getTaskStatus(task) !== 'completed' && isOverdueTask(task)
-        }
-        return true
-      })
-      .filter((task) => {
-        if (dueFilter === 'all') return true
-        if (dueFilter === 'today') return task.due_date === todayKey
-        if (dueFilter === 'overdue') {
-          return getTaskStatus(task) !== 'completed' && isOverdueTask(task)
-        }
-        if (dueFilter === 'unscheduled') return !task.due_date
-        return true
-      })
-      .filter((task) => {
-        if (!query) return true
-        const titleText = (task.title || '').toLowerCase()
-        const subjectText = (task.subject || '').toLowerCase()
-        const subjectLabelText = getSubjectLabel(task.subject || '').toLowerCase()
-        const dueText = (task.due_date || '').toLowerCase()
-        return (
-          titleText.includes(query) ||
-          subjectText.includes(query) ||
-          subjectLabelText.includes(query) ||
-          dueText.includes(query)
-        )
-      })
-      .sort((a, b) => {
-        switch (sortOption) {
-          case 'priority': {
-            const sorted = sortTasksByPriorityAndDueDate([a, b])
-            return sorted[0]?.id === a.id ? -1 : 1
-          }
-          case 'oldest':
-            return getCreatedTime(a) - getCreatedTime(b)
-          case 'due-nearest':
-            return getDueTime(a, Number.POSITIVE_INFINITY) - getDueTime(b, Number.POSITIVE_INFINITY)
-          case 'due-latest':
-            return getDueTime(b, Number.NEGATIVE_INFINITY) - getDueTime(a, Number.NEGATIVE_INFINITY)
-          case 'subject':
-            return (a.subject || '').localeCompare(b.subject || '')
-          case 'newest':
-          default:
-            return getCreatedTime(b) - getCreatedTime(a)
-        }
-      })
-
-    return result
-  }, [tasks, subjectFilter, statusFilter, dueFilter, sortOption, todayKey, searchTerm])
-
-  const orderedTasks = useMemo(() => {
-    if (taskOrder.length === 0) return filteredTasks
-    const orderIndex = new Map(taskOrder.map((id, index) => [id, index]))
-    return [...filteredTasks].sort((a, b) => {
-      const aIndex = orderIndex.has(a.id) ? orderIndex.get(a.id) : Number.POSITIVE_INFINITY
-      const bIndex = orderIndex.has(b.id) ? orderIndex.get(b.id) : Number.POSITIVE_INFINITY
-      if (aIndex !== bIndex) return aIndex - bIndex
-      return 0
-    })
-  }, [filteredTasks, taskOrder])
-
-  const resetFilters = useCallback(() => {
-    setSubjectFilter(FILTER_DEFAULTS.subject)
-    setStatusFilter(FILTER_DEFAULTS.status)
-    setDueFilter(FILTER_DEFAULTS.due)
-    setSortOption(FILTER_DEFAULTS.sort)
-    setSearchTerm(FILTER_DEFAULTS.search)
-  }, [])
-
-  const handleReorderTasks = useCallback((nextTaskIds) => {
-    setTaskOrder((prev) => {
-      const next = mergeTaskOrder(
-        nextTaskIds,
-        prev.filter((id) => nextTaskIds.includes(id))
-      )
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('easybac-task-order', JSON.stringify(next))
-      }
-      return next
-    })
-  }, [])
-
-  const executeCommand = useCallback((command) => {
-    command.run()
-    setPaletteOpen(false)
-    setPaletteQuery('')
-    setSelectedCommandIndex(0)
-    setRecentCommands((prev) => {
-      const next = [command.title, ...prev.filter((item) => item !== command.title)].slice(0, 5)
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('tasks-recent-commands', JSON.stringify(next))
-      }
-      return next
-    })
-  }, [])
-
-  const commandItems = useMemo(
-    () => [
-      { id: 'filter-all', title: 'Filter: All subjects', group: 'Filters', run: () => setSubjectFilter('all') },
-      { id: 'filter-math', title: 'Filter: Math', group: 'Filters', run: () => setSubjectFilter('math') },
-      { id: 'filter-physics', title: 'Filter: Physics', group: 'Filters', run: () => setSubjectFilter('physics') },
-      { id: 'filter-svt', title: 'Filter: SVT', group: 'Filters', run: () => setSubjectFilter('svt') },
-      { id: 'filter-english', title: 'Filter: English', group: 'Filters', run: () => setSubjectFilter('english') },
-      { id: 'filter-status-all', title: 'Filter: All statuses', group: 'Filters', run: () => setStatusFilter('all') },
-      { id: 'filter-completed', title: 'Filter: Completed', group: 'Filters', run: () => setStatusFilter('completed') },
-      { id: 'filter-pending', title: 'Filter: Pending', group: 'Filters', run: () => setStatusFilter('pending') },
-      { id: 'filter-overdue', title: 'Filter: Overdue', group: 'Filters', run: () => setStatusFilter('overdue') },
-      { id: 'filter-due-all', title: 'Filter: Due all', group: 'Filters', run: () => setDueFilter('all') },
-      { id: 'filter-due-today', title: 'Filter: Due today', group: 'Filters', run: () => setDueFilter('today') },
-      { id: 'filter-due-overdue', title: 'Filter: Due overdue', group: 'Filters', run: () => setDueFilter('overdue') },
-      { id: 'filter-due-unscheduled', title: 'Filter: Unscheduled', group: 'Filters', run: () => setDueFilter('unscheduled') },
-      { id: 'sort-newest', title: 'Sort: Newest first', group: 'Filters', run: () => setSortOption('newest') },
-      { id: 'sort-oldest', title: 'Sort: Oldest first', group: 'Filters', run: () => setSortOption('oldest') },
-      { id: 'sort-priority', title: 'Sort: Priority + due date', group: 'Filters', run: () => setSortOption('priority') },
-      { id: 'sort-due-nearest', title: 'Sort: Due nearest', group: 'Filters', run: () => setSortOption('due-nearest') },
-      { id: 'sort-due-latest', title: 'Sort: Due latest', group: 'Filters', run: () => setSortOption('due-latest') },
-      { id: 'sort-subject', title: 'Sort: Subject A-Z', group: 'Filters', run: () => setSortOption('subject') },
-      { id: 'filter-clear', title: 'Clear all filters', group: 'Filters', run: () => {
-        resetFilters()
-      } },
-      { id: 'view-list', title: 'View List', group: 'Actions', run: () => setViewMode('list') },
-      { id: 'view-calendar', title: 'View Calendar', group: 'Actions', run: () => setViewMode('calendar') },
-      { id: 'create-task', title: 'Create Task', group: 'Actions', run: () => setShowCreatePanel(true) },
-      { id: 'go-dashboard', title: 'Go to Dashboard', group: 'Navigation', run: () => navigate('/dashboard') },
-      { id: 'go-tasks', title: 'Go to Tasks', group: 'Navigation', run: () => navigate('/tasks') },
-      {
-        id: 'exam-simulation',
-        title: 'Start Exam Simulation',
-        group: 'Actions',
-        run: () => {
-          const plan = buildExamSimulationPlan(profile?.personalization || profile, filteredTasks.length > 0 ? filteredTasks : tasks, {
-            studySessions,
-            subject: 'auto',
-            durationMinutes: null,
-            difficulty: 'auto'
-          })
-
-          navigate('/exam-simulation', {
-            state: {
-              ...plan,
-              autoStart: true
-            }
-          })
-        }
-      }
-    ],
-    [filteredTasks, navigate, profile, resetFilters, studySessions, tasks]
-  )
-
-  const visibleCommands = useMemo(() => {
-    if (!paletteQuery.trim()) {
-      const recent = recentCommands
-        .map((title) => commandItems.find((command) => command.title === title))
-        .filter(Boolean)
-      const suggestions = commandItems.filter((command) => !recent.some((item) => item.id === command.id)).slice(0, 7)
-      return [...recent, ...suggestions]
-    }
-
-    const query = paletteQuery.toLowerCase()
-    const matching = commandItems.filter((command) => command.title.toLowerCase().includes(query))
-    const searchCommand = {
-      id: `search-${query}`,
-      title: `Search tasks: "${paletteQuery}"`,
-      group: 'Search',
-      run: () => setSearchTerm(paletteQuery.trim())
-    }
-    return [searchCommand, ...matching]
-  }, [commandItems, paletteQuery, recentCommands])
-
-  const recommendedTask = useMemo(() => {
-    const taskPool = filteredTasks.length > 0 ? filteredTasks : tasks
-    return getBestTask(taskPool, profile?.personalization || profile)
-  }, [filteredTasks, tasks, profile])
-
-  const autopilotPlan = useMemo(
-    () =>
-      buildAutopilotPlan({
-        user: profile?.personalization || profile,
-        tasks: filteredTasks.length > 0 ? filteredTasks : tasks,
-        studySessions
-      }),
-    [filteredTasks, profile, studySessions, tasks]
-  )
-
-  const recommendation = useMemo(() => {
-    if (autopilotPlan?.active) {
-      return {
-        title: autopilotPlan.title || 'Autopilot ready',
-        reason: autopilotPlan.reason || 'AI chose the next step for you.',
-        buttonLabel: 'Start Autopilot',
-        onAction: handleStartAutopilot,
-        tone: 'purple'
-      }
-    }
-
-    if (recommendedTask) {
-      return {
-        title: recommendedTask.title,
-        reason: `${getSubjectLabel(recommendedTask.subject)} • ${formatFocusSummary(
-          recommendedTask.totalFocusTime,
-          recommendedTask.sessionsCount
-        )}`,
-        buttonLabel: 'Start Focus',
-        onAction: () => handleStartFocus(recommendedTask),
-        tone: 'cyan'
-      }
-    }
-
-    return null
-  }, [autopilotPlan, getSubjectLabel, handleStartAutopilot, handleStartFocus, recommendedTask])
-
-  const recommendedTaskId = recommendedTask?.id || null
-
-  const tasksByDate = useMemo(() => {
-    const map = {}
-    filteredTasks.forEach((task) => {
-      if (!task.due_date) return
-      if (!map[task.due_date]) {
-        map[task.due_date] = []
-      }
-      map[task.due_date].push(task)
-    })
-    return map
-  }, [filteredTasks])
-
-  const calendarDays = useMemo(
-    () => buildCalendarDays(calendarMonth),
-    [calendarMonth]
-  )
-  const monthLabel = useMemo(
-    () =>
-      new Intl.DateTimeFormat('en-US', {
-        month: 'long',
-        year: 'numeric'
-      }).format(calendarMonth),
-    [calendarMonth]
-  )
-
-  const selectedKey = selectedDate ? toDateKey(selectedDate) : null
-  const selectedTasks = selectedKey ? tasksByDate[selectedKey] || [] : []
-
-  const getDayKeyFromPoint = useCallback((x, y) => {
-    if (typeof document === 'undefined') return null
-    const element = document.elementFromPoint(x, y)
-    return element?.closest?.('[data-day-key]')?.getAttribute('data-day-key') || null
-  }, [])
-
-  const openCalendarCreate = useCallback((dateKey) => {
-    setDueDate(dateKey)
-    setShowCalendarCreateSheet(true)
-  }, [])
-
-  const clearLongPressTimer = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current)
-      longPressTimerRef.current = null
-    }
-  }, [])
-
-  const handleDayPointerDown = useCallback((dayKey) => {
-    setActivePressDayKey(dayKey)
-    longPressTriggeredRef.current = false
-    clearLongPressTimer()
-    longPressTimerRef.current = setTimeout(() => {
-      longPressTriggeredRef.current = true
-      setActivePressDayKey(null)
-      openCalendarCreate(dayKey)
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(16)
-      }
-    }, 500)
-  }, [clearLongPressTimer, openCalendarCreate])
-
-  const handleDayPointerUp = useCallback(() => {
-    clearLongPressTimer()
-    setActivePressDayKey(null)
-  }, [clearLongPressTimer])
-
-  const handleCalendarTaskDragStart = useCallback((taskId) => {
-    setDraggingTaskId(taskId)
-  }, [])
-
-  const handleCalendarTaskDrag = useCallback((_, info) => {
-    if (!draggingTaskId) return
-    const targetKey = getDayKeyFromPoint(info.point.x, info.point.y)
-    setDragOverDayKey(targetKey)
-  }, [draggingTaskId, getDayKeyFromPoint])
-
-  const handleCalendarTaskDragEnd = useCallback(async (task, _, info) => {
-    const targetKey = getDayKeyFromPoint(info.point.x, info.point.y)
-    setDraggingTaskId(null)
-    setDragOverDayKey(null)
-    if (!targetKey || targetKey === task.due_date) return
-    await handleReschedule(task.id, targetKey)
-  }, [getDayKeyFromPoint, handleReschedule])
-
-  const shouldRunSwipeNudge =
-    viewMode === 'list' && showSwipeNudge && !loading.tasks && filteredTasks.length > 0
-
-  useEffect(() => {
-    if (!shouldRunSwipeNudge) return
-    const timer = setTimeout(() => {
-      setShowSwipeNudge(false)
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('tasks-swipe-nudge-done', '1')
-      }
-    }, 1800)
-    return () => clearTimeout(timer)
-  }, [shouldRunSwipeNudge])
-
-  useEffect(() => {
-    if (viewMode === 'list') {
-      setSelectedDate(null)
-      setDragOverDayKey(null)
-      setDraggingTaskId(null)
-      setShowCalendarCreateSheet(false)
-    }
-  }, [viewMode])
-
-  useEffect(() => {
-    return () => clearLongPressTimer()
-  }, [clearLongPressTimer])
-
-  useEffect(() => {
-    const shouldLockScroll = Boolean(selectedDate || showCalendarCreateSheet || paletteOpen)
-    const previousOverflow = document.body.style.overflow
-    if (shouldLockScroll) {
-      document.body.style.overflow = 'hidden'
-    }
-    return () => {
-      document.body.style.overflow = previousOverflow || 'auto'
-    }
-  }, [selectedDate, showCalendarCreateSheet, paletteOpen])
-
-  useEffect(() => {
-    const handleShortcut = (event) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault()
-        setPaletteOpen((prev) => !prev)
-      }
-
-      if (event.key === 'Escape') {
-        setPaletteOpen(false)
-      }
-    }
-
-    window.addEventListener('keydown', handleShortcut)
-    return () => window.removeEventListener('keydown', handleShortcut)
-  }, [])
-
-  useEffect(() => {
-    if (!paletteOpen) return
-    const timer = setTimeout(() => {
-      paletteInputRef.current?.focus()
-    }, 40)
-    return () => clearTimeout(timer)
-  }, [paletteOpen])
-
-  useEffect(() => {
-    setSelectedCommandIndex(0)
-  }, [paletteQuery])
-
-  useEffect(() => {
-    if (viewMode !== 'list' || !recommendedTaskId || loading.tasks) return
-    if (lastScrolledTaskRef.current === recommendedTaskId) return
-
-    const frame = window.requestAnimationFrame(() => {
-      const node = taskCardRefs.current[recommendedTaskId]
-      if (node) {
-        node.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'nearest'
-        })
-        lastScrolledTaskRef.current = recommendedTaskId
-      }
-    })
-
-    return () => window.cancelAnimationFrame(frame)
-  }, [recommendedTaskId, viewMode, loading.tasks])
-
-  useEffect(() => {
-    if (!paletteOpen) return
-    const handleKeys = (event) => {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault()
-        setSelectedCommandIndex((prev) =>
-          Math.min(prev + 1, Math.max(visibleCommands.length - 1, 0))
-        )
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        setSelectedCommandIndex((prev) => Math.max(prev - 1, 0))
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault()
-        const selected = visibleCommands[selectedCommandIndex]
-        if (selected) {
-          executeCommand(selected)
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeys)
-    return () => window.removeEventListener('keydown', handleKeys)
-  }, [executeCommand, paletteOpen, selectedCommandIndex, visibleCommands])
-
-  const tasksDueToday = useMemo(() => getTasksDueToday(tasks), [tasks])
-  const completedToday = useMemo(() => getTasksCompletedToday(tasks), [tasks])
-  const studyTotals = useMemo(() => getStudyTotals(studySessions), [studySessions])
-  const activeTasksCount = useMemo(
-    () => tasks.filter((task) => !task.completed && getTaskStatus(task) !== 'archived_overdue').length,
-    [tasks]
-  )
-  const onHoldCount = useMemo(
-    () => tasks.filter((task) => task.status === 'on_hold' && !task.completed).length,
-    [tasks]
-  )
-  const progressTotal = tasksDueToday.length
-  const progressDone = tasksDueToday.filter((task) => task.completed).length
-  const progressPercent =
-    progressTotal === 0 ? 0 : Math.round((progressDone / progressTotal) * 100)
-  const subjectFilterLabel = subjectFilter !== 'all' ? getSubjectLabel(subjectFilter) : ''
-  const statusFilterLabel = statusFilter !== FILTER_DEFAULTS.status ? statusFilter : ''
-  const dueFilterLabel = dueFilter !== FILTER_DEFAULTS.due ? dueFilter : ''
-  const sortFilterLabel = sortOption !== FILTER_DEFAULTS.sort ? sortLabels[sortOption] || sortOption : ''
-
-  const renderCreateTaskForm = ({ compact = false, onCreated } = {}) => (
-    <form
-      onSubmit={async (event) => {
-        const created = await handleCreate(event)
-        if (created && onCreated) onCreated()
-      }}
-      className={`mt-3 grid gap-3 ${
-        compact
-          ? 'md:grid-cols-1'
-          : 'md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end md:gap-3'
-      }`}
-    >
-      <input
-        type="text"
-        value={title}
-        onChange={(event) => setTitle(event.target.value)}
-        placeholder="Task title"
-        disabled={lockActions}
-        className="w-full box-border rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder:text-white/45 outline-none transition focus:border-white/12 disabled:cursor-not-allowed disabled:opacity-60"
-      />
-      <GlassDropdown
-        value={subject}
-        onChange={setSubject}
-        disabled={lockActions}
-        options={subjects.filter((item) => item.value !== 'all')}
-      />
-      <input
-        type="date"
-        value={dueDate}
-        onChange={(event) => setDueDate(event.target.value)}
-        disabled={lockActions}
-        className="w-full box-border rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2.5 text-sm text-white/80 outline-none transition focus:border-white/12 disabled:cursor-not-allowed disabled:opacity-60"
-      />
-      <PrimaryButton
-        type="submit"
-        disabled={saving || lockActions}
-        className="px-4 py-2.5 text-sm md:justify-self-end"
-      >
-        {saving ? 'Saving...' : 'Add Task'}
-      </PrimaryButton>
-    </form>
-  )
-
-  const calendarView = (
-    <div className="rounded-xl bg-white/[0.025] p-3 md:p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[#8B96A8]">Calendar</p>
-          <h3 className="mt-1 text-[15px] font-semibold text-[#F8FAFC] md:text-[16px]">{monthLabel}</h3>
-        </div>
-        <div className="flex items-center gap-2">
-          <IconButton
-            onClick={() =>
-              setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))
-            }
-            aria-label="Previous month"
-            className="h-8 w-8"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </IconButton>
-          <IconButton
-            onClick={() =>
-              setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))
-            }
-            aria-label="Next month"
-            className="h-8 w-8"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </IconButton>
-        </div>
-      </div>
-
-      <p className="mt-2 text-xs text-[#8B96A8]">
-        Drag a task chip to another day. Long press a day to quick-create a task.
-      </p>
-
-      <div className="mt-4 grid grid-cols-7 gap-2 text-xs text-white/50">
-        {weekDays.map((day) => (
-          <span key={day} className="text-center uppercase tracking-wide">
-            {day}
-          </span>
-        ))}
-      </div>
-
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`${calendarMonth.getFullYear()}-${calendarMonth.getMonth()}`}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: -20 }}
-          transition={{ duration: 0.18, ease: 'easeOut' }}
-          className="mt-2 grid grid-cols-7 gap-2"
-        >
-          {calendarDays.map((day) => {
-            const dayTasks = tasksByDate[day.key] || []
-            const visibleTasks = dayTasks.slice(0, 3)
-            const extraCount = dayTasks.length - visibleTasks.length
-            const isSelected = selectedKey === day.key
-            const isDragTarget = draggingTaskId && dragOverDayKey === day.key
-            const isPressing = activePressDayKey === day.key
-
-            return (
-              <motion.button
-                key={day.key}
-                type="button"
-                data-day-key={day.key}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => {
-                  if (longPressTriggeredRef.current) {
-                    longPressTriggeredRef.current = false
-                    return
-                  }
-                  setSelectedDate(day.date)
-                }}
-                onPointerDown={() => handleDayPointerDown(day.key)}
-                onPointerUp={handleDayPointerUp}
-                onPointerCancel={handleDayPointerUp}
-                onPointerLeave={handleDayPointerUp}
-                className={`group relative flex min-h-[88px] w-full flex-col items-start justify-between rounded-xl bg-white/[0.02] px-2 py-2 text-left transition ${
-                  day.inMonth ? 'text-[#F8FAFC]' : 'text-[#8B96A8]/55'
-                } ${day.isToday ? 'bg-white/[0.04]' : ''} ${isSelected ? 'bg-white/[0.05]' : ''} ${isDragTarget ? 'bg-white/[0.06]' : ''}`}
-              >
-                <motion.span
-                  initial={false}
-                  animate={{ scale: isPressing ? 0.94 : 1 }}
-                  className={`text-xs font-semibold ${day.inMonth ? 'text-[#F8FAFC]' : 'text-[#8B96A8]'}`}
-                >
-                  {day.date.getDate()}
-                </motion.span>
-
-                <AnimatePresence>
-                  {isPressing && (
-                    <motion.span
-                      className="pointer-events-none absolute inset-0 rounded-xl bg-white/[0.03]"
-                      initial={{ opacity: 0, scale: 0.94 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 1.04 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
-                    />
-                  )}
-                </AnimatePresence>
-
-                <IconButton
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    openCalendarCreate(day.key)
-                  }}
-                  aria-label="Create task for this day"
-                  className="absolute right-1 top-1 h-7 w-7 opacity-0 transition group-hover:opacity-100 md:opacity-0"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </IconButton>
-
-                <div className="mt-2 flex w-full flex-col gap-1">
-                  <AnimatePresence>
-                    {visibleTasks.map((task) => (
-                      <motion.div
-                        key={`${task.id}-${day.key}`}
-                        drag
-                        dragMomentum={false}
-                        dragElastic={0.18}
-                        dragTransition={{ bounceStiffness: 380, bounceDamping: 28 }}
-                        onDragStart={() => handleCalendarTaskDragStart(task.id)}
-                        onDrag={handleCalendarTaskDrag}
-                        onDragEnd={(event, info) => handleCalendarTaskDragEnd(task, event, info)}
-                        whileDrag={{
-                          scale: 1.05,
-                          boxShadow: '0 16px 32px rgba(0,0,0,0.45)',
-                          zIndex: 60
-                        }}
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -4 }}
-                        className="flex items-center gap-1.5 rounded-md bg-white/[0.04] px-2 py-1 text-[10px] text-white/70"
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${getTaskDotClass(task)}`} />
-                        <span className="truncate">{task.title}</span>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                  {extraCount > 0 && (
-                    <span className="text-[10px] text-white/50">+{extraCount} more</span>
-                  )}
-                </div>
-              </motion.button>
-            )
-          })}
-        </motion.div>
-      </AnimatePresence>
-    </div>
-  )
-
-
-  const selectedDayTaskList = (
-    <div className="grid gap-3">
-      {selectedTasks.map((task) => (
-        <TaskItem
-          key={task.id}
-          task={task}
-          getSubjectLabel={getSubjectLabel}
-          isOverdue={isOverdueTask(task)}
-          isDueToday={task.due_date === todayKey}
-          isRecommended={task.id === recommendedTaskId}
-          showSwipeNudge={false}
-          lockActions={lockActions}
-          disableSwipe
-          onToggle={handleToggle}
-          onDelete={handleDelete}
-          onToggleHold={handleToggleHold}
-          onReschedule={handleReschedule}
-          onStartFocus={handleStartFocus}
-          focusSummary={formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
-        />
-      ))}
-    </div>
+    [handleGuard, updateTaskById]
   )
 
   return (
@@ -1032,467 +701,117 @@ const Tasks = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.18 }}
-      className="mx-auto flex w-full max-w-6xl flex-col gap-5 overflow-x-hidden px-4 py-4 md:px-6 md:py-6"
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-4 md:px-6 md:py-6"
     >
-      <ExamCountdownBanner countdown={countdown} onManageDate={() => navigate('/personalization')} />
+      <RecommendedTaskCard task={recommendedTask} onStart={handleStartFocus} />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Open tasks</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{activeTasksCount}</p>
-          <p className="mt-2 text-sm text-white/55">Sorted to keep the next right move obvious.</p>
-        </section>
-
-        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Due today</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{progressTotal}</p>
-          <p className="mt-2 text-sm text-white/55">{progressDone} already finished today.</p>
-        </section>
-
-        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Study linked</p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{formatMinutes(studyTotals.totalMinutes)}</p>
-          <p className="mt-2 text-sm text-white/55">{studyTotals.sessionsCount} sessions connected to your plan.</p>
-        </section>
-      </div>
-
-      <div className="flex w-full flex-col gap-5">
-        <Header
-          viewMode={viewMode}
-          setViewMode={setViewMode}
-          onOpenPalette={() => setPaletteOpen(true)}
-          onOpenAiControl={() => navigate('/ai-control-center')}
-          onToggleCreate={() => setShowCreatePanel((prev) => !prev)}
-          createOpen={showCreatePanel}
-          searchTerm={searchTerm}
-          subjectFilterLabel={subjectFilterLabel}
-          statusFilterLabel={statusFilterLabel}
-          dueFilterLabel={dueFilterLabel}
-          sortLabel={sortFilterLabel}
-          onClearFilters={resetFilters}
-        />
-
-        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-          <section className="space-y-5">
-            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Today at a glance</p>
-                  <h2 className="mt-2 text-xl font-semibold text-white">Stay focused on what actually matters</h2>
-                  <p className="mt-2 text-sm leading-6 text-white/60">
-                    Keep the list short, finish what is due today, and hand the next study block straight to the timer.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-right">
-                  <p className="text-xs text-white/50">On hold</p>
-                  <p className="mt-1 text-xl font-semibold text-white">{onHoldCount}</p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-between gap-3 text-sm text-white/60">
-                <span>
-                  {progressDone} / {progressTotal} due today
-                </span>
-                <span>{progressPercent}%</span>
-              </div>
-              <div className="mt-2 h-1.5 w-full rounded-full bg-white/[0.06]">
-                <div
-                  className="h-1.5 rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#6366f1] transition-all duration-300"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-              {progressTotal === 0 ? (
-                <p className="mt-2 text-xs text-white/45">No tasks due today.</p>
-              ) : null}
-            </section>
-
-            <AnimatePresence>
-              {showCreatePanel && (
-                <motion.section
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  transition={{ duration: 0.18, ease: 'easeOut' }}
-                  className="rounded-3xl border border-white/[0.08] bg-white/[0.03] px-5 py-5 backdrop-blur-[20px]"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Create task</p>
-                      <p className="mt-2 text-sm text-white/60">Add one clear action and keep the rest moving.</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowCreatePanel(false)}
-                      className="rounded-full px-2 py-1 text-[11px] text-white/45 transition hover:bg-white/[0.05] hover:text-white/70"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  {renderCreateTaskForm()}
-                </motion.section>
-              )}
-            </AnimatePresence>
-
-            {viewMode === 'calendar' ? (
-              <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur-[20px] md:p-5">
-                {calendarView}
-              </section>
-            ) : null}
-
-            {viewMode === 'list' ? (
-              <TaskList
-                loading={loading}
-                tasks={tasks}
-                filteredTasks={orderedTasks}
-                orderedTaskIds={orderedTasks.map((task) => task.id)}
-                onReorder={handleReorderTasks}
-                todayKey={todayKey}
-                recommendedTaskId={recommendedTaskId}
-                shouldRunSwipeNudge={shouldRunSwipeNudge}
-                lockActions={lockActions}
-                onToggle={handleToggle}
-                onDelete={handleDelete}
-                onToggleHold={handleToggleHold}
-                onReschedule={handleReschedule}
-                onStartFocus={handleStartFocus}
-                getSubjectLabel={getSubjectLabel}
-                isOverdueTask={isOverdueTask}
-                taskCardRefs={taskCardRefs}
-                focusSummaryFor={(task) => formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
-                completedToday={completedToday}
-                isMobile={isMobile}
-              />
-            ) : null}
-          </section>
-
-          <aside className="space-y-5">
-            {showExpired ? (
-              <div className="rounded-3xl border border-amber-400/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
-                Trial expired. Upgrade to keep creating tasks and starting focus sessions.
-              </div>
-            ) : null}
-
-            {viewMode === 'list' && recommendation && !loading.tasks ? (
-              <RecommendationBlock
-                title={recommendation.title}
-                reason={recommendation.reason}
-                buttonLabel={recommendation.buttonLabel}
-                onAction={recommendation.onAction}
-                tone={recommendation.tone}
-              />
-            ) : null}
-
-            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Next action</p>
-              {recommendedTask ? (
-                <div className="mt-4 space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-[#d8b4fe]">
-                      <Sparkles className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{recommendedTask.title}</p>
-                      <p className="mt-1 text-sm text-white/60">
-                        {getSubjectLabel(recommendedTask.subject)} • {formatFocusSummary(
-                          recommendedTask.totalFocusTime,
-                          recommendedTask.sessionsCount
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                    <button
-                      type="button"
-                      onClick={() => handleStartFocus(recommendedTask)}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
-                    >
-                      <Clock3 className="h-4 w-4" />
-                      Start focus
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleStartAutopilot}
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      Run autopilot
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm leading-6 text-white/60">
-                  Create a task to get a focused recommendation here.
-                </p>
-              )}
-            </section>
-
-            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-              <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Task system</p>
-              <div className="mt-4 space-y-3">
-                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-                  <div className="flex items-center gap-2">
-                    <ListChecks className="h-4 w-4 text-white/60" />
-                    <p className="text-sm font-medium text-white">Priority-aware sorting</p>
-                  </div>
-                  <p className="mt-2 text-sm text-white/60">
-                    Tasks can now be ordered by priority and due date so the top of the list stays meaningful.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-                  <p className="text-sm font-medium text-white">Quick keyboard flow</p>
-                  <p className="mt-2 text-sm text-white/60">
-                    Press <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-white/80">Ctrl/Cmd + K</span> to search, filter, and jump without leaving the page.
-                  </p>
-                </div>
-              </div>
-            </section>
-          </aside>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {selectedDate && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-40 bg-black/55 md:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedDate(null)}
-            />
-            <motion.div
-              className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl bg-neutral-950/96 p-4 backdrop-blur-xl md:hidden"
-              initial={{ y: '100%', opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: '100%', opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 320 }}
-              dragElastic={0.18}
-              onDragEnd={(_, info) => {
-                if (info.offset.y > 100) {
-                  setSelectedDate(null)
-                }
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-white/50">Tasks on</p>
-                  <p className="text-base font-semibold text-white">
-                    {selectedDate.toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-                <GhostButton onClick={() => setSelectedDate(null)} className="px-3 py-1 text-[11px]">
-                  Close
-                </GhostButton>
-              </div>
-              {selectedTasks.length === 0 && (
-                <p className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-[#C7D0DC]">
-                  No tasks scheduled for this day.
-                </p>
-              )}
-              {selectedDayTaskList}
-            </motion.div>
-
-            <motion.div
-              className="fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-6 md:flex"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedDate(null)}
-            >
-              <motion.div
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="w-full max-w-xl rounded-2xl bg-neutral-950/96 p-6 backdrop-blur-xl"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-white/50">Tasks on</p>
-                    <p className="text-lg font-semibold text-white">
-                      {selectedDate.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </p>
-                  </div>
-                  <GhostButton onClick={() => setSelectedDate(null)} className="px-3 py-1 text-[11px]">
-                    Close
-                  </GhostButton>
-                </div>
-                {selectedTasks.length === 0 && (
-                  <p className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-[#C7D0DC]">
-                    No tasks scheduled for this day.
-                  </p>
-                )}
-                {selectedDayTaskList}
-              </motion.div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showCalendarCreateSheet && (
-          <>
-            <motion.div
-              className="fixed inset-0 z-40 bg-black/55 md:hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCalendarCreateSheet(false)}
-            />
-            <motion.div
-              className="fixed inset-x-0 bottom-0 z-50 max-h-[80vh] overflow-y-auto rounded-t-2xl bg-neutral-950/96 p-4 backdrop-blur-xl md:hidden"
-              initial={{ y: '100%', opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: '100%', opacity: 0 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 320 }}
-              dragElastic={0.2}
-              onDragEnd={(_, info) => {
-                if (info.offset.y > 100) {
-                  setShowCalendarCreateSheet(false)
-                }
-              }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-white/50">Quick Create</p>
-                  <p className="text-base font-semibold text-white">
-                    {dueDate || 'No date selected'}
-                  </p>
-                </div>
-                <GhostButton onClick={() => setShowCalendarCreateSheet(false)} className="px-3 py-1 text-[11px]">
-                  Close
-                </GhostButton>
-              </div>
-              {renderCreateTaskForm({
-                compact: true,
-                onCreated: () => setShowCalendarCreateSheet(false)
-              })}
-            </motion.div>
-
-            <motion.div
-              className="fixed inset-0 z-40 hidden items-center justify-center bg-black/60 p-6 md:flex"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowCalendarCreateSheet(false)}
-            >
-              <motion.div
-                className="w-full max-w-lg rounded-2xl bg-neutral-950/96 p-6 backdrop-blur-xl"
-                initial={{ scale: 0.96, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.96, opacity: 0 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-white/50">Quick Create</p>
-                    <p className="text-lg font-semibold text-white">
-                      {dueDate || 'No date selected'}
-                    </p>
-                  </div>
-                  <GhostButton onClick={() => setShowCalendarCreateSheet(false)} className="px-3 py-1 text-[11px]">
-                    Close
-                  </GhostButton>
-                </div>
-                {renderCreateTaskForm({
-                  compact: true,
-                  onCreated: () => setShowCalendarCreateSheet(false)
-                })}
-              </motion.div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {paletteOpen && (
-          <motion.div
-            className="fixed inset-0 z-[90] flex items-start justify-center bg-black/55 pt-20 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setPaletteOpen(false)}
+      <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur-[20px]">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Tasks</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Keep the next 5 to 7 actions visible</h2>
+          </div>
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="hidden min-h-11 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-medium text-white transition hover:border-[#8b5cf6]/35 hover:text-white md:inline-flex"
           >
-            <motion.div
-              className="flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-neutral-950/96 backdrop-blur-xl"
-              initial={{ opacity: 0, scale: 0.95, y: 12 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 12 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="p-3">
-                <input
-                  ref={paletteInputRef}
-                  type="text"
-                  value={paletteQuery}
-                  onChange={(event) => setPaletteQuery(event.target.value)}
-                  placeholder="Search tasks, filter, or run a command..."
-                  className="w-full rounded-xl bg-white/[0.04] px-4 py-3 text-base text-[#F8FAFC] outline-none placeholder:text-[#8B96A8] focus:ring-2 focus:ring-[#5B8CFF]/20"
-                />
-              </div>
-              <motion.div
-                className="max-h-[60vh] overflow-y-auto p-2"
-                initial="hidden"
-                animate="visible"
-                variants={{
-                  hidden: { opacity: 0 },
-                  visible: { opacity: 1, transition: { staggerChildren: 0.03 } }
-                }}
-              >
-                {visibleCommands.map((command, index) => (
-                  <motion.button
-                    key={command.id}
-                    type="button"
-                    onMouseEnter={() => setSelectedCommandIndex(index)}
-                    onClick={() => executeCommand(command)}
-                    variants={{
-                      hidden: { opacity: 0, y: 4 },
-                      visible: { opacity: 1, y: 0 }
-                    }}
-                    className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition ${
-                      selectedCommandIndex === index
-                        ? 'bg-gradient-to-r from-purple-500/20 to-blue-500/20 text-white'
-                        : 'text-white/80 hover:bg-white/5'
-                    }`}
-                  >
-                    <span>{command.title}</span>
-                    <span className="text-[11px] uppercase tracking-wide text-white/40">
-                      {command.group}
-                    </span>
-                  </motion.button>
-                ))}
-                {visibleCommands.length === 0 && (
-                  <p className="px-3 py-6 text-center text-sm text-white/50">
-                    No matching commands
-                  </p>
-                )}
-              </motion.div>
-            </motion.div>
+            <Plus className="mr-2 h-4 w-4" />
+            Add task
+          </button>
+        </div>
+
+        <div className="mt-4">
+          <TaskFilterTabs activeTab={activeTab} onChange={setActiveTab} counts={tabCounts} />
+        </div>
+      </section>
+
+      {!subscriptionActive ? (
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+          Your premium access is inactive. Upgrade to keep managing tasks and launching focus sessions.
+        </div>
+      ) : null}
+
+      {pageError || errors.tasks ? (
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          {pageError || errors.tasks}
+        </div>
+      ) : null}
+
+      <AnimatePresence>
+        {notice ? (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
+          >
+            {notice}
           </motion.div>
-        )}
+        ) : null}
       </AnimatePresence>
+
+      <section className="space-y-3">
+        {loading.tasks ? (
+          Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-[84px] animate-pulse rounded-3xl border border-white/[0.08] bg-white/[0.03]" />
+          ))
+        ) : filteredTasks.length > 0 ? (
+          filteredTasks.map((task) => (
+            <TaskRow
+              key={task.id}
+              task={task}
+              onComplete={handleCompleteTask}
+              onDelete={handleDeleteTask}
+              onOpen={handleOpenEdit}
+              onReschedule={setRescheduleTask}
+            />
+          ))
+        ) : (
+          <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 text-center backdrop-blur-[20px]">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.05] text-white/60">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-lg font-semibold text-white">Nothing blocking you right now</h3>
+            <p className="mt-2 text-sm leading-6 text-white/60">
+              Add the next study action or switch tabs to review what is due today or overdue.
+            </p>
+          </section>
+        )}
+      </section>
+
+      <TaskEditorSheet
+        open={editorState.open}
+        mode={editorState.mode}
+        task={editorState.task}
+        onClose={() => setEditorState({ open: false, mode: 'create', task: null })}
+        onSubmit={handleSaveTask}
+        onDelete={async () => {
+          if (!editorState.task) return false
+          return handleDeleteTask(editorState.task)
+        }}
+        saving={savingTask}
+      />
+
+      <RescheduleSheet
+        open={Boolean(rescheduleTask)}
+        task={rescheduleTask}
+        onClose={() => setRescheduleTask(null)}
+        onChoose={(dateValue) => handleReschedule(rescheduleTask, dateValue)}
+        saving={savingTask}
+      />
+
+      <motion.button
+        type="button"
+        whileTap={{ scale: 0.96 }}
+        onClick={handleOpenCreate}
+        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#8b5cf6] text-white shadow-[0_12px_30px_rgba(139,92,246,0.35)] transition hover:bg-[#7c3aed] md:bottom-8 md:right-8"
+      >
+        <Plus className="h-6 w-6" />
+      </motion.button>
     </motion.div>
   )
 }
 
 export default Tasks
-
