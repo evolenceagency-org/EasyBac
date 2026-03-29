@@ -1,86 +1,40 @@
-﻿import { useMemo } from 'react'
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import StudyTimeChart from '../components/Charts/StudyTimeChart.jsx'
-import SubjectFocusChart from '../components/Charts/SubjectFocusChart.jsx'
-import CreativityChart from '../components/Charts/CreativityChart.jsx'
-import WeeklyStudyChart from '../components/Charts/WeeklyStudyChart.jsx'
+import { Activity, BarChart3, Clock3, PieChart } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import ExamCountdownBanner from '../components/dashboard/ExamCountdownBanner.jsx'
 import { useData } from '../context/DataContext.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 import {
-  getDailyStudyData,
-  getSubjectFocus,
-  getDailyCreativity,
-  getWeeklyStudyData
-} from '../utils/analytics.js'
-import GlassCard from '../components/GlassCard.jsx'
-import { TrendingUp, Activity, AlertCircle } from 'lucide-react'
+  formatMinutes,
+  getDailyStudySeries,
+  getExamCountdown,
+  getStudyTotals,
+  getSubjectBreakdown
+} from '../utils/dashboardMetrics.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -12 }
+  exit: { opacity: 0, y: -10 }
 }
 
 const Analytics = () => {
-  const { tasks, studySessions, loading, errors } = useData()
+  const navigate = useNavigate()
+  const { tasks, studySessions } = useData()
+  const { profile } = useAuth()
 
-  const dailyStudyData = useMemo(
-    () => getDailyStudyData(studySessions),
-    [studySessions]
-  )
-  const subjectFocusData = useMemo(() => getSubjectFocus(tasks), [tasks])
-  const creativityData = useMemo(
-    () => getDailyCreativity(tasks, studySessions),
-    [tasks, studySessions]
-  )
-  const weeklyStudyData = useMemo(
-    () => getWeeklyStudyData(studySessions),
-    [studySessions]
-  )
+  const countdown = useMemo(() => getExamCountdown(profile), [profile])
+  const totals = useMemo(() => getStudyTotals(studySessions), [studySessions])
+  const dailyStudy = useMemo(() => getDailyStudySeries(studySessions, 7), [studySessions])
+  const subjectBreakdown = useMemo(() => getSubjectBreakdown(tasks, studySessions), [tasks, studySessions])
+  const averagePerDay = useMemo(() => {
+    if (!dailyStudy.series.length) return 0
+    const total = dailyStudy.series.reduce((sum, item) => sum + item.minutes, 0)
+    return Math.round(total / dailyStudy.series.length)
+  }, [dailyStudy.series])
 
-  const hasData = useMemo(
-    () => studySessions.length > 0 || tasks.length > 0,
-    [studySessions.length, tasks.length]
-  )
-
-  const insightCards = useMemo(() => {
-    const dailyValues = dailyStudyData.datasets?.[0]?.data || []
-    const dailyLabels = dailyStudyData.labels || []
-    const total = dailyValues.reduce((sum, v) => sum + v, 0)
-    const avg = dailyValues.length ? Math.round(total / dailyValues.length) : 0
-    const maxValue = dailyValues.length ? Math.max(...dailyValues) : 0
-    const bestIndex = dailyValues.indexOf(maxValue)
-    const bestDay = dailyLabels[bestIndex] || '—'
-    const weakSubject =
-      subjectFocusData.breakdown?.reduce((min, item) => {
-        if (!min || item.value < min.value) return item
-        return min
-      }, null)?.label || '—'
-    const trend =
-      weeklyStudyData.datasets?.[0]?.data?.slice(-2) || []
-    const trendLabel =
-      trend.length === 2 && trend[1] >= trend[0] ? 'Increasing' : 'Decreasing'
-
-    return [
-      {
-        icon: TrendingUp,
-        title: 'Focus Trend',
-        value: trendLabel,
-        tone: 'from-purple-500/30 to-blue-500/30'
-      },
-      {
-        icon: Activity,
-        title: 'Best Day',
-        value: bestDay || `${avg} min avg`,
-        tone: 'from-emerald-500/30 to-green-500/30'
-      },
-      {
-        icon: AlertCircle,
-        title: 'Weak Subject',
-        value: weakSubject,
-        tone: 'from-amber-500/30 to-orange-500/30'
-      }
-    ]
-  }, [dailyStudyData, subjectFocusData, weeklyStudyData])
+  const hasData = totals.sessionsCount > 0
 
   return (
     <motion.div
@@ -88,111 +42,108 @@ const Analytics = () => {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.18 }}
-      className="flex max-w-full flex-col gap-4 md:gap-6"
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="mx-auto flex w-full max-w-6xl flex-col gap-5"
     >
-      <div className="glass rounded-2xl p-4 md:p-6">
-        <p className="text-xs uppercase tracking-wide text-white/70">
-          Analytics Dashboard
+      <ExamCountdownBanner countdown={countdown} onManageDate={() => navigate('/personalization')} />
+
+      <section className="rounded-3xl border border-white/[0.08] bg-[#0b0b0f] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+        <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Analysis</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">See the study pattern clearly</h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65">
+          The goal here is simple: time, sessions, daily rhythm, and subject balance. Nothing extra.
         </p>
-        <h3 className="mt-2 text-xl font-semibold text-white md:text-2xl">
-          Study Performance Intelligence
-        </h3>
-        <p className="mt-2 text-sm text-white/70">
-          Analyze your focus, consistency, and efficiency.
-        </p>
-        <span className="mt-4 block h-[2px] w-32 bg-gradient-to-r from-purple-500 to-blue-500" />
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <div className="flex items-center gap-3 text-white/55">
+            <Clock3 className="h-4 w-4" />
+            <p className="text-xs uppercase tracking-[0.18em]">Total study time</p>
+          </div>
+          <p className="mt-4 text-3xl font-semibold text-white">{formatMinutes(totals.totalMinutes)}</p>
+        </div>
+
+        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <div className="flex items-center gap-3 text-white/55">
+            <Activity className="h-4 w-4" />
+            <p className="text-xs uppercase tracking-[0.18em]">Sessions count</p>
+          </div>
+          <p className="mt-4 text-3xl font-semibold text-white">{totals.sessionsCount}</p>
+        </div>
+
+        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <div className="flex items-center gap-3 text-white/55">
+            <BarChart3 className="h-4 w-4" />
+            <p className="text-xs uppercase tracking-[0.18em]">Daily average</p>
+          </div>
+          <p className="mt-4 text-3xl font-semibold text-white">{formatMinutes(averagePerDay)}</p>
+        </div>
       </div>
 
-      {(errors.tasks || errors.sessions) && (
-        <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {errors.tasks || errors.sessions}
-        </div>
-      )}
-
-      {(loading.tasks || loading.sessions) && (
-        <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/70">
-          Loading analytics...
-        </div>
-      )}
-
-      {!hasData && (
-        <GlassCard className="p-10 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mx-auto flex max-w-md flex-col items-center gap-4"
-          >
-            <div className="h-16 w-16 rounded-full bg-purple-500/20 blur-2xl" />
-            <h4 className="text-lg font-semibold text-white">
-              Start studying to unlock insights
-            </h4>
-            <p className="text-sm text-white/60">
-              Your analytics will appear once you log your first sessions.
-            </p>
-          </motion.div>
-        </GlassCard>
-      )}
-
-      {hasData && (
-        <>
-          <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-            <StudyTimeChart
-              data={dailyStudyData}
-              title="Last 30 Days"
-              subtitle="Daily Focus Minutes"
-            />
-            <CreativityChart
-              data={creativityData}
-              title="Efficiency Score"
-              subtitle="Tasks completed per study hour"
-              accentGradient={['#a855f7', '#ec4899']}
-            />
-            <WeeklyStudyChart
-              data={weeklyStudyData}
-              title="Weekly Output"
-              subtitle="Last 7 days"
-            />
-            <SubjectFocusChart
-              data={subjectFocusData}
-              breakdown={subjectFocusData.breakdown}
-              centerMode="total"
-              totalLabel="Tasks Completed"
-              legendVariant="pills"
-              title="Subject Mix"
-              subtitle="Focus distribution"
-            />
+      <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <div className="flex items-center gap-3 text-white/55">
+            <BarChart3 className="h-4 w-4" />
+            <p className="text-[11px] uppercase tracking-[0.18em]">Daily graph</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {insightCards.map((card) => {
-              const Icon = card.icon
-              return (
-                <GlassCard key={card.title} className="p-5">
-                  <div className={`mb-4 h-[2px] w-full bg-gradient-to-r ${card.tone}`} />
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
-                      <Icon className="h-5 w-5 text-white" />
+          {hasData ? (
+            <div className="mt-6">
+              <div className="flex h-52 items-end gap-3">
+                {dailyStudy.series.map((item) => {
+                  const height = Math.max(12, (item.minutes / dailyStudy.maxMinutes) * 100)
+                  return (
+                    <div key={item.key} className="flex flex-1 flex-col items-center gap-3">
+                      <div className="w-full max-w-[54px] rounded-t-2xl bg-gradient-to-t from-[#8b5cf6] to-[#c084fc] transition" style={{ height: `${height}%` }} />
+                      <div className="text-center">
+                        <p className="text-xs font-medium text-white/85">{item.label}</p>
+                        <p className="mt-1 text-[11px] text-white/45">{item.minutes}m</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wide text-white/60">
-                        {card.title}
-                      </p>
-                      <p className="mt-1 text-lg font-semibold text-white">
-                        {card.value}
-                      </p>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 text-sm text-white/65">
+              Start one session and your daily graph will appear here.
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <div className="flex items-center gap-3 text-white/55">
+            <PieChart className="h-4 w-4" />
+            <p className="text-[11px] uppercase tracking-[0.18em]">Subject breakdown</p>
+          </div>
+
+          {subjectBreakdown.length > 0 ? (
+            <div className="mt-5 space-y-4">
+              {subjectBreakdown.map((item) => {
+                const maxMinutes = Math.max(1, subjectBreakdown[0]?.minutes || 1)
+                return (
+                  <div key={item.subject}>
+                    <div className="flex items-center justify-between gap-3 text-sm">
+                      <p className="font-medium text-white">{item.label}</p>
+                      <p className="text-white/55">{formatMinutes(item.minutes)}</p>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white/[0.08]">
+                      <div className="h-2 rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#6366f1]" style={{ width: `${(item.minutes / maxMinutes) * 100}%` }} />
                     </div>
                   </div>
-                </GlassCard>
-              )
-            })}
-          </div>
-        </>
-      )}
+                )
+              })}
+            </div>
+          ) : (
+            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 text-sm text-white/65">
+              Link sessions to tasks and your subject distribution will build itself.
+            </div>
+          )}
+        </section>
+      </div>
     </motion.div>
   )
 }
 
 export default Analytics
-
-

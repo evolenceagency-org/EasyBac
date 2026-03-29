@@ -35,6 +35,11 @@ const ensureUserId = (userId) => {
   }
 }
 
+const shouldRetryWithoutPriority = (error) => {
+  const details = `${error?.code || ''} ${error?.message || ''}`.toLowerCase()
+  return details.includes('column') || details.includes('pgrst') || details.includes('schema')
+}
+
 export const getTasks = async (userId, options = {}) => {
   ensureUserId(userId)
   if (!options.force && cachedTasks) {
@@ -66,7 +71,7 @@ export const createTask = async (userId, taskData) => {
   ensureUserId(userId)
   logDev('Creating task in Supabase')
 
-  const payload = {
+  const basePayload = {
     user_id: userId,
     title: taskData.title,
     subject: taskData.subject,
@@ -75,7 +80,12 @@ export const createTask = async (userId, taskData) => {
     status: 'active'
   }
 
-  const data = await retryWithBackoff(async () => {
+  const extendedPayload = {
+    ...basePayload,
+    priority: taskData.priority || 'medium'
+  }
+
+  const insertPayload = async (payload) => {
     const { data: created, error } = await supabase
       .from('tasks')
       .insert(payload)
@@ -84,7 +94,16 @@ export const createTask = async (userId, taskData) => {
 
     if (error) throw error
     return created
-  }, 'tasks:create')
+  }
+
+  let data
+
+  try {
+    data = await retryWithBackoff(() => insertPayload(extendedPayload), 'tasks:create')
+  } catch (error) {
+    if (!shouldRetryWithoutPriority(error)) throw error
+    data = await retryWithBackoff(() => insertPayload(basePayload), 'tasks:create:legacy')
+  }
 
   if (cachedTasks) {
     cachedTasks = [data, ...cachedTasks]
@@ -99,16 +118,15 @@ export const updateTask = async (userId, taskId, updates) => {
 
   const payload = { ...updates }
   if (payload.due_date) {
-    const formattedDate = new Date(payload.due_date)
+    payload.due_date = new Date(payload.due_date)
       .toISOString()
       .split('T')[0]
-    payload.due_date = formattedDate
   }
 
-  const data = await retryWithBackoff(async () => {
+  const runUpdate = async (nextPayload) => {
     const { data: updated, error } = await supabase
       .from('tasks')
-      .update(payload)
+      .update(nextPayload)
       .eq('id', taskId)
       .eq('user_id', userId)
       .select()
@@ -118,7 +136,20 @@ export const updateTask = async (userId, taskId, updates) => {
       throw error
     }
     return updated?.[0]
-  }, 'tasks:update')
+  }
+
+  let data
+
+  try {
+    data = await retryWithBackoff(() => runUpdate(payload), 'tasks:update')
+  } catch (error) {
+    if (!('priority' in payload) || !shouldRetryWithoutPriority(error)) {
+      throw error
+    }
+
+    const { priority, ...legacyPayload } = payload
+    data = await retryWithBackoff(() => runUpdate(legacyPayload), 'tasks:update:legacy')
+  }
 
   if (cachedTasks) {
     cachedTasks = cachedTasks.map((task) =>
@@ -204,4 +235,3 @@ export const toggleTaskCompletion = async (
 export const clearTaskCache = () => {
   cachedTasks = null
 }
-

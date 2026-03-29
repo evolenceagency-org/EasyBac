@@ -4,7 +4,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ChevronLeft,
   ChevronRight,
+  Clock3,
+  ListChecks,
   Plus,
+  Sparkles,
 } from 'lucide-react'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
@@ -18,11 +21,18 @@ import { buildExamSimulationPlan } from '../utils/examEngine.ts'
 import { isSubscriptionActive } from '../utils/subscription.js'
 import { checkTrialAndBlock } from '../utils/subscriptionGuard.js'
 import {
+  formatMinutes,
+  getExamCountdown,
+  getStudyTotals,
+  sortTasksByPriorityAndDueDate
+} from '../utils/dashboardMetrics.js'
+import {
   getTasksCompletedToday,
   getTasksDueToday,
   isOverdueTask
 } from '../utils/taskStats.js'
 import { formatFocusSummary } from '../utils/focusTasks.js'
+import ExamCountdownBanner from '../components/dashboard/ExamCountdownBanner.jsx'
 import Header from '../components/Tasks/Header.jsx'
 import RecommendationBlock from '../components/Tasks/RecommendationBlock.jsx'
 import TaskList from '../components/Tasks/TaskList.jsx'
@@ -91,11 +101,12 @@ const FILTER_DEFAULTS = {
   subject: 'all',
   status: 'all',
   due: 'all',
-  sort: 'newest',
+  sort: 'priority',
   search: ''
 }
 
 const sortLabels = {
+  priority: 'Priority + due date',
   newest: 'Newest',
   oldest: 'Oldest',
   'due-nearest': 'Due nearest',
@@ -183,6 +194,7 @@ const Tasks = () => {
   const lastScrolledTaskRef = useRef(null)
 
   const todayKey = useMemo(() => toDateKey(new Date()), [])
+  const countdown = useMemo(() => getExamCountdown(profile), [profile])
   const subscriptionActive = useMemo(
     () => isSubscriptionActive(profile),
     [profile]
@@ -399,6 +411,10 @@ const Tasks = () => {
       })
       .sort((a, b) => {
         switch (sortOption) {
+          case 'priority': {
+            const sorted = sortTasksByPriorityAndDueDate([a, b])
+            return sorted[0]?.id === a.id ? -1 : 1
+          }
           case 'oldest':
             return getCreatedTime(a) - getCreatedTime(b)
           case 'due-nearest':
@@ -479,6 +495,7 @@ const Tasks = () => {
       { id: 'filter-due-unscheduled', title: 'Filter: Unscheduled', group: 'Filters', run: () => setDueFilter('unscheduled') },
       { id: 'sort-newest', title: 'Sort: Newest first', group: 'Filters', run: () => setSortOption('newest') },
       { id: 'sort-oldest', title: 'Sort: Oldest first', group: 'Filters', run: () => setSortOption('oldest') },
+      { id: 'sort-priority', title: 'Sort: Priority + due date', group: 'Filters', run: () => setSortOption('priority') },
       { id: 'sort-due-nearest', title: 'Sort: Due nearest', group: 'Filters', run: () => setSortOption('due-nearest') },
       { id: 'sort-due-latest', title: 'Sort: Due latest', group: 'Filters', run: () => setSortOption('due-latest') },
       { id: 'sort-subject', title: 'Sort: Subject A-Z', group: 'Filters', run: () => setSortOption('subject') },
@@ -563,7 +580,7 @@ const Tasks = () => {
     if (recommendedTask) {
       return {
         title: recommendedTask.title,
-        reason: `${getSubjectLabel(recommendedTask.subject)} â€¢ ${formatFocusSummary(
+        reason: `${getSubjectLabel(recommendedTask.subject)} • ${formatFocusSummary(
           recommendedTask.totalFocusTime,
           recommendedTask.sessionsCount
         )}`,
@@ -774,6 +791,15 @@ const Tasks = () => {
 
   const tasksDueToday = useMemo(() => getTasksDueToday(tasks), [tasks])
   const completedToday = useMemo(() => getTasksCompletedToday(tasks), [tasks])
+  const studyTotals = useMemo(() => getStudyTotals(studySessions), [studySessions])
+  const activeTasksCount = useMemo(
+    () => tasks.filter((task) => !task.completed && getTaskStatus(task) !== 'archived_overdue').length,
+    [tasks]
+  )
+  const onHoldCount = useMemo(
+    () => tasks.filter((task) => task.status === 'on_hold' && !task.completed).length,
+    [tasks]
+  )
   const progressTotal = tasksDueToday.length
   const progressDone = tasksDueToday.filter((task) => task.completed).length
   const progressPercent =
@@ -1007,9 +1033,31 @@ const Tasks = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.18 }}
-      className="w-full max-w-full overflow-x-hidden box-border px-4 py-4 md:px-6 md:py-6"
+      className="mx-auto flex w-full max-w-6xl flex-col gap-5 overflow-x-hidden px-4 py-4 md:px-6 md:py-6"
     >
-      <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5">
+      <ExamCountdownBanner countdown={countdown} onManageDate={() => navigate('/personalization')} />
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Open tasks</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{activeTasksCount}</p>
+          <p className="mt-2 text-sm text-white/55">Sorted to keep the next right move obvious.</p>
+        </section>
+
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Due today</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{progressTotal}</p>
+          <p className="mt-2 text-sm text-white/55">{progressDone} already finished today.</p>
+        </section>
+
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Study linked</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-white">{formatMinutes(studyTotals.totalMinutes)}</p>
+          <p className="mt-2 text-sm text-white/55">{studyTotals.sessionsCount} sessions connected to your plan.</p>
+        </section>
+      </div>
+
+      <div className="flex w-full flex-col gap-5">
         <Header
           viewMode={viewMode}
           setViewMode={setViewMode}
@@ -1025,92 +1073,183 @@ const Tasks = () => {
           onClearFilters={resetFilters}
         />
 
-        <section className="rounded-xl bg-white/[0.03] px-4 py-3">
-          <div className="flex items-center justify-between gap-3 text-sm text-white/60">
-            <span>
-              {progressDone} / {progressTotal} due today
-            </span>
-            <span>{progressPercent}%</span>
-          </div>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-white/[0.06]">
-            <div
-              className="h-1.5 rounded-full bg-white/70 transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-          {progressTotal === 0 && (
-            <p className="mt-2 text-xs text-white/45">No tasks due today.</p>
-          )}
-        </section>
-
-        {showExpired && (
-          <div className="rounded-xl bg-white/[0.03] px-4 py-3 text-sm text-amber-200/85">
-            Trial expired. Upgrade to continue.
-          </div>
-        )}
-
-        <AnimatePresence>
-          {showCreatePanel && (
-            <motion.section
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="rounded-xl bg-white/[0.03] px-4 py-4"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-white/35">Create task</p>
-                <button
-                  type="button"
-                  onClick={() => setShowCreatePanel(false)}
-                  className="rounded-full px-2 py-1 text-[11px] text-white/45 transition hover:bg-white/[0.05] hover:text-white/70"
-                >
-                  Close
-                </button>
+        <div className="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <section className="space-y-5">
+            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Today at a glance</p>
+                  <h2 className="mt-2 text-xl font-semibold text-white">Stay focused on what actually matters</h2>
+                  <p className="mt-2 text-sm leading-6 text-white/60">
+                    Keep the list short, finish what is due today, and hand the next study block straight to the timer.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-right">
+                  <p className="text-xs text-white/50">On hold</p>
+                  <p className="mt-1 text-xl font-semibold text-white">{onHoldCount}</p>
+                </div>
               </div>
-              {renderCreateTaskForm()}
-            </motion.section>
-          )}
-        </AnimatePresence>
 
-        {viewMode === 'list' && recommendation && !loading.tasks && (
-          <RecommendationBlock
-            title={recommendation.title}
-            reason={recommendation.reason}
-            buttonLabel={recommendation.buttonLabel}
-            onAction={recommendation.onAction}
-            tone={recommendation.tone}
-          />
-        )}
+              <div className="mt-6 flex items-center justify-between gap-3 text-sm text-white/60">
+                <span>
+                  {progressDone} / {progressTotal} due today
+                </span>
+                <span>{progressPercent}%</span>
+              </div>
+              <div className="mt-2 h-1.5 w-full rounded-full bg-white/[0.06]">
+                <div
+                  className="h-1.5 rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#6366f1] transition-all duration-300"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              {progressTotal === 0 ? (
+                <p className="mt-2 text-xs text-white/45">No tasks due today.</p>
+              ) : null}
+            </section>
 
-        {viewMode === 'calendar' && (
-          <section className="rounded-xl bg-white/[0.025] p-3 md:p-4">{calendarView}</section>
-        )}
+            <AnimatePresence>
+              {showCreatePanel && (
+                <motion.section
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                  className="rounded-3xl border border-white/[0.08] bg-white/[0.03] px-5 py-5 backdrop-blur-[20px]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Create task</p>
+                      <p className="mt-2 text-sm text-white/60">Add one clear action and keep the rest moving.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCreatePanel(false)}
+                      className="rounded-full px-2 py-1 text-[11px] text-white/45 transition hover:bg-white/[0.05] hover:text-white/70"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  {renderCreateTaskForm()}
+                </motion.section>
+              )}
+            </AnimatePresence>
 
-        {viewMode === 'list' && (
-          <TaskList
-            loading={loading}
-            tasks={tasks}
-            filteredTasks={orderedTasks}
-            orderedTaskIds={orderedTasks.map((task) => task.id)}
-            onReorder={handleReorderTasks}
-            todayKey={todayKey}
-            recommendedTaskId={recommendedTaskId}
-            shouldRunSwipeNudge={shouldRunSwipeNudge}
-            lockActions={lockActions}
-            onToggle={handleToggle}
-            onDelete={handleDelete}
-            onToggleHold={handleToggleHold}
-            onReschedule={handleReschedule}
-            onStartFocus={handleStartFocus}
-            getSubjectLabel={getSubjectLabel}
-            isOverdueTask={isOverdueTask}
-            taskCardRefs={taskCardRefs}
-            focusSummaryFor={(task) => formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
-            completedToday={completedToday}
-            isMobile={isMobile}
-          />
-        )}
+            {viewMode === 'calendar' ? (
+              <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur-[20px] md:p-5">
+                {calendarView}
+              </section>
+            ) : null}
+
+            {viewMode === 'list' ? (
+              <TaskList
+                loading={loading}
+                tasks={tasks}
+                filteredTasks={orderedTasks}
+                orderedTaskIds={orderedTasks.map((task) => task.id)}
+                onReorder={handleReorderTasks}
+                todayKey={todayKey}
+                recommendedTaskId={recommendedTaskId}
+                shouldRunSwipeNudge={shouldRunSwipeNudge}
+                lockActions={lockActions}
+                onToggle={handleToggle}
+                onDelete={handleDelete}
+                onToggleHold={handleToggleHold}
+                onReschedule={handleReschedule}
+                onStartFocus={handleStartFocus}
+                getSubjectLabel={getSubjectLabel}
+                isOverdueTask={isOverdueTask}
+                taskCardRefs={taskCardRefs}
+                focusSummaryFor={(task) => formatFocusSummary(task.totalFocusTime, task.sessionsCount)}
+                completedToday={completedToday}
+                isMobile={isMobile}
+              />
+            ) : null}
+          </section>
+
+          <aside className="space-y-5">
+            {showExpired ? (
+              <div className="rounded-3xl border border-amber-400/20 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+                Trial expired. Upgrade to keep creating tasks and starting focus sessions.
+              </div>
+            ) : null}
+
+            {viewMode === 'list' && recommendation && !loading.tasks ? (
+              <RecommendationBlock
+                title={recommendation.title}
+                reason={recommendation.reason}
+                buttonLabel={recommendation.buttonLabel}
+                onAction={recommendation.onAction}
+                tone={recommendation.tone}
+              />
+            ) : null}
+
+            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Next action</p>
+              {recommendedTask ? (
+                <div className="mt-4 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-[#d8b4fe]">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{recommendedTask.title}</p>
+                      <p className="mt-1 text-sm text-white/60">
+                        {getSubjectLabel(recommendedTask.subject)} • {formatFocusSummary(
+                          recommendedTask.totalFocusTime,
+                          recommendedTask.sessionsCount
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                    <button
+                      type="button"
+                      onClick={() => handleStartFocus(recommendedTask)}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
+                    >
+                      <Clock3 className="h-4 w-4" />
+                      Start focus
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleStartAutopilot}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white/82 transition hover:border-white/[0.14] hover:bg-white/[0.05]"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Run autopilot
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-white/60">
+                  Create a task to get a focused recommendation here.
+                </p>
+              )}
+            </section>
+
+            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
+              <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Task system</p>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+                  <div className="flex items-center gap-2">
+                    <ListChecks className="h-4 w-4 text-white/60" />
+                    <p className="text-sm font-medium text-white">Priority-aware sorting</p>
+                  </div>
+                  <p className="mt-2 text-sm text-white/60">
+                    Tasks can now be ordered by priority and due date so the top of the list stays meaningful.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+                  <p className="text-sm font-medium text-white">Quick keyboard flow</p>
+                  <p className="mt-2 text-sm text-white/60">
+                    Press <span className="rounded bg-white/[0.06] px-1.5 py-0.5 text-xs text-white/80">Ctrl/Cmd + K</span> to search, filter, and jump without leaving the page.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </aside>
+        </div>
       </div>
 
       <AnimatePresence>

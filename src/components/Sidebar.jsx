@@ -32,10 +32,10 @@ import NavItem from './NavItem.jsx'
 const SIDEBAR_STORAGE_KEY = 'easybac-sidebar-collapsed'
 
 const mainLinks = [
-  { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'Overview', path: '/dashboard', icon: LayoutDashboard },
   { label: 'Study', path: '/study', icon: BookOpen },
   { label: 'Tasks', path: '/tasks', icon: ListTodo },
-  { label: 'Analytics', path: '/analytics', icon: BarChart3 }
+  { label: 'Analysis', path: '/analytics', icon: BarChart3 }
 ]
 
 const productLinks = [
@@ -305,3 +305,4 @@ const Sidebar = () => {
 }
 
 export default Sidebar
+

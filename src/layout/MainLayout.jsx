@@ -42,12 +42,7 @@ const MainLayout = () => {
   const mobileBottomNavRoutes = new Set([
     '/dashboard',
     '/study',
-    '/tasks',
-    '/analytics',
-    '/personalization',
-    '/pricing',
-    '/donate',
-    '/contact'
+    '/analytics'
   ])
   const showMobileBottomNav =
     hasSidebar && !onboardingPersonalization && mobileBottomNavRoutes.has(location.pathname)
@@ -82,3 +77,4 @@ const MainLayout = () => {
 }
 
 export default MainLayout
+

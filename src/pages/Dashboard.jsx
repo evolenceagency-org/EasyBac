@@ -1,9 +1,20 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, CalendarDays, CheckCircle2, ListTodo, TimerReset } from 'lucide-react'
+import { ArrowRight, CheckCircle2, Sparkles, TimerReset } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import ExamCountdownBanner from '../components/dashboard/ExamCountdownBanner.jsx'
 import { useData } from '../context/DataContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+import {
+  formatDueLabel,
+  formatMinutes,
+  formatTaskPriority,
+  getExamCountdown,
+  getNextActionTask,
+  getStudyTotals,
+  getTodayStudyMinutes,
+  getTodayTasks
+} from '../utils/dashboardMetrics.js'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
@@ -11,24 +22,11 @@ const pageMotion = {
   exit: { opacity: 0, y: -10 }
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000
-
-const formatDueLabel = (task) => {
-  if (!task?.due_date) return 'No due date'
-  const due = new Date(task.due_date)
-  if (Number.isNaN(due.getTime())) return 'No due date'
-  const today = new Date()
-  const dueKey = due.toDateString()
-  const todayKey = today.toDateString()
-  if (dueKey === todayKey) return 'Due today'
-  return `Due ${due.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
-}
-
 const Dashboard = () => {
-  const { tasks, studySessions } = useData()
-  const { profile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { tasks, studySessions } = useData()
+  const { profile } = useAuth()
   const [showOnboardingToast, setShowOnboardingToast] = useState(false)
 
   useEffect(() => {
@@ -41,65 +39,25 @@ const Dashboard = () => {
     return () => window.clearTimeout(timer)
   }, [location.pathname, location.state, navigate])
 
-  const incompleteTasks = useMemo(
-    () => tasks.filter((task) => !task.completed),
-    [tasks]
-  )
+  const countdown = useMemo(() => getExamCountdown(profile), [profile])
+  const nextTask = useMemo(() => getNextActionTask(tasks), [tasks])
+  const todaysTasks = useMemo(() => getTodayTasks(tasks, 5), [tasks])
+  const todayMinutes = useMemo(() => getTodayStudyMinutes(studySessions), [studySessions])
+  const studyTotals = useMemo(() => getStudyTotals(studySessions), [studySessions])
 
-  const nextTask = useMemo(() => {
-    const sorted = [...incompleteTasks].sort((a, b) => {
-      if (a.status === 'active' && b.status !== 'active') return -1
-      if (b.status === 'active' && a.status !== 'active') return 1
-      if (!a.due_date && !b.due_date) return 0
-      if (!a.due_date) return 1
-      if (!b.due_date) return -1
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime()
-    })
-
-    return sorted[0] || null
-  }, [incompleteTasks])
-
-  const todaysMinutes = useMemo(() => {
-    const todayKey = new Date().toDateString()
-    return studySessions.reduce((total, session) => {
-      const sessionDate = session?.date ? new Date(session.date) : null
-      if (sessionDate && sessionDate.toDateString() === todayKey) {
-        return total + (session.duration_minutes || 0)
-      }
-      return total
-    }, 0)
-  }, [studySessions])
-
-  const todaysPlan = useMemo(() => incompleteTasks.slice(0, 3), [incompleteTasks])
-
-  const examCountdown = useMemo(() => {
-    const rawExamDate = profile?.exam_date || profile?.personalization?.examDate
-    if (!rawExamDate) return null
-
-    const examTime = new Date(rawExamDate).getTime()
-    if (Number.isNaN(examTime)) return null
-
-    const remainingMs = examTime - Date.now()
-    const daysLeft = Math.max(0, Math.ceil(remainingMs / DAY_MS))
-    const progress = Math.max(0, Math.min(100, ((180 - daysLeft) / 180) * 100))
-    const urgency = daysLeft <= 14 ? 'high' : daysLeft <= 45 ? 'medium' : 'normal'
-
-    return { daysLeft, progress, urgency }
-  }, [profile?.exam_date, profile?.personalization?.examDate])
-
-  const assistantCopy = useMemo(() => {
-    if (examCountdown?.urgency === 'high') {
-      return nextTask
-        ? `Your exam is in ${examCountdown.daysLeft} days. Protect one focused block today and start with ${nextTask.title}.`
-        : `Your exam is in ${examCountdown.daysLeft} days. Start one focused session today to keep momentum high.`
-    }
-
+  const assistantRecommendation = useMemo(() => {
     if (nextTask) {
-      return `${formatDueLabel(nextTask)} • ${nextTask.status || 'Ready'}. Start a focused block and keep momentum.`
+      return {
+        title: `Start with ${nextTask.title}`,
+        detail: `${formatTaskPriority(nextTask.priority)} priority � ${formatDueLabel(nextTask.due_date)}`
+      }
     }
 
-    return 'You’re clear to start a new focus session or plan the next task.'
-  }, [examCountdown, nextTask])
+    return {
+      title: 'Start one focus block',
+      detail: 'A single clean session today is enough to keep momentum alive.'
+    }
+  }, [nextTask])
 
   return (
     <motion.div
@@ -108,7 +66,7 @@ const Dashboard = () => {
       animate="animate"
       exit="exit"
       transition={{ duration: 0.18, ease: 'easeOut' }}
-      className="mx-auto flex w-full max-w-5xl flex-col gap-5"
+      className="mx-auto flex w-full max-w-6xl flex-col gap-5"
     >
       <AnimatePresence>
         {showOnboardingToast ? (
@@ -119,98 +77,59 @@ const Dashboard = () => {
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
           >
-            Setup complete — your workspace is ready.
+            Setup complete. Your study workspace is ready.
           </motion.div>
         ) : null}
       </AnimatePresence>
 
-      <section className="rounded-3xl border border-white/[0.08] bg-[#0b0b0f] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] uppercase tracking-[0.26em] text-white/45">Assistant</p>
-            <h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
-              {nextTask ? nextTask.title : 'Your next move is ready'}
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-white/65">{assistantCopy}</p>
+      <ExamCountdownBanner countdown={countdown} onManageDate={() => navigate('/personalization')} />
+
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+        <section className="rounded-3xl border border-white/[0.08] bg-[#0b0b0f] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.25)]">
+          <div className="flex items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/45">Assistant recommendation</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">
+                {assistantRecommendation.title}
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-white/65">{assistantRecommendation.detail}</p>
+            </div>
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#8b5cf6]/20 bg-[#8b5cf6]/12 text-[#d8b4fe]">
+              <Sparkles className="h-5 w-5" />
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => navigate('/study', { state: nextTask ? { suggestedTaskId: nextTask.id } : undefined })}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
-          >
-            Start focus
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
-      </section>
-
-      <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Today’s plan</p>
-          {examCountdown ? (
-            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-white/50">Exam countdown</p>
-                  <p className="mt-2 text-xl font-semibold text-white">
-                    Your exam is in {examCountdown.daysLeft} day{examCountdown.daysLeft === 1 ? '' : 's'}
-                  </p>
-                  <p className="mt-1 text-sm text-white/60">
-                    {examCountdown.urgency === 'high'
-                      ? 'Final stretch — stay consistent every day.'
-                      : examCountdown.urgency === 'medium'
-                        ? 'Momentum now will matter most later.'
-                        : 'You still have time, so build calm consistency.'}
-                  </p>
-                </div>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] text-[#c084fc]">
-                  <CalendarDays className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="mt-4 h-2 rounded-full bg-white/[0.06]">
-                <div
-                  className={`h-2 rounded-full transition-all ${
-                    examCountdown.urgency === 'high'
-                      ? 'bg-[#f59e0b]'
-                      : examCountdown.urgency === 'medium'
-                        ? 'bg-[#8b5cf6]'
-                        : 'bg-white/60'
-                  }`}
-                  style={{ width: `${examCountdown.progress}%` }}
-                />
-              </div>
-            </div>
-          ) : null}
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-              <p className="text-xs text-white/50">Focus today</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{todaysMinutes} min</p>
+              <p className="text-xs text-white/50">Today</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{formatMinutes(todayMinutes)}</p>
             </div>
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-              <p className="text-xs text-white/50">Tasks open</p>
-              <p className="mt-2 text-2xl font-semibold text-white">{incompleteTasks.length}</p>
+              <p className="text-xs text-white/50">Open tasks</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{tasks.filter((task) => !task.completed).length}</p>
             </div>
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-              <p className="text-xs text-white/50">Next task</p>
-              <p className="mt-2 text-sm font-medium text-white">{nextTask?.title || 'Nothing queued'}</p>
+              <p className="text-xs text-white/50">Sessions logged</p>
+              <p className="mt-2 text-2xl font-semibold text-white">{studyTotals.sessionsCount}</p>
             </div>
           </div>
         </section>
 
         <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
-          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Start session</p>
-          <h2 className="mt-3 text-xl font-semibold">Keep your momentum going</h2>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Next action</p>
+          <h2 className="mt-3 text-xl font-semibold text-white">Start focus</h2>
           <p className="mt-2 text-sm leading-6 text-white/65">
-            Open study mode and start a focused block with the next task already in mind.
+            Open the timer with your next task already selected and keep the session clean.
           </p>
+
           <button
             type="button"
             onClick={() => navigate('/study', { state: nextTask ? { suggestedTaskId: nextTask.id } : undefined })}
-            className="mt-6 inline-flex items-center gap-2 rounded-2xl bg-white/[0.06] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.1]"
+            className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#8b5cf6] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[#7c3aed]"
           >
-            <TimerReset className="h-4 w-4 text-[#c084fc]" />
-            Start a session
+            <TimerReset className="h-4 w-4" />
+            Start focus
+            <ArrowRight className="h-4 w-4" />
           </button>
         </section>
       </div>
@@ -218,8 +137,8 @@ const Dashboard = () => {
       <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Tasks</p>
-            <h2 className="mt-2 text-xl font-semibold">What’s on deck</h2>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Today's tasks</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">Top 5 to keep moving</h2>
           </div>
           <button
             type="button"
@@ -231,21 +150,23 @@ const Dashboard = () => {
         </div>
 
         <div className="mt-5 space-y-3">
-          {todaysPlan.length > 0 ? (
-            todaysPlan.map((task) => (
+          {todaysTasks.length > 0 ? (
+            todaysTasks.map((task) => (
               <div key={task.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-white">{task.title}</p>
-                  <p className="mt-1 text-xs text-white/50">{formatDueLabel(task)} • {task.status || 'Ready'}</p>
+                  <p className="mt-1 text-xs text-white/50">
+                    {formatTaskPriority(task.priority)} priority � {formatDueLabel(task.due_date)}
+                  </p>
                 </div>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-white/75">
-                  <ListTodo className="h-4 w-4" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-[#d8b4fe]">
+                  <CheckCircle2 className="h-4 w-4" />
                 </div>
               </div>
             ))
           ) : (
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 text-sm text-white/65">
-              No tasks yet. Add one in Tasks and we’ll bring it back here as your next move.
+              No active tasks yet. Add one in Tasks and it will appear here automatically.
             </div>
           )}
         </div>
