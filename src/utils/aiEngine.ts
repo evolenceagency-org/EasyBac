@@ -172,6 +172,20 @@ const getTaskFocusMinutes = (task) =>
 const getTaskSessionsCount = (task) =>
   Number(task?.sessions_count ?? task?.sessionsCount ?? 0) || 0
 
+const getTaskLastSessionMs = (task) =>
+  toTimeMs(task?.last_session_at ?? task?.lastSessionAt ?? null)
+
+const getTaskPriorityScore = (task) => {
+  const raw = task?.priority
+  const normalized = String(raw || '').trim().toLowerCase()
+  if (normalized === 'high') return 46
+  if (normalized === 'medium') return 28
+  if (normalized === 'low') return 12
+
+  const numeric = Number(raw)
+  return Number.isFinite(numeric) ? numeric * 10 : 0
+}
+
 const TIME_WINDOWS = [
   { id: 'morning', label: '07:00–10:00', start: 7, end: 10 },
   { id: 'midday', label: '10:00–14:00', start: 10, end: 14 },
@@ -300,8 +314,14 @@ export const getBestTask = (tasks = [], user = null, now = new Date()) => {
       if (sessionsCount === 0) score += 30
       else score += Math.max(0, 18 - sessionsCount * 3)
 
-      const priority = Number(task?.priority)
-      if (Number.isFinite(priority)) score += priority * 10
+      score += getTaskPriorityScore(task)
+
+      const lastSessionMs = getTaskLastSessionMs(task)
+      if (!lastSessionMs) score += 24
+      else {
+        const gapDays = Math.max(0, Math.floor((nowDate.getTime() - lastSessionMs) / DAY_MS))
+        score += clamp(6 + gapDays * 7, 6, 36)
+      }
 
       return score
     }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { BrainCircuit, GraduationCap, Sparkles, Timer } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -8,11 +8,19 @@ import { getAssistantSnapshot } from '../../utils/assistantEngine.ts'
 import { getShortMessage } from '../../utils/aiEngine.ts'
 import { computeCognitiveLoad, readCognitiveTelemetry } from '../../utils/cognitiveLoadEngine.ts'
 import { getActiveFocusTaskId } from '../../utils/focusTasks.js'
-import { readAutopilotState, queueAutopilotLaunch } from '../../utils/autopilotEngine.ts'
+import { readAutopilotState } from '../../utils/autopilotEngine.ts'
+import {
+  buildAssistantDecision,
+  buildConfirmationDecision,
+  executeAssistantDecision,
+  getAssistantIgnoreThreshold,
+  readAssistantDecisionMemory,
+  recordAssistantDecisionOutcome,
+  resolveVoiceDecision
+} from '../../utils/assistantDecisionEngine.ts'
 import {
   createVoiceSession,
   playAssistantSound,
-  processVoiceCommand,
   startVoiceListening,
   stopVoiceListening
 } from '../../utils/voiceAssistantEngine.ts'
@@ -66,41 +74,34 @@ const mapTimerState = (session, now = Date.now()) => {
   return { isRunning, seconds, formatted: formatTime(seconds), mode, phase: session.phase || 'focus' }
 }
 
-const buildIslandPages = (snapshot, currentPage, dismissedSuggestionId) => {
-  const bestTask = snapshot?.metadata?.bestTask || snapshot?.recommendation?.bestTask || snapshot?.recommendation || null
-  const autoMinutes = Number(snapshot?.suggestedDuration || snapshot?.metadata?.autopilotPlan?.duration || 0) || 0
-  const suggestionSuppressed = Boolean(dismissedSuggestionId && snapshot?.id === dismissedSuggestionId)
-
-  const suggestionMessage = suggestionSuppressed
-    ? 'Ready'
-    : snapshot?.assistantState === 'exam'
-      ? getShortMessage(snapshot?.desktopTitle || snapshot?.primaryMessage || 'Exam ready', 24)
-      : snapshot?.assistantState === 'warning'
-        ? getShortMessage(snapshot?.primaryMessage || snapshot?.desktopTitle || 'Take a break', 24)
-        : getShortMessage(
-            snapshot?.recommendation?.label || snapshot?.desktopTitle || snapshot?.primaryMessage || 'Suggested next step',
-            24
-          )
-
-  const focusMessage = snapshot?.autopilotActive
-    ? getShortMessage(`Autopilot ${autoMinutes || 30}m`, 24)
-    : snapshot?.assistantState === 'timer'
-      ? getShortMessage(snapshot?.primaryMessage || 'Focus now', 24)
-      : snapshot?.suggestedDuration
-        ? getShortMessage(`${snapshot.suggestedDuration}m focus`, 24)
-        : getShortMessage('Focus now', 24)
+const buildIslandPages = ({ snapshot, decision, currentPath }) => {
+  const bestTask = decision?.task || snapshot?.metadata?.bestTask || snapshot?.recommendation?.task || snapshot?.recommendation?.bestTask || null
+  const timerMessage =
+    snapshot?.autopilotActive
+      ? getShortMessage(`Autopilot ${Number(snapshot?.metadata?.autopilotPlan?.duration || snapshot?.suggestedDuration || 30)}m`, 24)
+      : snapshot?.assistantState === 'timer'
+        ? getShortMessage(snapshot?.primaryMessage || 'Focus active', 24)
+        : snapshot?.suggestedDuration
+          ? getShortMessage(`${snapshot.suggestedDuration}m focus`, 24)
+          : 'Focus now'
 
   const taskMessage = getShortMessage(
-    bestTask?.title || snapshot?.desktopTitle || snapshot?.recommendation?.label || 'Task',
+    bestTask?.title || snapshot?.desktopTitle || snapshot?.primaryMessage || 'Task',
+    24
+  )
+
+  const suggestionMessage = getShortMessage(
+    decision?.shortMessage || snapshot?.desktopTitle || snapshot?.primaryMessage || 'Suggested next step',
     24
   )
 
   const idleMessage = getShortMessage(snapshot?.primaryMessage || 'Ready', 24)
 
   const suggestionTone =
-    snapshot?.assistantState === 'exam' || snapshot?.assistantState === 'warning'
+    decision?.tone ||
+    (snapshot?.assistantState === 'exam' || snapshot?.assistantState === 'warning'
       ? 'warning'
-      : 'suggestion'
+      : 'suggestion')
 
   return [
     {
@@ -114,18 +115,13 @@ const buildIslandPages = (snapshot, currentPage, dismissedSuggestionId) => {
       key: 'suggestion',
       icon: BrainCircuit,
       message: suggestionMessage,
-      status:
-        snapshot?.assistantState === 'exam'
-          ? 'EXAM'
-          : snapshot?.assistantState === 'warning'
-            ? 'ALERT'
-            : 'AI',
-      tone: suggestionSuppressed ? 'neutral' : suggestionTone
+      status: decision?.status || (snapshot?.assistantState === 'exam' ? 'EXAM' : 'AI'),
+      tone: suggestionTone
     },
     {
       key: 'focus',
       icon: Timer,
-      message: focusMessage,
+      message: timerMessage,
       status: snapshot?.autopilotActive ? 'AUTO' : 'FOCUS',
       tone: 'active'
     },
@@ -134,23 +130,19 @@ const buildIslandPages = (snapshot, currentPage, dismissedSuggestionId) => {
       icon: GraduationCap,
       message: taskMessage,
       status: 'TASK',
-      tone: 'neutral'
+      tone: bestTask ? 'neutral' : 'neutral'
     }
   ]
 }
 
-const resolveDefaultViewIndex = (snapshot, currentPage) => {
-  const page = String(currentPage || '').replace(/^\//, '')
+const resolveDefaultViewIndex = ({ snapshot, decision, currentPath }) => {
+  const page = String(currentPath || '').replace(/^\//, '')
 
+  if (decision) return 1
   if (page === 'study') return 2
   if (page === 'tasks') return 3
-  if (page === 'analytics') return snapshot?.assistantState === 'idle' ? 0 : 1
-
   if (snapshot?.autopilotActive || snapshot?.assistantState === 'timer') return 2
   if (snapshot?.assistantState === 'exam' || snapshot?.assistantState === 'warning') return 1
-  if (snapshot?.assistantState === 'suggesting') return 1
-  if (snapshot?.recommendation?.label || snapshot?.metadata?.bestTask?.id) return 1
-
   return 0
 }
 
@@ -165,8 +157,9 @@ const AssistantBar = () => {
   const [pageDirection, setPageDirection] = useState(1)
   const [statusMode, setStatusMode] = useState('idle')
   const [statusLabel, setStatusLabel] = useState('')
-  const [dismissedSuggestionId, setDismissedSuggestionId] = useState(null)
   const [isIslandExpanded, setIsIslandExpanded] = useState(false)
+  const [decisionMemory, setDecisionMemory] = useState(() => readAssistantDecisionMemory(user?.id))
+  const [pendingVoiceDecision, setPendingVoiceDecision] = useState(null)
 
   const statusTimerRef = useRef(null)
   const voiceSessionRef = useRef(null)
@@ -174,11 +167,16 @@ const AssistantBar = () => {
   const interactionModeRef = useRef('idle')
   const islandRef = useRef(null)
   const expansionTimeoutRef = useRef(null)
+  const visibleDecisionRef = useRef(null)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    setDecisionMemory(readAssistantDecisionMemory(user?.id))
+  }, [user?.id])
 
   useEffect(() => {
     voiceDepsRef.current = {
@@ -199,6 +197,19 @@ const AssistantBar = () => {
     [tasks, activeTaskId]
   )
 
+  const assistantProfile = useMemo(() => {
+    const rootProfile = profile && typeof profile === 'object' ? profile : {}
+    const personalization =
+      rootProfile?.personalization && typeof rootProfile.personalization === 'object'
+        ? rootProfile.personalization
+        : {}
+
+    return {
+      ...rootProfile,
+      ...personalization
+    }
+  }, [profile])
+
   const aiControlSettings = useMemo(
     () => readAiControlCenterSettings(profile?.id || user?.id),
     [profile?.id, user?.id]
@@ -206,10 +217,7 @@ const AssistantBar = () => {
 
   const activeSession = useMemo(() => readActiveSession(), [now])
   const timerState = useMemo(() => mapTimerState(activeSession, now), [activeSession, now])
-  const cognitiveTelemetry = useMemo(
-    () => readCognitiveTelemetry(user?.id),
-    [user?.id, now]
-  )
+  const cognitiveTelemetry = useMemo(() => readCognitiveTelemetry(user?.id), [user?.id, now])
   const cognitiveLoad = useMemo(
     () =>
       computeCognitiveLoad(profile?.personalization || profile || {}, {
@@ -256,12 +264,67 @@ const AssistantBar = () => {
     ]
   )
 
+  const decision = useMemo(
+    () =>
+      buildAssistantDecision({
+        tasks,
+        studySessions,
+        profile: assistantProfile,
+        userId: user?.id,
+        currentPage: location.pathname,
+        timerState,
+        autopilotActive: Boolean(autopilotState?.active),
+        pendingVoiceDecision,
+        cognitiveLoad,
+        memory: decisionMemory,
+        now
+      }),
+    [
+      tasks,
+      studySessions,
+      assistantProfile,
+      user?.id,
+      location.pathname,
+      timerState,
+      autopilotState?.active,
+      pendingVoiceDecision,
+      cognitiveLoad,
+      decisionMemory,
+      now
+    ]
+  )
+
   useEffect(() => {
     if (!assistantSnapshot) return
-    setViewIndex(resolveDefaultViewIndex(assistantSnapshot, location.pathname))
+    setViewIndex(resolveDefaultViewIndex({ snapshot: assistantSnapshot, decision, currentPath: location.pathname }))
     setPageDirection(1)
-    setDismissedSuggestionId(null)
-  }, [assistantSnapshot?.id, assistantSnapshot?.assistantState, location.pathname])
+  }, [assistantSnapshot?.id, assistantSnapshot?.assistantState, location.pathname, decision?.key])
+
+  useEffect(() => {
+    const previous = visibleDecisionRef.current
+    if (
+      previous?.decision &&
+      previous.decision.origin === 'engine' &&
+      previous.decision.key !== decision?.key &&
+      !previous.handled
+    ) {
+      const shownFor = Date.now() - previous.startedAt
+      if (shownFor >= getAssistantIgnoreThreshold() && user?.id) {
+        const nextMemory = recordAssistantDecisionOutcome(user.id, previous.decision, 'ignored', Date.now())
+        setDecisionMemory(nextMemory)
+      }
+    }
+
+    if (decision?.key) {
+      visibleDecisionRef.current = {
+        decision,
+        startedAt: Date.now(),
+        handled: false
+      }
+    } else {
+      visibleDecisionRef.current = null
+    }
+  }, [decision?.key, user?.id])
 
   useEffect(() => {
     if (!isIslandExpanded) return undefined
@@ -297,7 +360,7 @@ const AssistantBar = () => {
       }
       document.removeEventListener('pointerdown', handlePointerDown, true)
     }
-  }, [isIslandExpanded, statusMode])
+  }, [isIslandExpanded])
 
   useEffect(() => {
     interactionModeRef.current = statusMode
@@ -343,6 +406,7 @@ const AssistantBar = () => {
     interactionModeRef.current = 'idle'
     setStatusMode('idle')
     setStatusLabel('')
+    setPendingVoiceDecision(null)
     setIsIslandExpanded(false)
     if (expansionTimeoutRef.current) {
       window.clearTimeout(expansionTimeoutRef.current)
@@ -372,31 +436,36 @@ const AssistantBar = () => {
         const text = String(transcript || '').trim()
         if (!text) return
 
-        setInteractionStatus('processing', 'Processing')
+        setInteractionStatus('processing', 'Understanding')
         playAssistantSound('processing')
         stopVoiceListening(voiceSessionRef.current)
 
         try {
-          const { result } = await processVoiceCommand(text, voiceDepsRef.current)
-          const normalizedLabel = getShortMessage(result?.message || result?.fullMessage || 'Done', 16)
+          const resolved = resolveVoiceDecision({
+            transcript: text,
+            tasks,
+            studySessions,
+            profile: assistantProfile,
+            user,
+            now: Date.now()
+          })
 
-          if (result?.status === 'confirmation') {
-            playAssistantSound('executing')
-            setInteractionStatus('executing', normalizedLabel || 'Working', 1400)
+          if (!resolved.ok || !resolved.decision) {
+            playAssistantSound('error')
+            setInteractionStatus('error', getShortMessage(resolved.message || 'Try again', 16), 1100)
             return
           }
 
-          if (result?.ok) {
-            playAssistantSound('success')
-            setInteractionStatus('success', normalizedLabel || 'Done', 1100)
-            return
-          }
-
-          playAssistantSound('error')
-          setInteractionStatus('error', normalizedLabel || 'Error', 1100)
+          setPendingVoiceDecision(resolved.decision)
+          setViewIndex(1)
+          setPageDirection(1)
+          interactionModeRef.current = 'idle'
+          setStatusMode('idle')
+          setStatusLabel('')
+          playAssistantSound('success')
         } catch {
           playAssistantSound('error')
-          setInteractionStatus('error', 'Error', 1100)
+          setInteractionStatus('error', 'Voice unavailable', 1100)
         }
       },
       onError: () => {
@@ -407,7 +476,7 @@ const AssistantBar = () => {
 
     voiceSessionRef.current = session
     return session
-  }, [setInteractionStatus])
+  }, [assistantProfile, setInteractionStatus, tasks, studySessions, user])
 
   const triggerAI = useCallback(() => {
     const session = ensureVoiceSession()
@@ -424,104 +493,80 @@ const AssistantBar = () => {
       return false
     }
 
+    setPendingVoiceDecision(null)
     setInteractionStatus('listening', 'Listening')
     playAssistantSound('listening')
     return true
   }, [ensureVoiceSession, setInteractionStatus])
 
-  const runAssistantAction = useCallback(
-    async (action) => {
-      if (!action) return false
-
-      if (action.kind === 'voice' || action.kind === 'text') {
-        return triggerAI()
-      }
-
-      if (action.kind === 'navigate') {
-        navigate(action.path || '/dashboard', action.state ? { state: action.state } : undefined)
-        return true
-      }
-
-      if (action.kind === 'autopilot') {
-        const plan = action.state || action.plan
-        if (!plan) return false
-
-        const payload = queueAutopilotLaunch({
-          userId: user?.id,
-          plan
-        })
-
-        navigate('/study', {
-          state: {
-            ...payload,
-            autopilot: true
-          }
-        })
-        return true
-      }
-
-      if (action.kind === 'exam') {
-        navigate(action.path || '/exam-simulation', {
-          state: action.state || undefined
-        })
-        return true
-      }
-
-      if (action.path) {
-        navigate(action.path, action.state ? { state: action.state } : undefined)
-        return true
-      }
-
-      return false
-    },
-    [navigate, triggerAI, user?.id]
-  )
-
-  const pages = useMemo(
-    () => buildIslandPages(assistantSnapshot, location.pathname, dismissedSuggestionId),
-    [assistantSnapshot, location.pathname, dismissedSuggestionId]
-  )
-
-  const currentPage = pages[clamp(viewIndex, 0, pages.length - 1)] || pages[0]
-  const displayStatusMode =
-    statusMode === 'idle' ? 'idle' : statusMode === 'listening' || statusMode === 'processing' || statusMode === 'executing' || statusMode === 'success' || statusMode === 'error'
-      ? statusMode
-      : 'idle'
-  const displayStatusLabel = statusLabel || currentPage?.status || 'Ready'
+  const actionableDecision = pendingVoiceDecision || decision
 
   const handleAcceptSuggestion = useCallback(async () => {
-    openIsland()
-    const action = assistantSnapshot?.quickActions?.[0]
-    if (!action) return false
+    if (!actionableDecision) return false
 
+    openIsland()
     stopVoiceListening(voiceSessionRef.current)
-    setInteractionStatus('executing', action.label || 'Working')
+    setInteractionStatus('executing', getShortMessage(actionableDecision.title || 'Working', 16))
     playAssistantSound('executing')
+    if (visibleDecisionRef.current?.decision?.key === actionableDecision.key) {
+      visibleDecisionRef.current.handled = true
+    }
 
     try {
-      const success = await runAssistantAction(action)
-      if (success === false) throw new Error('Action failed')
+      const result = await executeAssistantDecision(actionableDecision, voiceDepsRef.current)
+      const followUpConfirmation = buildConfirmationDecision(result)
+
+      if (followUpConfirmation) {
+        setPendingVoiceDecision(followUpConfirmation)
+        setViewIndex(1)
+        setPageDirection(1)
+        interactionModeRef.current = 'idle'
+        setStatusMode('idle')
+        setStatusLabel('')
+        return true
+      }
+
+      if (!result?.ok) {
+        throw new Error(result?.fullMessage || result?.message || 'Action failed')
+      }
+
+      if (user?.id && actionableDecision.origin === 'engine') {
+        const nextMemory = recordAssistantDecisionOutcome(user.id, actionableDecision, 'accepted', Date.now())
+        setDecisionMemory(nextMemory)
+      }
+
+      setPendingVoiceDecision(null)
       playAssistantSound('success')
-      setInteractionStatus('success', getShortMessage(action.label || 'Accepted', 16), 900)
+      setInteractionStatus('success', getShortMessage(result?.message || 'Done', 16), 1000)
       return true
     } catch {
       playAssistantSound('error')
       setInteractionStatus('error', 'Error', 1100)
       return false
     }
-  }, [assistantSnapshot, openIsland, runAssistantAction, setInteractionStatus])
+  }, [actionableDecision, openIsland, setInteractionStatus, user?.id])
 
   const handleRejectSuggestion = useCallback(() => {
+    if (!actionableDecision) return
+
     openIsland()
     stopVoiceListening(voiceSessionRef.current)
-    if (assistantSnapshot?.id) {
-      setDismissedSuggestionId(assistantSnapshot.id)
+
+    if (visibleDecisionRef.current?.decision?.key === actionableDecision.key) {
+      visibleDecisionRef.current.handled = true
     }
+
+    if (user?.id && actionableDecision.origin === 'engine') {
+      const nextMemory = recordAssistantDecisionOutcome(user.id, actionableDecision, 'rejected', Date.now())
+      setDecisionMemory(nextMemory)
+    }
+
+    setPendingVoiceDecision(null)
     setViewIndex(0)
     setPageDirection(-1)
     playAssistantSound('error')
     setInteractionStatus('error', 'Dismissed', 900)
-  }, [assistantSnapshot?.id, openIsland, setInteractionStatus])
+  }, [actionableDecision, openIsland, setInteractionStatus, user?.id])
 
   const handleNextState = useCallback(() => {
     openIsland()
@@ -557,6 +602,24 @@ const AssistantBar = () => {
   })
 
   if (!assistantSnapshot) return null
+
+  const pages = buildIslandPages({
+    snapshot: assistantSnapshot,
+    decision: actionableDecision,
+    currentPath: location.pathname
+  })
+  const currentPage = pages[clamp(viewIndex, 0, pages.length - 1)] || pages[0]
+  const displayStatusMode =
+    statusMode === 'idle'
+      ? 'idle'
+      : statusMode === 'listening' ||
+          statusMode === 'processing' ||
+          statusMode === 'executing' ||
+          statusMode === 'success' ||
+          statusMode === 'error'
+        ? statusMode
+        : 'idle'
+  const displayStatusLabel = statusLabel || currentPage?.status || 'Ready'
 
   return (
     <AssistantDynamicIsland

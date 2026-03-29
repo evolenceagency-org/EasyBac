@@ -2,9 +2,12 @@
 import { AnimatePresence, motion, useTransform } from 'framer-motion'
 import {
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Check,
   CheckCircle2,
   Clock3,
+  LayoutList,
   Plus,
   Sparkles,
   Trash2,
@@ -81,6 +84,26 @@ const addDays = (days) => {
 const getDayKey = (value = new Date()) => {
   const date = new Date(value)
   return date.toISOString().slice(0, 10)
+}
+
+const weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+const buildCalendarDays = (monthDate) => {
+  const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+  const weekdayIndex = (firstOfMonth.getDay() + 6) % 7
+  const startDate = new Date(firstOfMonth)
+  startDate.setDate(firstOfMonth.getDate() - weekdayIndex)
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(startDate)
+    date.setDate(startDate.getDate() + index)
+    return {
+      date,
+      key: getDayKey(date),
+      inMonth: date.getMonth() === monthDate.getMonth(),
+      isToday: getDayKey(date) === getDayKey(new Date())
+    }
+  })
 }
 
 const daysUntil = (dueDate) => {
@@ -187,6 +210,37 @@ const TaskFilterTabs = ({ activeTab, onChange, counts }) => {
           >
             <span>{tab.label}</span>
             <span className="text-xs text-white/50">{counts[tab.id] || 0}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const ViewToggle = ({ viewMode, onChange }) => {
+  const options = [
+    { id: 'list', label: 'List', icon: LayoutList },
+    { id: 'calendar', label: 'Calendar', icon: CalendarDays }
+  ]
+
+  return (
+    <div className="inline-flex rounded-full border border-white/[0.08] bg-white/[0.03] p-1">
+      {options.map((option) => {
+        const active = option.id === viewMode
+        const Icon = option.icon
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onChange(option.id)}
+            className={`inline-flex min-h-10 items-center gap-2 rounded-full px-3 text-sm font-medium transition ${
+              active
+                ? 'bg-[#8b5cf6]/16 text-white shadow-[0_0_0_1px_rgba(139,92,246,0.22)]'
+                : 'text-white/60 hover:text-white'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            <span>{option.label}</span>
           </button>
         )
       })}
@@ -400,17 +454,25 @@ const TaskEditorSheet = ({ open, task, mode = 'create', onClose, onSubmit, onDel
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
             <label className="text-xs uppercase tracking-[0.2em] text-white/45">Subject</label>
-            <select
-              value={subject}
-              onChange={(event) => setSubject(event.target.value)}
-              className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm text-white outline-none transition focus:border-[#8b5cf6]/45"
-            >
-              {SUBJECT_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {SUBJECT_OPTIONS.map((option) => {
+                const active = option.value === subject
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setSubject(option.value)}
+                    className={`min-h-11 rounded-2xl border px-3 text-sm font-medium transition ${
+                      active
+                        ? 'border-[#8b5cf6]/45 bg-[#8b5cf6]/14 text-white'
+                        : 'border-white/[0.08] bg-white/[0.03] text-white/70 hover:border-white/[0.14] hover:text-white'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -552,6 +614,9 @@ const Tasks = () => {
 
   const subscriptionActive = useMemo(() => isSubscriptionActive(profile), [profile])
   const [activeTab, setActiveTab] = useState('all')
+  const [viewMode, setViewMode] = useState('list')
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date())
+  const [selectedDayKey, setSelectedDayKey] = useState(() => getDayKey(new Date()))
   const [editorState, setEditorState] = useState({ open: false, mode: 'create', task: null })
   const [rescheduleTask, setRescheduleTask] = useState(null)
   const [savingTask, setSavingTask] = useState(false)
@@ -568,15 +633,17 @@ const Tasks = () => {
     [activeTasks, studySessions]
   )
 
-  const filteredTasks = useMemo(() => {
-    const base = activeTasks.filter((task) => {
+  const filteredBaseTasks = useMemo(() => {
+    return activeTasks.filter((task) => {
       if (activeTab === 'today') return isTaskToday(task)
       if (activeTab === 'overdue') return isTaskOverdue(task)
       return true
     })
-
-    return sortTasksForMobile(base).slice(0, 7)
   }, [activeTab, activeTasks])
+
+  const filteredTasks = useMemo(() => {
+    return sortTasksForMobile(filteredBaseTasks).slice(0, 7)
+  }, [filteredBaseTasks])
 
   const tabCounts = useMemo(
     () => ({
@@ -587,11 +654,35 @@ const Tasks = () => {
     [activeTasks]
   )
 
+  const tasksByDate = useMemo(() => {
+    return filteredBaseTasks.reduce((acc, task) => {
+      if (!task.due_date) return acc
+      if (!acc[task.due_date]) acc[task.due_date] = []
+      acc[task.due_date].push(task)
+      return acc
+    }, {})
+  }, [filteredBaseTasks])
+
+  const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth])
+  const monthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        year: 'numeric'
+      }).format(calendarMonth),
+    [calendarMonth]
+  )
+
+  const selectedDayTasks = useMemo(
+    () => sortTasksForMobile(tasksByDate[selectedDayKey] || []),
+    [selectedDayKey, tasksByDate]
+  )
+
   const handleGuard = useCallback(() => checkTrialAndBlock(profile, navigate), [navigate, profile])
 
-  const handleOpenCreate = useCallback(() => {
+  const handleOpenCreate = useCallback((preset = null) => {
     if (!handleGuard()) return
-    setEditorState({ open: true, mode: 'create', task: null })
+    setEditorState({ open: true, mode: 'create', task: preset })
   }, [handleGuard])
 
   const handleOpenEdit = useCallback(
@@ -695,6 +786,19 @@ const Tasks = () => {
     [handleGuard, updateTaskById]
   )
 
+  useEffect(() => {
+    if (viewMode !== 'calendar') return
+    if (selectedDayKey && tasksByDate[selectedDayKey] !== undefined) return
+
+    const nextTaskWithDate = sortTasksForMobile(activeTasks).find((task) => task.due_date)
+    if (nextTaskWithDate?.due_date) {
+      setSelectedDayKey(nextTaskWithDate.due_date)
+      return
+    }
+
+    setSelectedDayKey(getDayKey(new Date()))
+  }, [activeTasks, selectedDayKey, tasksByDate, viewMode])
+
   return (
     <motion.div
       variants={pageMotion}
@@ -714,7 +818,7 @@ const Tasks = () => {
           </div>
           <button
             type="button"
-            onClick={handleOpenCreate}
+            onClick={() => handleOpenCreate()}
             className="hidden min-h-11 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-medium text-white transition hover:border-[#8b5cf6]/35 hover:text-white md:inline-flex"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -722,8 +826,9 @@ const Tasks = () => {
           </button>
         </div>
 
-        <div className="mt-4">
+        <div className="mt-4 flex flex-col gap-3">
           <TaskFilterTabs activeTab={activeTab} onChange={setActiveTab} counts={tabCounts} />
+          <ViewToggle viewMode={viewMode} onChange={setViewMode} />
         </div>
       </section>
 
@@ -752,34 +857,154 @@ const Tasks = () => {
         ) : null}
       </AnimatePresence>
 
-      <section className="space-y-3">
-        {loading.tasks ? (
-          Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="h-[84px] animate-pulse rounded-3xl border border-white/[0.08] bg-white/[0.03]" />
-          ))
-        ) : filteredTasks.length > 0 ? (
-          filteredTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              onComplete={handleCompleteTask}
-              onDelete={handleDeleteTask}
-              onOpen={handleOpenEdit}
-              onReschedule={setRescheduleTask}
-            />
-          ))
-        ) : (
-          <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 text-center backdrop-blur-[20px]">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.05] text-white/60">
-              <CheckCircle2 className="h-5 w-5" />
+      {viewMode === 'list' ? (
+        <section className="space-y-3">
+          {loading.tasks ? (
+            Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-[84px] animate-pulse rounded-3xl border border-white/[0.08] bg-white/[0.03]" />
+            ))
+          ) : filteredTasks.length > 0 ? (
+            filteredTasks.map((task) => (
+              <TaskRow
+                key={task.id}
+                task={task}
+                onComplete={handleCompleteTask}
+                onDelete={handleDeleteTask}
+                onOpen={handleOpenEdit}
+                onReschedule={setRescheduleTask}
+              />
+            ))
+          ) : (
+            <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 text-center backdrop-blur-[20px]">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.05] text-white/60">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold text-white">Nothing blocking you right now</h3>
+              <p className="mt-2 text-sm leading-6 text-white/60">
+                Add the next study action or switch tabs to review what is due today or overdue.
+              </p>
+            </section>
+          )}
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur-[20px] md:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Calendar</p>
+                <h3 className="mt-2 text-xl font-semibold text-white">{monthLabel}</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-white/70 transition hover:border-white/[0.14] hover:text-white"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-white/70 transition hover:border-white/[0.14] hover:text-white"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
             </div>
-            <h3 className="mt-4 text-lg font-semibold text-white">Nothing blocking you right now</h3>
-            <p className="mt-2 text-sm leading-6 text-white/60">
-              Add the next study action or switch tabs to review what is due today or overdue.
-            </p>
+
+            <div className="mt-5 grid grid-cols-7 gap-2 text-center text-[11px] uppercase tracking-[0.18em] text-white/35">
+              {weekDays.map((day) => (
+                <span key={day}>{day}</span>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-7 gap-2">
+              {calendarDays.map((day) => {
+                const dayTasks = sortTasksForMobile(tasksByDate[day.key] || [])
+                const visibleDayTasks = dayTasks.slice(0, 2)
+                const isSelected = selectedDayKey === day.key
+
+                return (
+                  <button
+                    key={day.key}
+                    type="button"
+                    onClick={() => setSelectedDayKey(day.key)}
+                    className={`min-h-[88px] rounded-2xl border p-2 text-left transition ${
+                      isSelected
+                        ? 'border-[#8b5cf6]/45 bg-[#8b5cf6]/12'
+                        : day.inMonth
+                          ? 'border-white/[0.08] bg-white/[0.02] hover:border-white/[0.14]'
+                          : 'border-white/[0.04] bg-white/[0.01] text-white/35'
+                    } ${day.isToday ? 'shadow-[0_0_0_1px_rgba(139,92,246,0.18)]' : ''}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-semibold ${day.inMonth ? 'text-white' : 'text-white/35'}`}>
+                        {day.date.getDate()}
+                      </span>
+                      {dayTasks.length > 0 ? (
+                        <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-white/55">
+                          {dayTasks.length}
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 space-y-1">
+                      {visibleDayTasks.map((task) => (
+                        <div key={task.id} className="flex items-center gap-1.5 rounded-full bg-white/[0.05] px-2 py-1 text-[10px] text-white/75">
+                          <span className={`h-1.5 w-1.5 rounded-full ${getPriorityDotClass(task.priority)}`} />
+                          <span className="truncate">{task.title}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </section>
-        )}
-      </section>
+
+          <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur-[20px] md:p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Selected day</p>
+                <h3 className="mt-2 text-lg font-semibold text-white">
+                  {new Date(`${selectedDayKey}T00:00:00`).toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenCreate({ due_date: selectedDayKey, subject: 'math', priority: 'medium' })}
+                className="inline-flex min-h-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm font-medium text-white transition hover:border-[#8b5cf6]/35 hover:text-white"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add task
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {selectedDayTasks.length > 0 ? (
+                selectedDayTasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    onComplete={handleCompleteTask}
+                    onDelete={handleDeleteTask}
+                    onOpen={handleOpenEdit}
+                    onReschedule={setRescheduleTask}
+                  />
+                ))
+              ) : (
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-4 text-sm text-white/60">
+                  No tasks scheduled for this day yet.
+                </div>
+              )}
+            </div>
+          </section>
+        </section>
+      )}
 
       <TaskEditorSheet
         open={editorState.open}
@@ -805,7 +1030,7 @@ const Tasks = () => {
       <motion.button
         type="button"
         whileTap={{ scale: 0.96 }}
-        onClick={handleOpenCreate}
+        onClick={() => handleOpenCreate()}
         className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-30 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#8b5cf6] text-white shadow-[0_12px_30px_rgba(139,92,246,0.35)] transition hover:bg-[#7c3aed] md:bottom-8 md:right-8"
       >
         <Plus className="h-6 w-6" />
