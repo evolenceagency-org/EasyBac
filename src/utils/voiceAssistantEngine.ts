@@ -361,6 +361,10 @@ const bindDeferredAudioUnlock = () => {
   audioUnlockBound = true
 }
 
+if (typeof window !== 'undefined') {
+  bindDeferredAudioUnlock()
+}
+
 export const getAudioContextState = () => {
   if (getAudioContextConstructor() == null) return 'unsupported'
   return getExistingAudioContext()?.state || 'idle'
