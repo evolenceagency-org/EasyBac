@@ -318,6 +318,11 @@ const getAudioContextConstructor = () => {
   return window.AudioContext || window.webkitAudioContext || null
 }
 
+const getExistingAudioContext = () => {
+  if (!audioContextRef || audioContextRef.state === 'closed') return null
+  return audioContextRef
+}
+
 const getOrCreateAudioContext = () => {
   const AudioContextClass = getAudioContextConstructor()
   if (!AudioContextClass) return null
@@ -357,8 +362,8 @@ const bindDeferredAudioUnlock = () => {
 }
 
 export const getAudioContextState = () => {
-  const ctx = getOrCreateAudioContext()
-  return ctx?.state || 'unsupported'
+  if (getAudioContextConstructor() == null) return 'unsupported'
+  return getExistingAudioContext()?.state || 'idle'
 }
 
 export const resumeAudioContext = async () => {
@@ -1023,7 +1028,7 @@ const playTones = (tones = []) => {
   if (typeof window === 'undefined') return
 
   try {
-    const ctx = getOrCreateAudioContext()
+    const ctx = getExistingAudioContext()
     if (!ctx) return
     if (ctx.state === 'suspended') {
       bindDeferredAudioUnlock()
