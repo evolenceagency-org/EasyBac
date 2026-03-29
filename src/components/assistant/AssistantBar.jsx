@@ -408,22 +408,6 @@ const AssistantBar = () => {
     }
   }, [decisionMemory, profile?.assistant_memory, saveAssistantMemory, user?.id])
 
-  useEffect(() => {
-    voiceDepsRef.current = {
-      user,
-      profile: assistantProfile,
-      tasks,
-      studySessions,
-      addTask,
-      updateTaskById,
-      toggleTask,
-      removeTask,
-      navigate,
-      memory: decisionMemory,
-      cognitiveLoad
-    }
-  }, [user, assistantProfile, tasks, studySessions, addTask, updateTaskById, toggleTask, removeTask, navigate, decisionMemory, cognitiveLoad])
-
   const activeTaskId = useMemo(() => (user?.id ? getActiveFocusTaskId(user.id) : null), [user?.id])
   const activeTask = useMemo(
     () => tasks.find((task) => task.id === activeTaskId) || null,
@@ -464,6 +448,22 @@ const AssistantBar = () => {
     [profile, tasks, studySessions, timerState, user?.id, cognitiveTelemetry, now]
   )
   const autopilotState = useMemo(() => readAutopilotState(user?.id), [user?.id])
+
+  useEffect(() => {
+    voiceDepsRef.current = {
+      user,
+      profile: assistantProfile,
+      tasks,
+      studySessions,
+      addTask,
+      updateTaskById,
+      toggleTask,
+      removeTask,
+      navigate,
+      memory: decisionMemory,
+      cognitiveLoad
+    }
+  }, [user, assistantProfile, tasks, studySessions, addTask, updateTaskById, toggleTask, removeTask, navigate, decisionMemory, cognitiveLoad])
 
   const assistantSnapshot = useMemo(
     () =>
