@@ -10,6 +10,11 @@ import { computeCognitiveLoad, readCognitiveTelemetry } from '../../utils/cognit
 import { getActiveFocusTaskId } from '../../utils/focusTasks.js'
 import { readAutopilotState } from '../../utils/autopilotEngine.ts'
 import {
+  buildAssistantAiContext,
+  buildAssistantDecisionFromAi,
+  fetchAssistantAiRecommendation
+} from '../../utils/assistantAiEngine.ts'
+import {
   buildAssistantDecision,
   buildConfirmationDecision,
   executeAssistantDecision,
@@ -298,6 +303,8 @@ const AssistantBar = () => {
   const [isIslandExpanded, setIsIslandExpanded] = useState(false)
   const [decisionMemory, setDecisionMemory] = useState(() => readAssistantDecisionMemory(user?.id))
   const [pendingVoiceDecision, setPendingVoiceDecision] = useState(null)
+  const [aiDecision, setAiDecision] = useState(null)
+  const [aiRefreshVersion, setAiRefreshVersion] = useState(0)
 
   const statusTimerRef = useRef(null)
   const voiceSessionRef = useRef(null)
@@ -306,6 +313,7 @@ const AssistantBar = () => {
   const islandRef = useRef(null)
   const expansionTimeoutRef = useRef(null)
   const visibleDecisionRef = useRef(null)
+  const forceAiRefreshRef = useRef(false)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -402,7 +410,7 @@ const AssistantBar = () => {
     ]
   )
 
-  const decision = useMemo(
+  const fallbackDecision = useMemo(
     () =>
       buildAssistantDecision({
         tasks,
@@ -412,7 +420,7 @@ const AssistantBar = () => {
         currentPage: location.pathname,
         timerState,
         autopilotActive: Boolean(autopilotState?.active),
-        pendingVoiceDecision,
+        pendingVoiceDecision: null,
         cognitiveLoad,
         memory: decisionMemory,
         now
@@ -425,12 +433,85 @@ const AssistantBar = () => {
       location.pathname,
       timerState,
       autopilotState?.active,
-      pendingVoiceDecision,
       cognitiveLoad,
       decisionMemory,
       now
     ]
   )
+
+  const aiContext = useMemo(
+    () =>
+      buildAssistantAiContext({
+        tasks,
+        studySessions,
+        profile: assistantProfile,
+        timerState,
+        cognitiveLoad,
+        memory: decisionMemory,
+        currentPage: location.pathname,
+        userId: user?.id,
+        fallbackDecision,
+        now
+      }),
+    [
+      tasks,
+      studySessions,
+      assistantProfile,
+      timerState,
+      cognitiveLoad,
+      decisionMemory,
+      location.pathname,
+      user?.id,
+      fallbackDecision,
+      now
+    ]
+  )
+
+  useEffect(() => {
+    if (pendingVoiceDecision) {
+      setAiDecision(null)
+      return undefined
+    }
+
+    if (!aiContext?.shouldRequest) {
+      setAiDecision(null)
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const force = forceAiRefreshRef.current
+    forceAiRefreshRef.current = false
+
+    let isMounted = true
+
+    fetchAssistantAiRecommendation({
+      context: aiContext,
+      signal: controller.signal,
+      force
+    }).then((result) => {
+      if (!isMounted) return
+
+      if (!result?.ok || !result.recommendation) {
+        setAiDecision(null)
+        return
+      }
+
+      const nextDecision = buildAssistantDecisionFromAi({
+        recommendation: result.recommendation,
+        context: aiContext,
+        tasks
+      })
+
+      setAiDecision(nextDecision || null)
+    })
+
+    return () => {
+      isMounted = false
+      controller.abort()
+    }
+  }, [aiContext, tasks, pendingVoiceDecision, aiRefreshVersion])
+
+  const decision = pendingVoiceDecision || aiDecision || fallbackDecision
 
   useEffect(() => {
     if (!assistantSnapshot) return
@@ -442,7 +523,7 @@ const AssistantBar = () => {
     const previous = visibleDecisionRef.current
     if (
       previous?.decision &&
-      previous.decision.origin === 'engine' &&
+      previous.decision.origin !== 'voice' &&
       previous.decision.key !== decision?.key &&
       !previous.handled
     ) {
@@ -637,7 +718,7 @@ const AssistantBar = () => {
     return true
   }, [ensureVoiceSession, setInteractionStatus])
 
-  const actionableDecision = pendingVoiceDecision || decision
+  const actionableDecision = decision
 
   const handleAcceptSuggestion = useCallback(async () => {
     if (!actionableDecision) return false
@@ -668,11 +749,12 @@ const AssistantBar = () => {
         throw new Error(result?.fullMessage || result?.message || 'Action failed')
       }
 
-      if (user?.id && actionableDecision.origin === 'engine') {
+      if (user?.id && actionableDecision.origin !== 'voice') {
         const nextMemory = recordAssistantDecisionOutcome(user.id, actionableDecision, 'accepted', Date.now())
         setDecisionMemory(nextMemory)
       }
 
+      setAiDecision(null)
       setPendingVoiceDecision(null)
       playAssistantSound('success')
       setInteractionStatus('success', getShortMessage(result?.message || 'Done', 16), 1000)
@@ -694,9 +776,15 @@ const AssistantBar = () => {
       visibleDecisionRef.current.handled = true
     }
 
-    if (user?.id && actionableDecision.origin === 'engine') {
+    if (user?.id && actionableDecision.origin !== 'voice') {
       const nextMemory = recordAssistantDecisionOutcome(user.id, actionableDecision, 'rejected', Date.now())
       setDecisionMemory(nextMemory)
+    }
+
+    if (actionableDecision.origin === 'ai') {
+      setAiDecision(null)
+      forceAiRefreshRef.current = true
+      setAiRefreshVersion((value) => value + 1)
     }
 
     setPendingVoiceDecision(null)
