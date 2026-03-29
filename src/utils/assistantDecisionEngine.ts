@@ -347,6 +347,7 @@ const getTaskSuggestion = ({
     state: 'suggesting',
     origin: 'engine',
     type: 'task',
+    aiAction: 'start_focus',
     task: selected.task,
     score: selected.score,
     status: 'AI',
@@ -382,6 +383,18 @@ const buildSimpleDecision = ({ key, title, detail, tone = 'suggestion', status =
   action
 })
 
+const getDecisionActionKey = (decision) => {
+  if (decision?.aiAction) return decision.aiAction
+
+  const kind = decision?.action?.kind
+  if (kind === 'focus_task') return 'start_focus'
+  if (kind === 'break') return 'break'
+  if (kind === 'navigate' && decision?.action?.path === '/tasks') return 'reschedule'
+  if (kind === 'navigate' && decision?.action?.path === '/study') return 'continue'
+  if (kind === 'idle') return 'idle'
+  return decision?.type || 'idle'
+}
+
 const sanitize = (value = '') =>
   String(value)
     .toLowerCase()
@@ -414,10 +427,13 @@ export const readAssistantDecisionMemory = (userId) => {
       subjects: {},
       lastAction: null,
       lastAcceptedTaskId: null,
+      lastTaskId: null,
       lastAcceptedKey: null,
       lastAcceptedAt: 0,
       lastRejectedKey: null,
       lastRejectedAt: 0,
+      acceptedCounts: { start_focus: 0, break: 0, reschedule: 0, continue: 0, idle: 0 },
+      rejectedCounts: { start_focus: 0, break: 0, reschedule: 0, continue: 0, idle: 0 },
       cooldownUntil: 0
     }
   }
@@ -430,10 +446,13 @@ export const readAssistantDecisionMemory = (userId) => {
         subjects: {},
         lastAction: null,
         lastAcceptedTaskId: null,
+        lastTaskId: null,
         lastAcceptedKey: null,
         lastAcceptedAt: 0,
         lastRejectedKey: null,
         lastRejectedAt: 0,
+        acceptedCounts: { start_focus: 0, break: 0, reschedule: 0, continue: 0, idle: 0 },
+        rejectedCounts: { start_focus: 0, break: 0, reschedule: 0, continue: 0, idle: 0 },
         cooldownUntil: 0
       }
     }
@@ -444,10 +463,25 @@ export const readAssistantDecisionMemory = (userId) => {
       subjects: parsed?.subjects || {},
       lastAction: parsed?.lastAction || null,
       lastAcceptedTaskId: parsed?.lastAcceptedTaskId || null,
+      lastTaskId: parsed?.lastTaskId || parsed?.lastAcceptedTaskId || null,
       lastAcceptedKey: parsed?.lastAcceptedKey || null,
       lastAcceptedAt: Number(parsed?.lastAcceptedAt || 0) || 0,
       lastRejectedKey: parsed?.lastRejectedKey || null,
       lastRejectedAt: Number(parsed?.lastRejectedAt || 0) || 0,
+      acceptedCounts: {
+        start_focus: Number(parsed?.acceptedCounts?.start_focus || 0) || 0,
+        break: Number(parsed?.acceptedCounts?.break || 0) || 0,
+        reschedule: Number(parsed?.acceptedCounts?.reschedule || 0) || 0,
+        continue: Number(parsed?.acceptedCounts?.continue || 0) || 0,
+        idle: Number(parsed?.acceptedCounts?.idle || 0) || 0
+      },
+      rejectedCounts: {
+        start_focus: Number(parsed?.rejectedCounts?.start_focus || 0) || 0,
+        break: Number(parsed?.rejectedCounts?.break || 0) || 0,
+        reschedule: Number(parsed?.rejectedCounts?.reschedule || 0) || 0,
+        continue: Number(parsed?.rejectedCounts?.continue || 0) || 0,
+        idle: Number(parsed?.rejectedCounts?.idle || 0) || 0
+      },
       cooldownUntil: Number(parsed?.cooldownUntil || 0) || 0
     }
   } catch {
@@ -456,10 +490,13 @@ export const readAssistantDecisionMemory = (userId) => {
       subjects: {},
       lastAction: null,
       lastAcceptedTaskId: null,
+      lastTaskId: null,
       lastAcceptedKey: null,
       lastAcceptedAt: 0,
       lastRejectedKey: null,
       lastRejectedAt: 0,
+      acceptedCounts: { start_focus: 0, break: 0, reschedule: 0, continue: 0, idle: 0 },
+      rejectedCounts: { start_focus: 0, break: 0, reschedule: 0, continue: 0, idle: 0 },
       cooldownUntil: 0
     }
   }
@@ -478,12 +515,39 @@ export const recordAssistantDecisionOutcome = (userId, decision, outcome, now = 
     ...memory,
     tasks: { ...memory.tasks },
     subjects: { ...memory.subjects },
+    acceptedCounts: {
+      start_focus: Number(memory?.acceptedCounts?.start_focus || 0) || 0,
+      break: Number(memory?.acceptedCounts?.break || 0) || 0,
+      reschedule: Number(memory?.acceptedCounts?.reschedule || 0) || 0,
+      continue: Number(memory?.acceptedCounts?.continue || 0) || 0,
+      idle: Number(memory?.acceptedCounts?.idle || 0) || 0
+    },
+    rejectedCounts: {
+      start_focus: Number(memory?.rejectedCounts?.start_focus || 0) || 0,
+      break: Number(memory?.rejectedCounts?.break || 0) || 0,
+      reschedule: Number(memory?.rejectedCounts?.reschedule || 0) || 0,
+      continue: Number(memory?.rejectedCounts?.continue || 0) || 0,
+      idle: Number(memory?.rejectedCounts?.idle || 0) || 0
+    },
     lastAction: {
       key: decision.key,
       outcome,
       at: toNowMs(now),
-      type: decision.type
+      type: getDecisionActionKey(decision)
     }
+  }
+  const actionKey = getDecisionActionKey(decision)
+
+  if (outcome === 'accepted' && actionKey in nextMemory.acceptedCounts) {
+    nextMemory.acceptedCounts[actionKey] += 1
+  }
+
+  if (outcome === 'rejected' && actionKey in nextMemory.rejectedCounts) {
+    nextMemory.rejectedCounts[actionKey] += 1
+  }
+
+  if (decision.task?.id && outcome === 'accepted') {
+    nextMemory.lastTaskId = decision.task.id
   }
 
   if (decision.task?.id) {
@@ -546,8 +610,23 @@ export const buildAssistantDecision = (context = {}) => {
     return context.pendingVoiceDecision
   }
 
-  if (context.autopilotActive || context.timerState?.isRunning || currentPage === 'study') {
+  if (context.autopilotActive || currentPage === 'study') {
     return null
+  }
+
+  if (context.timerState?.isRunning) {
+    return buildSimpleDecision({
+      key: 'fallback:continue',
+      title: `Continue focus • ${context.timerState.formatted || 'Now'}`,
+      detail: 'Resume the current study block.',
+      tone: 'active',
+      type: 'continue',
+      action: {
+        kind: 'navigate',
+        path: '/study',
+        state: { action: 'resume' }
+      }
+    })
   }
 
   const urgentOverdueTask = getOverdueTask(activeTasks, now)
@@ -558,27 +637,18 @@ export const buildAssistantDecision = (context = {}) => {
 
   if (!activeTasks.length) {
     return buildSimpleDecision({
-      key: 'system:add-first-task',
-      title: 'Add your first task • 2min',
-      detail: 'Create one task so I can suggest the right next session.',
+      key: 'fallback:idle',
+      title: 'Stay ready • Review • 2min',
+      detail: 'No active task is available right now.',
       tone: 'neutral',
-      type: 'setup',
+      type: 'idle',
       action: {
-        kind: 'navigate',
-        path: '/tasks'
+        kind: 'idle'
       }
     })
   }
 
   const todayStudyMinutes = getTodayStudyMinutes(context.studySessions, now)
-  const recentSessionEntry = getMostRecentCompletedSession(context.studySessions, now)
-  const recentSessionDuration = Number(
-    recentSessionEntry?.session?.duration_minutes ??
-      recentSessionEntry?.session?.durationMinutes ??
-      recentSessionEntry?.session?.duration ??
-      0
-  ) || 0
-  const recentSessionAgeMs = recentSessionEntry ? now - recentSessionEntry.endedMs : Number.POSITIVE_INFINITY
 
   if (todayStudyMinutes <= 0) {
     const firstTask = getTaskSuggestion({
@@ -594,25 +664,12 @@ export const buildAssistantDecision = (context = {}) => {
       return {
         ...firstTask,
         key: `first:${firstTask.task?.id || 'task'}`,
+        aiAction: 'start_focus',
         title: formatTaskActionLabel('first', firstTask.task, getTaskDurationMinutes(firstTask.task, 45)),
         shortMessage: formatTaskActionLabel('first', firstTask.task, getTaskDurationMinutes(firstTask.task, 45)),
         detail: 'Start your first study block for today.'
       }
     }
-  }
-
-  if (recentSessionDuration >= 25 && recentSessionAgeMs <= 25 * 60 * 1000) {
-    return buildSimpleDecision({
-      key: 'system:break',
-      title: 'Take a break • Reset • 5min',
-      detail: 'You just finished a solid session. A short reset will help your next block.',
-      tone: 'neutral',
-      type: 'break',
-      action: {
-        kind: 'break',
-        durationMinutes: 5
-      }
-    })
   }
 
   if (urgentOverdueTask) {
@@ -622,6 +679,7 @@ export const buildAssistantDecision = (context = {}) => {
       state: 'suggesting',
       origin: 'engine',
       type: 'task',
+      aiAction: 'start_focus',
       task: urgentOverdueTask,
       status: 'AI',
       tone: 'warning',
@@ -650,6 +708,15 @@ export const buildAssistantDecision = (context = {}) => {
     cognitiveLoad: context.cognitiveLoad,
     memory,
     now
+  }) || buildSimpleDecision({
+    key: 'fallback:idle',
+    title: 'Stay ready • Review • 2min',
+    detail: 'No stronger study move is available right now.',
+    tone: 'neutral',
+    type: 'idle',
+    action: {
+      kind: 'idle'
+    }
   })
 }
 
@@ -839,6 +906,15 @@ export const executeAssistantDecision = async (decision, deps = {}) => {
       status: 'success',
       message: 'Opening',
       fullMessage: 'Opening the next step.'
+    }
+  }
+
+  if (decision.action.kind === 'idle') {
+    return {
+      ok: true,
+      status: 'success',
+      message: 'Ready',
+      fullMessage: 'No immediate action is needed right now.'
     }
   }
 

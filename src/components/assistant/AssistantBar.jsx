@@ -12,7 +12,8 @@ import { readAutopilotState } from '../../utils/autopilotEngine.ts'
 import {
   buildAssistantAiContext,
   buildAssistantDecisionFromAi,
-  fetchAssistantAiRecommendation
+  fetchAssistantAiRecommendation,
+  fetchAssistantVoiceDecision
 } from '../../utils/assistantAiEngine.ts'
 import {
   buildAssistantDecision,
@@ -20,8 +21,7 @@ import {
   executeAssistantDecision,
   getAssistantIgnoreThreshold,
   readAssistantDecisionMemory,
-  recordAssistantDecisionOutcome,
-  resolveVoiceDecision
+  recordAssistantDecisionOutcome
 } from '../../utils/assistantDecisionEngine.ts'
 import {
   createVoiceSession,
@@ -304,7 +304,7 @@ const AssistantBar = () => {
   const [decisionMemory, setDecisionMemory] = useState(() => readAssistantDecisionMemory(user?.id))
   const [pendingVoiceDecision, setPendingVoiceDecision] = useState(null)
   const [aiDecision, setAiDecision] = useState(null)
-  const [aiRefreshVersion, setAiRefreshVersion] = useState(0)
+  const [aiRequestVersion, setAiRequestVersion] = useState(0)
 
   const statusTimerRef = useRef(null)
   const voiceSessionRef = useRef(null)
@@ -314,6 +314,7 @@ const AssistantBar = () => {
   const expansionTimeoutRef = useRef(null)
   const visibleDecisionRef = useRef(null)
   const forceAiRefreshRef = useRef(false)
+  const previousTimerRunningRef = useRef(false)
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 1000)
@@ -446,11 +447,9 @@ const AssistantBar = () => {
         studySessions,
         profile: assistantProfile,
         timerState,
-        cognitiveLoad,
         memory: decisionMemory,
         currentPage: location.pathname,
         userId: user?.id,
-        fallbackDecision,
         now
       }),
     [
@@ -458,16 +457,35 @@ const AssistantBar = () => {
       studySessions,
       assistantProfile,
       timerState,
-      cognitiveLoad,
       decisionMemory,
       location.pathname,
       user?.id,
-      fallbackDecision,
       now
     ]
   )
 
   useEffect(() => {
+    if (location.pathname === '/dashboard') {
+      setAiRequestVersion((value) => value + 1)
+    }
+  }, [location.pathname])
+
+  useEffect(() => {
+    const wasRunning = previousTimerRunningRef.current
+    const isRunning = Boolean(timerState?.isRunning)
+
+    if (wasRunning && !isRunning) {
+      setAiRequestVersion((value) => value + 1)
+    }
+
+    previousTimerRunningRef.current = isRunning
+  }, [timerState?.isRunning])
+
+  useEffect(() => {
+    if (aiRequestVersion === 0) {
+      return undefined
+    }
+
     if (pendingVoiceDecision) {
       setAiDecision(null)
       return undefined
@@ -491,15 +509,16 @@ const AssistantBar = () => {
     }).then((result) => {
       if (!isMounted) return
 
-      if (!result?.ok || !result.recommendation) {
+      if (!result?.ok || !result.output) {
         setAiDecision(null)
         return
       }
 
       const nextDecision = buildAssistantDecisionFromAi({
-        recommendation: result.recommendation,
+        output: result.output,
         context: aiContext,
-        tasks
+        tasks,
+        origin: 'ai'
       })
 
       setAiDecision(nextDecision || null)
@@ -509,7 +528,7 @@ const AssistantBar = () => {
       isMounted = false
       controller.abort()
     }
-  }, [aiContext, tasks, pendingVoiceDecision, aiRefreshVersion])
+  }, [aiContext, tasks, pendingVoiceDecision, aiRequestVersion])
 
   const decision = pendingVoiceDecision || aiDecision || fallbackDecision
 
@@ -660,22 +679,43 @@ const AssistantBar = () => {
         stopVoiceListening(voiceSessionRef.current)
 
         try {
-          const resolved = resolveVoiceDecision({
-            transcript: text,
+          const voiceContext = buildAssistantAiContext({
             tasks,
             studySessions,
             profile: assistantProfile,
-            user,
+            timerState,
+            memory: decisionMemory,
+            currentPage: location.pathname,
+            userId: user?.id,
             now: Date.now()
           })
 
-          if (!resolved.ok || !resolved.decision) {
+          const resolved = await fetchAssistantVoiceDecision({
+            transcript: text,
+            context: voiceContext
+          })
+
+          if (!resolved.ok || !resolved.output) {
             playAssistantSound('error')
-            setInteractionStatus('error', getShortMessage(resolved.message || 'Try again', 16), 1100)
+            setInteractionStatus('error', 'Voice unavailable', 1100)
             return
           }
 
-          setPendingVoiceDecision(resolved.decision)
+          const nextDecision = buildAssistantDecisionFromAi({
+            output: resolved.output,
+            context: voiceContext,
+            tasks,
+            origin: 'voice',
+            confirm: true
+          })
+
+          if (!nextDecision) {
+            playAssistantSound('error')
+            setInteractionStatus('error', 'Try again', 1100)
+            return
+          }
+
+          setPendingVoiceDecision(nextDecision)
           setViewIndex(1)
           setPageDirection(1)
           interactionModeRef.current = 'idle'
@@ -695,7 +735,7 @@ const AssistantBar = () => {
 
     voiceSessionRef.current = session
     return session
-  }, [assistantProfile, setInteractionStatus, tasks, studySessions, user])
+  }, [assistantProfile, decisionMemory, location.pathname, setInteractionStatus, tasks, studySessions, timerState, user?.id])
 
   const triggerAI = useCallback(() => {
     const session = ensureVoiceSession()
@@ -756,6 +796,9 @@ const AssistantBar = () => {
 
       setAiDecision(null)
       setPendingVoiceDecision(null)
+      if (actionableDecision.origin === 'ai') {
+        setAiRequestVersion((value) => value + 1)
+      }
       playAssistantSound('success')
       setInteractionStatus('success', getShortMessage(result?.message || 'Done', 16), 1000)
       return true
@@ -784,7 +827,7 @@ const AssistantBar = () => {
     if (actionableDecision.origin === 'ai') {
       setAiDecision(null)
       forceAiRefreshRef.current = true
-      setAiRefreshVersion((value) => value + 1)
+      setAiRequestVersion((value) => value + 1)
     }
 
     setPendingVoiceDecision(null)

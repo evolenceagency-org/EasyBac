@@ -1,51 +1,57 @@
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
-const SYSTEM_PROMPT = `
-You are EasyBac Coach, an AI study assistant inside a gesture-only assistant bar.
+const RECOMMENDATION_PROMPT = `
+You are an AI academic coach.
 
-Return exactly one next-step recommendation as JSON.
+You must return ONE optimal action as JSON.
+
+Be STRICT:
+- No questions
+- No explanations longer than 6 words in text
+- No repetition of recently rejected actions
+- Prioritize overdue tasks
+- Use exam_days_left to increase urgency
 
 Rules:
-- Be proactive but not noisy.
-- Recommend only one action.
-- Allowed actions: focus_task, take_break, navigate_tasks, navigate_dashboard.
-- Use focus_task only when task_id exists in the provided task list.
-- Use take_break only when the user has completed or is coming off a study block of at least 25 minutes.
-- Never recommend focus_task if there are no active tasks.
-- Prefer overdue tasks first, then due-soon high-priority tasks, then weak-subject tasks.
-- Keep text direct and actionable. Never ask a question.
-- Keep text in this format when possible: [Action] • [Context] • [Duration]
-- Examples:
-  - "Finish overdue Math task • Derivatives • 45min"
-  - "Start first Physics session • Kinematics • 30min"
-  - "Take a break • Reset • 5min"
-  - "Open tasks • Plan next step • 2min"
+- If session.active = true -> action = "continue"
+- If today.study_min = 0 -> action = "start_focus"
+- If session.elapsed_min >= 25 -> you MAY suggest "break"
+- If any task.overdue = true -> prioritize it
+- If user often rejects an action -> avoid it
+
+Text format:
+[Verb] [Subject] • [Duration]
+
+Examples:
+"Start Math • 45min"
+"Continue Physics • 20min"
+"Break • 5min"
+
+Return ONLY JSON.
 `.trim()
 
-const RESPONSE_SCHEMA = {
-  name: 'assistant_recommendation',
-  strict: true,
-  schema: {
-    type: 'object',
-    properties: {
-      action: {
-        type: 'string',
-        enum: ['focus_task', 'take_break', 'navigate_tasks', 'navigate_dashboard']
-      },
-      task_id: {
-        anyOf: [{ type: 'string' }, { type: 'null' }]
-      },
-      duration: {
-        anyOf: [{ type: 'number' }, { type: 'null' }]
-      },
-      text: {
-        type: 'string',
-        minLength: 8,
-        maxLength: 140
-      }
-    },
-    required: ['action', 'task_id', 'duration', 'text'],
-    additionalProperties: false
+const VOICE_PROMPT = `
+You are an AI assistant.
+
+Convert user speech into an action JSON.
+
+Use the same JSON schema as recommendations.
+
+Examples:
+"start math 30 min" -> start_focus
+"i'm tired" -> break
+"continue" -> continue
+"change task" -> reschedule
+
+Be strict and short.
+Return JSON only.
+`.trim()
+
+const safeJsonParse = (value) => {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
   }
 }
 
@@ -60,14 +66,6 @@ const readMessageText = (messageContent) => {
   return ''
 }
 
-const safeJsonParse = (value) => {
-  try {
-    return JSON.parse(value)
-  } catch {
-    return null
-  }
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Method not allowed' })
@@ -80,13 +78,27 @@ export default async function handler(req, res) {
     return
   }
 
-  const { context, model } = req.body || {}
+  const { context, mode = 'recommendation', transcript } = req.body || {}
   if (!context || typeof context !== 'object') {
     res.status(400).json({ error: 'Context is required' })
     return
   }
 
-  const resolvedModel = model || process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'
+  if (mode === 'voice' && (!transcript || typeof transcript !== 'string')) {
+    res.status(400).json({ error: 'Transcript is required for voice mode' })
+    return
+  }
+
+  const prompt = mode === 'voice' ? VOICE_PROMPT : RECOMMENDATION_PROMPT
+  const userPayload =
+    mode === 'voice'
+      ? {
+          transcript,
+          context
+        }
+      : context
+
+  const resolvedModel = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini'
 
   try {
     const response = await fetch(OPENROUTER_URL, {
@@ -100,18 +112,13 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: resolvedModel,
         temperature: 0.2,
-        max_tokens: 220,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: `Recommend the next best action from this app context.\n\n${JSON.stringify(context)}`
-          }
-        ],
         response_format: {
-          type: 'json_schema',
-          json_schema: RESPONSE_SCHEMA
-        }
+          type: 'json_object'
+        },
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: JSON.stringify(userPayload) }
+        ]
       })
     })
 
@@ -122,18 +129,18 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json()
-    const text = readMessageText(data?.choices?.[0]?.message?.content)
-    const recommendation = safeJsonParse(text)
+    const content = readMessageText(data?.choices?.[0]?.message?.content)
+    const output = safeJsonParse(content)
 
-    if (!recommendation || typeof recommendation !== 'object') {
-      res.status(502).json({ error: 'Invalid AI response' })
+    if (!output || typeof output !== 'object') {
+      res.status(502).json({ error: 'Invalid AI response', detail: content || null })
       return
     }
 
-    res.status(200).json({ recommendation })
+    res.status(200).json({ output })
   } catch (error) {
     res.status(500).json({
-      error: 'Assistant recommendation request failed',
+      error: 'Assistant AI request failed',
       detail: error instanceof Error ? error.message : 'Unknown error'
     })
   }
