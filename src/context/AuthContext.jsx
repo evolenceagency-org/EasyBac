@@ -144,6 +144,9 @@ export const AuthProvider = ({ children }) => {
               plan: null,
               subscription_status: 'free',
               trial_start: null,
+              trial_active: false,
+              trial_ends_at: null,
+              exam_date: null,
               payment_verified: false,
               personalization: null
             },
@@ -318,6 +321,8 @@ export const AuthProvider = ({ children }) => {
 
       if (isEmailVerified(signedInUser)) {
         clearPendingVerificationEmail()
+      } else {
+        persistPendingVerificationEmail(normalizedEmail)
       }
     }
 
@@ -446,6 +451,9 @@ export const AuthProvider = ({ children }) => {
       plan: normalizedPlan,
       subscription_status: hasPremiumAccess ? 'premium' : 'trial',
       trial_start: hasPremiumAccess ? profile?.trial_start || null : profile?.trial_start || new Date().toISOString(),
+      trial_active: profile?.trial_active || false,
+      trial_ends_at: profile?.trial_ends_at || null,
+      exam_date: profile?.exam_date || profile?.personalization?.examDate || null,
       payment_verified: profile?.payment_verified || false,
       personalization: profile?.personalization ?? null,
       daily_insight: profile?.daily_insight ?? null,
@@ -505,6 +513,9 @@ export const AuthProvider = ({ children }) => {
         plan: profile?.plan ?? null,
         subscription_status: profile?.subscription_status || 'free',
         trial_start: profile?.trial_start || null,
+        trial_active: profile?.trial_active || false,
+        trial_ends_at: profile?.trial_ends_at || null,
+        exam_date: personalization?.examDate || profile?.exam_date || null,
         payment_verified: profile?.payment_verified || false,
         personalization,
         daily_insight: profile?.daily_insight ?? null,
@@ -535,6 +546,9 @@ export const AuthProvider = ({ children }) => {
         plan: profile?.plan ?? null,
         subscription_status: profile?.subscription_status || 'free',
         trial_start: profile?.trial_start || null,
+        trial_active: profile?.trial_active || false,
+        trial_ends_at: profile?.trial_ends_at || null,
+        exam_date: profile?.exam_date || profile?.personalization?.examDate || null,
         payment_verified: profile?.payment_verified || false,
         personalization: profile?.personalization ?? null,
         last_insight_date: insightDate,

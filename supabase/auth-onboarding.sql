@@ -9,6 +9,7 @@ create table if not exists public.profiles (
   onboarding_completed boolean not null default false,
   personalized boolean not null default false,
   plan text,
+  exam_date timestamptz,
   subscription_status text not null default 'free',
   trial_start timestamptz,
   trial_active boolean not null default false,
@@ -24,6 +25,7 @@ alter table public.profiles
   add column if not exists onboarding_completed boolean not null default false,
   add column if not exists personalized boolean not null default false,
   add column if not exists plan text,
+  add column if not exists exam_date timestamptz,
   add column if not exists subscription_status text not null default 'free',
   add column if not exists trial_start timestamptz,
   add column if not exists trial_active boolean not null default false,
@@ -99,6 +101,12 @@ set
     else onboarding_completed
   end;
 
+update public.profiles
+set exam_date = nullif(personalization->>'examDate', '')::timestamptz
+where exam_date is null
+  and personalization ? 'examDate'
+  and nullif(personalization->>'examDate', '') is not null;
+
 create or replace function public.handle_new_user_profile()
 returns trigger
 language plpgsql
@@ -112,6 +120,7 @@ begin
     onboarding_completed,
     personalized,
     plan,
+    exam_date,
     subscription_status,
     trial_start,
     trial_active,
@@ -124,6 +133,7 @@ begin
     new.email,
     false,
     false,
+    null,
     null,
     'free',
     null,
@@ -156,6 +166,9 @@ create index if not exists profiles_trial_active_idx
 
 create index if not exists profiles_trial_ends_at_idx
   on public.profiles(trial_ends_at);
+
+create index if not exists profiles_exam_date_idx
+  on public.profiles(exam_date);
 
 create or replace function public.start_premium_trial_checkout()
 returns public.profiles

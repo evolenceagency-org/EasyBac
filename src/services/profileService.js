@@ -32,6 +32,9 @@ export const createProfile = async (userId, email) => {
         plan: null,
         subscription_status: 'free',
         trial_start: null,
+        trial_active: false,
+        trial_ends_at: null,
+        exam_date: null,
         payment_verified: false,
         personalization: null
       },

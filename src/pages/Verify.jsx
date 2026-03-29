@@ -173,14 +173,9 @@ const Verify = () => {
       clearPendingVerificationEmail()
       setStatus('success')
 
-      const safeRoute = getAuthenticatedHomeRoute({
-        user: verified?.user || user,
-        profile: verified?.profile || profile
-      })
-
       window.setTimeout(() => {
         if (!mountedRef.current) return
-        navigate(safeRoute || '/dashboard', { replace: true })
+        navigate('/onboarding', { replace: true })
       }, 520)
     } catch (verifyError) {
       submittedCodeRef.current = ''

@@ -1,14 +1,17 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowRight, CheckCircle2, ListTodo, Sparkles, TimerReset } from 'lucide-react'
+import { ArrowRight, CalendarDays, CheckCircle2, ListTodo, TimerReset } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useData } from '../context/DataContext.jsx'
+import { useAuth } from '../context/AuthContext.jsx'
 
 const pageMotion = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
   exit: { opacity: 0, y: -10 }
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const formatDueLabel = (task) => {
   if (!task?.due_date) return 'No due date'
@@ -23,6 +26,7 @@ const formatDueLabel = (task) => {
 
 const Dashboard = () => {
   const { tasks, studySessions } = useData()
+  const { profile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [showOnboardingToast, setShowOnboardingToast] = useState(false)
@@ -68,6 +72,35 @@ const Dashboard = () => {
 
   const todaysPlan = useMemo(() => incompleteTasks.slice(0, 3), [incompleteTasks])
 
+  const examCountdown = useMemo(() => {
+    const rawExamDate = profile?.exam_date || profile?.personalization?.examDate
+    if (!rawExamDate) return null
+
+    const examTime = new Date(rawExamDate).getTime()
+    if (Number.isNaN(examTime)) return null
+
+    const remainingMs = examTime - Date.now()
+    const daysLeft = Math.max(0, Math.ceil(remainingMs / DAY_MS))
+    const progress = Math.max(0, Math.min(100, ((180 - daysLeft) / 180) * 100))
+    const urgency = daysLeft <= 14 ? 'high' : daysLeft <= 45 ? 'medium' : 'normal'
+
+    return { daysLeft, progress, urgency }
+  }, [profile?.exam_date, profile?.personalization?.examDate])
+
+  const assistantCopy = useMemo(() => {
+    if (examCountdown?.urgency === 'high') {
+      return nextTask
+        ? `Your exam is in ${examCountdown.daysLeft} days. Protect one focused block today and start with ${nextTask.title}.`
+        : `Your exam is in ${examCountdown.daysLeft} days. Start one focused session today to keep momentum high.`
+    }
+
+    if (nextTask) {
+      return `${formatDueLabel(nextTask)} • ${nextTask.status || 'Ready'}. Start a focused block and keep momentum.`
+    }
+
+    return 'You’re clear to start a new focus session or plan the next task.'
+  }, [examCountdown, nextTask])
+
   return (
     <motion.div
       variants={pageMotion}
@@ -98,11 +131,7 @@ const Dashboard = () => {
             <h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
               {nextTask ? nextTask.title : 'Your next move is ready'}
             </h1>
-            <p className="mt-3 text-sm leading-6 text-white/65">
-              {nextTask
-                ? `${formatDueLabel(nextTask)} • ${nextTask.status || 'Ready'}. Start a focused block and keep momentum.`
-                : 'You’re clear to start a new focus session or plan the next task.'}
-            </p>
+            <p className="mt-3 text-sm leading-6 text-white/65">{assistantCopy}</p>
           </div>
 
           <button
@@ -119,6 +148,40 @@ const Dashboard = () => {
       <div className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
         <section className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-5 backdrop-blur-[20px]">
           <p className="text-[11px] uppercase tracking-[0.22em] text-white/45">Today’s plan</p>
+          {examCountdown ? (
+            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs text-white/50">Exam countdown</p>
+                  <p className="mt-2 text-xl font-semibold text-white">
+                    Your exam is in {examCountdown.daysLeft} day{examCountdown.daysLeft === 1 ? '' : 's'}
+                  </p>
+                  <p className="mt-1 text-sm text-white/60">
+                    {examCountdown.urgency === 'high'
+                      ? 'Final stretch — stay consistent every day.'
+                      : examCountdown.urgency === 'medium'
+                        ? 'Momentum now will matter most later.'
+                        : 'You still have time, so build calm consistency.'}
+                  </p>
+                </div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/[0.04] text-[#c084fc]">
+                  <CalendarDays className="h-4 w-4" />
+                </div>
+              </div>
+              <div className="mt-4 h-2 rounded-full bg-white/[0.06]">
+                <div
+                  className={`h-2 rounded-full transition-all ${
+                    examCountdown.urgency === 'high'
+                      ? 'bg-[#f59e0b]'
+                      : examCountdown.urgency === 'medium'
+                        ? 'bg-[#8b5cf6]'
+                        : 'bg-white/60'
+                  }`}
+                  style={{ width: `${examCountdown.progress}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
               <p className="text-xs text-white/50">Focus today</p>
@@ -192,4 +255,3 @@ const Dashboard = () => {
 }
 
 export default Dashboard
-
