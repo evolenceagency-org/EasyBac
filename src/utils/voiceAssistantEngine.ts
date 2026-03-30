@@ -293,9 +293,7 @@ const FILLER_WORDS = [
 
 const DANGEROUS_INTENTS = new Set(['delete_task', 'clear_overdue'])
 const RANGE_LIMITS = { min: 10, max: 120 }
-const AUDIO_GESTURE_EVENTS = ['pointerdown', 'click', 'touchstart', 'mousedown']
 let audioContextRef = null
-let audioUnlockBound = false
 
 const delay = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
@@ -337,20 +335,11 @@ const getOrCreateAudioContext = () => {
   }
 }
 
-const removeAudioUnlockListeners = () => {
-  if (typeof window === 'undefined' || !audioUnlockBound) return
-  AUDIO_GESTURE_EVENTS.forEach((eventName) => {
-    window.removeEventListener(eventName, handleDeferredAudioUnlock, true)
-  })
-  audioUnlockBound = false
-}
-
 export const unlockAudioContextOnGesture = async () => {
   const ctx = getOrCreateAudioContext()
   if (!ctx) return false
 
   if (ctx.state === 'running') {
-    removeAudioUnlockListeners()
     return true
   }
 
@@ -360,32 +349,10 @@ export const unlockAudioContextOnGesture = async () => {
 
   try {
     await ctx.resume()
-    removeAudioUnlockListeners()
     return ctx.state === 'running'
   } catch {
-    bindDeferredAudioUnlock()
     return false
   }
-}
-
-async function handleDeferredAudioUnlock() {
-  try {
-    await unlockAudioContextOnGesture()
-  } finally {
-    removeAudioUnlockListeners()
-  }
-}
-
-const bindDeferredAudioUnlock = () => {
-  if (typeof window === 'undefined' || audioUnlockBound) return
-  AUDIO_GESTURE_EVENTS.forEach((eventName) => {
-    window.addEventListener(eventName, handleDeferredAudioUnlock, true)
-  })
-  audioUnlockBound = true
-}
-
-if (typeof window !== 'undefined') {
-  bindDeferredAudioUnlock()
 }
 
 export const getAudioContextState = () => {
@@ -398,7 +365,6 @@ export const resumeAudioContext = async () => {
   if (!ctx) return false
 
   if (ctx.state === 'running') {
-    removeAudioUnlockListeners()
     return true
   }
 
@@ -408,10 +374,8 @@ export const resumeAudioContext = async () => {
 
   try {
     await ctx.resume()
-    removeAudioUnlockListeners()
     return ctx.state === 'running'
   } catch {
-    bindDeferredAudioUnlock()
     return false
   }
 }
@@ -1057,10 +1021,7 @@ const playTones = (tones = []) => {
   try {
     const ctx = getExistingAudioContext()
     if (!ctx) return
-    if (ctx.state === 'suspended') {
-      bindDeferredAudioUnlock()
-      return
-    }
+    if (ctx.state === 'suspended') return
     if (ctx.state !== 'running') return
 
     const now = ctx.currentTime
