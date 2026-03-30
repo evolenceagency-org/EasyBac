@@ -1,3 +1,5 @@
+import { correctAssistantTranscript } from './assistantSttCorrectionEngine.ts'
+
 const CACHE_PREFIX = 'assistant-openrouter-cache'
 const CACHE_TTL_MS = 45 * 1000
 const REQUEST_THROTTLE_MS = 45 * 1000
@@ -1190,12 +1192,20 @@ export const resolveAssistantVoicePipeline = async ({
       ok: false,
       reason: 'empty_transcript',
       output: null,
-      decision: null
+      decision: null,
+      correctedTranscript: ''
     }
   }
 
+  const correctedTranscript =
+    correctAssistantTranscript(cleanTranscript, {
+      userId: context?.userId,
+      tasks,
+      weakSubjects: Array.isArray(context?.payload?.weak_subjects) ? context.payload.weak_subjects : []
+    }) || cleanTranscript
+
   const resolved = await fetchAssistantVoiceDecision({
-    transcript: cleanTranscript,
+    transcript: correctedTranscript,
     context,
     signal
   })
@@ -1214,7 +1224,8 @@ export const resolveAssistantVoicePipeline = async ({
       ok: true,
       output,
       decision,
-      source: 'none-fallback'
+      source: 'none-fallback',
+      correctedTranscript
     }
   }
 
@@ -1226,7 +1237,8 @@ export const resolveAssistantVoicePipeline = async ({
       ok: false,
       reason: resolved?.reason || 'voice_failed',
       output: null,
-      decision: null
+      decision: null,
+      correctedTranscript
     }
   }
 
@@ -1246,6 +1258,7 @@ export const resolveAssistantVoicePipeline = async ({
     ok: true,
     output: resolved.output,
     decision,
-    source: resolved.source
+    source: resolved.source,
+    correctedTranscript
   }
 }
