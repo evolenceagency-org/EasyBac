@@ -18,7 +18,7 @@ import SectionCard from '../components/AIControlCenter/SectionCard.jsx'
 import ToggleItem from '../components/AIControlCenter/ToggleItem.jsx'
 import SliderControl from '../components/AIControlCenter/SliderControl.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { createVoiceSession, playAssistantSound, resumeAudioContext, stopVoiceListening } from '../utils/voiceAssistantEngine.ts'
+import { createVoiceSession, playAssistantSound, resumeAudioContext, stopVoiceListening, unlockAudioContextOnGesture } from '../utils/voiceAssistantEngine.ts'
 import {
   getAssistantModeLabel,
   getAutonomyLabel,
@@ -216,6 +216,7 @@ const AIControlCenter = () => {
     setVoiceTranscript('')
     setVoiceStatus('listening')
     setVoiceMessage('Listening for a sample command...')
+    await unlockAudioContextOnGesture()
     await resumeAudioContext()
     playAssistantSound('listening')
 

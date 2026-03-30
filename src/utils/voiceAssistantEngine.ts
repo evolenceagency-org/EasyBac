@@ -293,7 +293,7 @@ const FILLER_WORDS = [
 
 const DANGEROUS_INTENTS = new Set(['delete_task', 'clear_overdue'])
 const RANGE_LIMITS = { min: 10, max: 120 }
-const AUDIO_GESTURE_EVENTS = ['click', 'touchstart', 'mousedown']
+const AUDIO_GESTURE_EVENTS = ['pointerdown', 'click', 'touchstart', 'mousedown']
 let audioContextRef = null
 let audioUnlockBound = false
 
@@ -345,9 +345,32 @@ const removeAudioUnlockListeners = () => {
   audioUnlockBound = false
 }
 
+export const unlockAudioContextOnGesture = async () => {
+  const ctx = getOrCreateAudioContext()
+  if (!ctx) return false
+
+  if (ctx.state === 'running') {
+    removeAudioUnlockListeners()
+    return true
+  }
+
+  if (ctx.state !== 'suspended') {
+    return ctx.state === 'running'
+  }
+
+  try {
+    await ctx.resume()
+    removeAudioUnlockListeners()
+    return ctx.state === 'running'
+  } catch {
+    bindDeferredAudioUnlock()
+    return false
+  }
+}
+
 async function handleDeferredAudioUnlock() {
   try {
-    await resumeAudioContext()
+    await unlockAudioContextOnGesture()
   } finally {
     removeAudioUnlockListeners()
   }
@@ -371,7 +394,7 @@ export const getAudioContextState = () => {
 }
 
 export const resumeAudioContext = async () => {
-  const ctx = getOrCreateAudioContext()
+  const ctx = getExistingAudioContext()
   if (!ctx) return false
 
   if (ctx.state === 'running') {

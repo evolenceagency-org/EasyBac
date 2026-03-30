@@ -29,6 +29,7 @@ import {
 } from '../../utils/assistantDecisionEngine.ts'
 import {
   createVoiceSession,
+  unlockAudioContextOnGesture,
   playAssistantSound,
   resumeAudioContext,
   startVoiceListening,
@@ -973,6 +974,9 @@ const AssistantBar = () => {
   }, [openIsland])
 
   const gesture = useAssistantIslandGestures({
+    onGestureStart: () => {
+      void unlockAudioContextOnGesture()
+    },
     onHold: () => {
       openIsland()
       triggerAI()

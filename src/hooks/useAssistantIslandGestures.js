@@ -23,6 +23,7 @@ const clearIntervalRef = (intervalRef) => {
 
 const useAssistantIslandGestures = ({
   enabled = true,
+  onGestureStart,
   onHold,
   onTap,
   onSwipeLeft,
@@ -124,6 +125,8 @@ const useAssistantIslandGestures = ({
     onPointerDown: (event) => {
       if (!enabled) return
       if (event.button != null && event.button !== 0) return
+
+      onGestureStart?.(event)
 
       try {
         event.currentTarget.setPointerCapture?.(event.pointerId)
@@ -236,7 +239,7 @@ const useAssistantIslandGestures = ({
       WebkitUserSelect: 'none',
       WebkitTouchCallout: 'none'
     }
-  }), [beginHold, cancelInteraction, clearHoldState, commitSwipe, enabled, onTap, resetMotion])
+  }), [beginHold, cancelInteraction, clearHoldState, commitSwipe, enabled, onGestureStart, onTap, resetMotion])
 
   useEffect(() => () => cancelInteraction(), [cancelInteraction])
 
